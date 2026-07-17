@@ -20,7 +20,7 @@ Muốn đổi quy trình CI thì sửa ở repo cha (1 chỗ).
 ## Quy tắc
 - Chỉ đụng file trong `packages/kb/**` (fence-lane của bạn) — không sửa surface domain khác.
 - `test_leak.py` là red-by-design: giữ RED tới khi fence-DATA land thật; làm hỏng fence → CI đỏ, chặn PR.
-- Đổi contract → sang repo `agentcore-studio-contracts` (2-approval).
+- Đổi contract → sang repo `agentcore-studio-contracts` (mentor-approval).
 - Không commit tài liệu mentor/rubric/answer-key (pre-commit `nda-denylist` chặn).
 
 📖 Phân quyền + luồng thao tác đầy đủ: [GITFLOWS.md](https://github.com/hieubui2409/agentcore-studio-kit/blob/main/GITFLOWS.md)
