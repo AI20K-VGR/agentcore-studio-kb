@@ -1,21 +1,7 @@
-# CI cho repo con `agentcore-studio-kb` — PHƯƠNG ÁN B (reconstruct workspace) + CÁCH B (fine-grained PAT read-only).
-#
-# Vì đơn vị test thật của kb là CẢ uv-workspace (kb import agentcore-studio-contracts, cần
-# uv.lock + docker/postgres-init của repo cha, và một Postgres pgvector còn sống), CI của repo
-# con KHÔNG thể test kb đứng một mình. Workflow này dựng lại full workspace:
-#   1. checkout code PR của chính kb (dùng GITHUB_TOKEN mặc định — cùng repo, không cần gì thêm)
-#   2. clone repo cha private + TẤT CẢ submodule (contracts, engine, ...) bằng PAT read-only
-#   3. đắp code PR của kb đè lên packages/kb trong workspace vừa dựng
-#   4. uv sync --frozen → bật pgvector → chạy pytest packages/kb/tests (gồm cả test_leak.py)
-#
-# KHÔNG LỘ TOKEN — các bảo chứng:
-#   • PAT chỉ nằm trong GitHub Actions Secret (mã hoá), tham chiếu qua ${{ secrets.* }};
-#     GitHub tự động mask giá trị này khỏi mọi dòng log.
-#   • Token chỉ được nhét vào git config header (url.insteadOf), KHÔNG bao giờ echo / in ra.
-#   • PAT là fine-grained: Contents=Read-only, chỉ scope đúng các repo studio (least-privilege),
-#     có hạn dùng → lộ cũng không ghi được và tự hết hạn.
-#   • PR từ fork KHÔNG được cấp secret (mặc định GitHub chặn) → job này chỉ chạy full trên
-#     nhánh nội bộ; với fork ta để nó suy biến thành lint-nông (xem job `lint-shallow`).
+# CI repo con — STUB: chỉ gọi reusable workflow ở repo cha. Toàn bộ logic reconstruct nằm 1 chỗ:
+#   agentcore-studio-kit/.github/workflows/reusable-domain-ci.yml
+# Muốn đổi quy trình CI (bước test, DB, token...) thì sửa file đó, cả 6 repo con ăn theo.
+# secrets: inherit truyền STUDIO_CI_READ_PAT (đã set ở repo con) sang reusable workflow.
 name: ci
 
 on:
@@ -23,98 +9,10 @@ on:
     branches: ["main"]
   pull_request:
 
-env:
-  UV_VERSION: "0.11.19"
-  PARENT_REPO: hieubui2409/agentcore-studio-kit
-  DOMAIN_PATH: packages/kb
-  DOMAIN_PACKAGE: agentcore-studio-kb
-
 jobs:
-  # Job đầy đủ: chỉ chạy khi secret có mặt (push nội bộ / PR cùng repo, KHÔNG phải fork).
-  test-reconstructed:
-    if: github.event.pull_request.head.repo.fork == false
-    runs-on: ubuntu-latest
-    env:
-      STUDIO_DATABASE_URL: postgresql://studio_app:changeme@localhost:5433/studio_test
-      STUDIO_DATABASE_URL_ADMIN: postgresql://studio_owner:changeme@localhost:5433/studio_test
-    steps:
-      # (1) Code PR của kb → thư mục tạm _kb_pr (GITHUB_TOKEN mặc định là đủ, cùng repo).
-      - name: Checkout kb (PR head)
-        uses: actions/checkout@v4
-        with:
-          path: _kb_pr
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: ${{ env.UV_VERSION }}
-
-      # (2) Dựng lại workspace từ repo cha private + toàn bộ submodule, bằng PAT read-only.
-      #     Route MỌI truy cập github.com (repo cha + mọi submodule, dù .gitmodules ghi SSH hay
-      #     HTTPS) qua token trên HTTPS bằng url.insteadOf. Token chỉ sống trong git config,
-      #     không xuất hiện trên command line hay log.
-      - name: Reconstruct workspace (private parent + submodules)
-        env:
-          GH_PAT: ${{ secrets.STUDIO_CI_READ_PAT }}
-        run: |
-          if [ -z "${GH_PAT}" ]; then
-            echo "::error::Thiếu secret STUDIO_CI_READ_PAT — xem hướng dẫn ở đầu file ci.yml."
-            exit 1
-          fi
-          BASE="https://x-access-token:${GH_PAT}@github.com/"
-          git config --global url."${BASE}".insteadOf "https://github.com/"
-          git config --global --add url."${BASE}".insteadOf "git@github.com:"
-          git config --global --add url."${BASE}".insteadOf "ssh://git@github.com/"
-          git clone --recursive "https://github.com/${PARENT_REPO}.git" workspace
-          # Dọn credential khỏi git config ngay khi clone xong (runner ephemeral, nhưng vẫn hygiene).
-          git config --global --remove-section url."${BASE}" || true
-
-      # (3) Đắp code PR của kb đè lên slot packages/kb của workspace (bỏ .git của PR).
-      - name: Overlay PR code into workspace
-        run: |
-          rm -rf "workspace/${DOMAIN_PATH}"
-          mkdir -p "workspace/${DOMAIN_PATH}"
-          cp -a _kb_pr/. "workspace/${DOMAIN_PATH}/"
-          rm -rf "workspace/${DOMAIN_PATH}/.git"
-
-      # (4) Sync + test trên workspace đã tái tạo.
-      #     --frozen là CÓ CHỦ ĐÍCH: nếu PR của kb đổi dependency mà chưa bump uv.lock ở repo cha,
-      #     bước này FAIL — đó là tín hiệu phải phối hợp ops bump lock, không phải để CI tự relock.
-      - name: uv sync (frozen)
-        working-directory: workspace
-        run: uv sync --frozen
-
-      - name: Start pgvector test DB
-        working-directory: workspace
-        run: |
-          docker run -d --name studio-ci-pg \
-            -p 5433:5432 \
-            -e POSTGRES_DB=studio_test -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
-            -v "$PWD/docker/postgres-init:/docker-entrypoint-initdb.d:ro" \
-            pgvector/pgvector:pg17
-          for i in $(seq 1 30); do
-            docker exec studio-ci-pg pg_isready -U postgres -d studio_test && break
-            sleep 2
-          done
-
-      - name: Run kb tests (incl. leak)
-        working-directory: workspace
-        run: uv run --package "${DOMAIN_PACKAGE}" pytest "${DOMAIN_PATH}/tests" -q
-
-      - name: Stop pgvector test DB
-        if: always()
-        run: docker rm -f studio-ci-pg
-
-  # Fallback cho PR từ fork (không có secret): chỉ lint-nông trên chính code kb, không dựng workspace.
-  lint-shallow:
-    if: github.event.pull_request.head.repo.fork == true
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: ${{ env.UV_VERSION }}
-      # Không có contracts/workspace nên chỉ format+lint tĩnh được; mypy/tests bỏ qua có chủ đích.
-      - run: uvx ruff check src tests
-      - run: uvx ruff format --check src tests
+  ci:
+    uses: hieubui2409/agentcore-studio-kit/.github/workflows/reusable-domain-ci.yml@main
+    with:
+      domain_path: packages/kb
+      domain_package: agentcore-studio-kb
+    secrets: inherit
