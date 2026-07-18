@@ -2,10 +2,10 @@
 
 > KB pipeline + fence-DATA: `kb.search` + chunk-level RLS (fence F5).
 
-**Owner:** DE · **Loại:** uv workspace member (Python 3.14) · **Repo cha:** [agentcore-studio-kit](https://github.com/hieubui2409/agentcore-studio-kit)
+**Owner:** DE — Nguyễn Đông Anh · **Loại:** uv workspace member (Python 3.14) · **Repo cha:** [agentcore-studio-kit](https://github.com/hieubui2409/agentcore-studio-kit)
 
 ## Repo này là gì
-Submodule `packages/kb` của workspace `agentcore-studio-kit`. Owner: **DE**. Chứa KB pipeline và hàng rào dữ liệu (chunk-level RLS, leak-test).
+Submodule `packages/kb` của workspace `agentcore-studio-kit`. Owner: **DE — Nguyễn Đông Anh**. Chứa KB pipeline và hàng rào dữ liệu (chunk-level RLS, leak-test).
 
 ## ⚠️ Không build/test độc lập được
 `agentcore-studio-kb` phụ thuộc `agentcore-studio-contracts` + uv.lock + `docker/postgres-init` của repo cha, và cần **Postgres pgvector** cho test (RLS / leak). Vì vậy:
