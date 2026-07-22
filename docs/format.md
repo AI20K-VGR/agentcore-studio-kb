@@ -154,6 +154,12 @@ nguồn, và nguồn lệch tenant thì bắt buộc phải là từ chối.
 
 > Nội dung là placeholder. Nhãn thật viết Day 4, sau khi 5 doc có nội dung
 > (`callisto-doc-schema.md` §8).
+>
+> ✅ **Cập nhật D3 (22/07): điều kiện tiên quyết đã đủ** — cả 5 doc đã có nội dung thật ở
+> `docs/callisto/` (25 chunk). Nội dung doc **viết bám đúng các giá trị placeholder dưới đây**
+> (3 ngày · 7 ngày · 20 triệu), nên Day 4 là **xác nhận + gán nhãn**, không phải viết lại.
+> Hai case âm giờ cũng có nguồn thật: SC-04 trỏ `borea-expense-001` (77 triệu), SC-05 trỏ
+> `ankor-salary-001` (vai `hr`).
 
 ```yaml
 cases:

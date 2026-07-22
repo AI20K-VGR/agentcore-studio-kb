@@ -11,3 +11,5 @@ __pycache__/
 .env
 .env.*
 # uv.lock sống ở repo cha (agentcore-studio-kit), KHÔNG ở submodule này
+# Rác macOS Finder — không nguồn nào yêu cầu, chặn ở đây để `git add -A` không lỡ tay kéo vào
+.DS_Store

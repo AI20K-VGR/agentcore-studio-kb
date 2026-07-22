@@ -179,7 +179,13 @@ Tên file/interface **khớp umbrella §3**: `trace-event` (§3.2) · `kb.search
 
 ### D2-6 · Question-batch ≥3 câu — **gửi TRƯỚC khi code** (DoD)
 
-File: `docs/question-batch-d02.md`. Mẫu mỗi câu: **hỏi · vì sao chặn · phương án mặc định nếu không kịp có trả lời**.
+Mẫu mỗi câu: **hỏi · vì sao chặn · phương án mặc định nếu không kịp có trả lời**.
+
+> 📍 **Nơi ở thật của question-batch** *(ghi lại 22/07 — kế hoạch ban đầu định đặt ở `docs/question-batch-d02.md`, thực tế đi khác)*:
+> 1. **Bảng Q1–Q6 ngay dưới đây** — bản đầy đủ kèm cột "vì sao chặn" và "mặc định nếu chưa có trả lời".
+> 2. **Daily-note D2**, mục *"Bối cảnh & câu hỏi"* — `docs/reports/daily-notes/2026-07-21-DongAnh2704.md`, commit `96ccc84` trên `AI20K-VGR/agentcore-report`.
+>
+> **Không tạo file `question-batch-d02.md` riêng.** Question-batch không phải deliverable độc lập — nó là *bằng chứng đã hỏi trước khi code*. Bằng chứng đó mạnh nhất khi nằm trong **daily-note đã push có timestamp**, chứ không phải một file `.md` rời có thể viết bổ sung lúc nào cũng được. Thêm bản thứ ba chỉ tạo ra ba nguồn sẽ lệch nhau.
 
 | # | Câu hỏi | Vì sao chặn | Mặc định nếu chưa có trả lời |
 |---|---|---|---|

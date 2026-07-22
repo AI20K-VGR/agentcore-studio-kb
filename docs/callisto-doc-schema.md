@@ -257,13 +257,20 @@ ghi vào**, không phải kiểm lúc đọc ra.
 5 doc này **không phải chọn ngẫu nhiên**. Chúng phải đủ để dựng cả case dương lẫn hai loại case âm
 cho smoke-case (và dùng lại nguyên si ở leak-test T1/T6 tại S3):
 
-| # | `doc_id` | tenant | section | Chủ đề |
-|---|---|---|---|---|
-| 1 | `ankor-leave-001` | ankor | public | Quy trình nghỉ phép |
-| 2 | `ankor-expense-001` | ankor | public + **finance** | Chi tiêu — doc nhiều section (§5), ingest thành **2 lời gọi `index()`** |
-| 3 | `ankor-salary-001` | ankor | **hr** | Thang lương |
-| 4 | `borea-leave-001` | borea | public | Quy trình nghỉ phép — **nội dung khác hẳn** |
-| 5 | `borea-expense-001` | borea | **finance** | Hạn mức chi — **con số khác hẳn** |
+| # | `doc_id` | tenant | section | Chủ đề | TT |
+|---|---|---|---|---|---|
+| 1 | `ankor-leave-001` | ankor | public | Quy trình nghỉ phép | ✅ D3 · 5 chunk |
+| 2 | `ankor-expense-001` | ankor | public + **finance** | Chi tiêu — doc nhiều section (§5), ingest thành **2 lời gọi `index()`** | ✅ D3 · 5 chunk (`#c2` = finance) |
+| 3 | `ankor-salary-001` | ankor | **hr** | Thang lương | ✅ D3 · 5 chunk |
+| 4 | `borea-leave-001` | borea | public | Quy trình nghỉ phép — **nội dung khác hẳn** | ✅ D3 · 5 chunk |
+| 5 | `borea-expense-001` | borea | **finance** | Hạn mức chi — **con số khác hẳn** | ✅ D3 · 5 chunk |
+
+> **Viết ở D3 (22/07) — đủ cả 5 doc**, nằm ở `docs/callisto/`, tổng 25 chunk.
+> Nội dung **bám đúng đáp án placeholder** của `format.md` §8: `ankor-leave-001#c1` = 3 ngày,
+> `borea-leave-001#c1` = 7 ngày, `ankor-expense-001#c2` = 20 triệu. Hai doc phục vụ case âm cũng đã
+> có nguồn thật: `ankor-salary-001` (vai `hr`, mồi SC-05 chéo vai) và `borea-expense-001`
+> (**77 triệu** — lệch hẳn 20 triệu của Ankor đúng như §9 yêu cầu, mồi SC-04 chéo tenant).
+> Day 4 vì thế chỉ còn **gán nhãn `expected`**, không phải viết nội dung.
 
 **Ba tình huống bộ này dựng được:**
 
