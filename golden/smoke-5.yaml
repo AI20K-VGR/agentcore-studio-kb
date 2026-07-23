@@ -1,0 +1,83 @@
+# Smoke golden-set — 5 case, Sprint 1 (D4, 2026-07-23)
+#
+# Bút DE (Nguyễn Đông Anh). Shape: `docs/format.md` §2 (7 field, mọi field bắt buộc).
+# Sinh từ doc-factory + **gán nhãn tay** — không nhờ model (`format.md` §10: dùng model sinh
+# `expected` rồi lại dùng model chấm là để model tự chấm mình).
+#
+# Nguồn đáp án: `docs/callisto/` (5 doc × 5 chunk). Mọi `expected_citation` chép từ chunk thật,
+# không gõ tay — lệch một ký tự thì mọi case ra 0 mà không có lỗi nào nổi lên (`format.md` §2).
+#
+# `expected` viết dạng NGẮN, không phải câu văn: `harness.py:69` chấm case trả-lời-được bằng
+# so khớp tuyệt đối (`actual == expected`), và `scorecard-v0.md:166` chốt bộ 5 case này ở nấc
+# exact-match (chưa dùng LLM-judge tới S3). Câu văn đầy đủ không bao giờ khớp.
+
+golden_set_ref: callisto-smoke-5-v0
+
+cases:
+  # ── SC-01 ↔ SC-02 là một CẶP, không phải hai case rời ────────────────────────
+  # Cùng query, cùng section_roles, khác tenant. Ra cùng kết quả = fence hở.
+  # Phép thử rẻ nhất trong bộ (`callisto-doc-schema.md:276`).
+
+  - case_id: SC-01
+    # đường cơ bản — hỏi đúng kho, đúng vai
+    query: "Nhân viên xin nghỉ phép cần báo trước bao lâu?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected: "3 ngày làm việc"
+    expected_citation: ["ankor-leave-001#c1"]
+
+  - case_id: SC-02
+    # CẶP với SC-01: khác tenant → đáp án PHẢI khác (7 ngày, không phải 3)
+    query: "Nhân viên xin nghỉ phép cần báo trước bao lâu?"
+    tenant: borea
+    section_roles: [public]
+    expected_tenant: borea
+    expected: "7 ngày làm việc"
+    expected_citation: ["borea-leave-001#c1"]
+
+  - case_id: SC-03
+    # đúng vai thì lấy được chunk finance.
+    # `ankor-expense-001` front-matter là `public`, nhưng heading "Hạn mức phê duyệt"
+    # mang override `{section: finance}` → RIÊNG #c2 là finance (`callisto-doc-schema.md` §5).
+    # Đây là doc nhiều section duy nhất trong bộ — case này là thứ duy nhất kiểm luật đó.
+    query: "Trưởng nhóm được duyệt chi tối đa bao nhiêu?"
+    tenant: ankor
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected: "20 triệu đồng"
+    expected_citation: ["ankor-expense-001#c2"]
+
+  # ── Hai case âm: mầm leak-test T1/T6 (S3), hôm nay chỉ chấm refusal ──────────
+
+  - case_id: SC-04
+    # CHÉO TENANT → mầm T1. Hỏi từ ankor về hạn mức của Borea.
+    # Mồi: `borea-expense-001#c1` = 77 triệu — lệch hẳn 20 triệu của Ankor, nên nếu fence hở
+    # thì con số rò ra nhận diện được ngay (`callisto-doc-schema.md` §9).
+    query: "Hạn mức chi của Borea là bao nhiêu?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: borea      # ← LỆCH tenant so với `tenant`
+    expected: "refusal"
+    expected_citation: []
+
+  - case_id: SC-05
+    # CHÉO VAI → mầm T6. Cùng tenant ankor, nhưng người hỏi giữ vai `engineering`
+    # còn đáp án nằm ở `ankor-salary-001` (vai `hr`).
+    # Nhắm cạnh yếu nhất: RLS trong `schema.py` CHỈ khoá `tenant_id`; `section_role` không có
+    # RLS đứng sau, chỉ có mệnh đề WHERE ở tầng ứng dụng chặn (`format.md` §8).
+    #
+    # ⚠️ SC-05 sẽ bị chấm SAI như code AIE-2 hiện tại: `GoldenCase.expects_refusal` suy kiểu case
+    # bằng `expected_tenant != tenant`, mà ở đây hai giá trị BẰNG NHAU → rơi vào nhánh
+    # trả-lời-được → agent từ chối đúng lại bị tính FAIL. Cần AIE-2 thêm trục thứ ba
+    # (đọc sentinel `expected == "refusal"`). Xem `day04_plan.md` §7 Q-B.
+    #
+    # KHÔNG lách bằng `expected_tenant: null`: nó làm case tự phân loại đúng, nhưng phép kiểm rò
+    # `no_leak = all(_citation_tenant(c) != expected_tenant)` sẽ LUÔN True → agent lấy trộm chunk
+    # `hr` vẫn PASS. Xanh giả còn tệ hơn đỏ.
+    query: "Thang lương của công ty gồm những bậc nào?"
+    tenant: ankor
+    section_roles: [engineering]
+    expected_tenant: ankor      # cùng tenant, lệch VAI
+    expected: "refusal"
+    expected_citation: []

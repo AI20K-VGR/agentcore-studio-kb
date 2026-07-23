@@ -160,6 +160,29 @@ nguồn, và nguồn lệch tenant thì bắt buộc phải là từ chối.
 > (3 ngày · 7 ngày · 20 triệu), nên Day 4 là **xác nhận + gán nhãn**, không phải viết lại.
 > Hai case âm giờ cũng có nguồn thật: SC-04 trỏ `borea-expense-001` (77 triệu), SC-05 trỏ
 > `ankor-salary-001` (vai `hr`).
+>
+> ✅ **Cập nhật D4 (23/07): nhãn tay đã chốt — bản dùng thật nằm ở `golden/smoke-5.yaml`.**
+> Khối YAML dưới đây giữ lại làm **bản thiết kế** (vì sao chọn 5 case này, cặp nào ghép với cặp
+> nào); khi lệch nhau thì **file `golden/` là chuẩn**, không phải đoạn này.
+>
+> Một chỗ đã đổi so với thiết kế: `expected` của 3 case dương viết **dạng ngắn**
+> (`"3 ngày làm việc"` thay vì cả câu *"Báo trước tối thiểu 3 ngày làm việc."*). Lý do là bên
+> chấm: `harness.py:69` so **khớp tuyệt đối** `actual == expected`, và `scorecard-v0.md:166` chốt
+> bộ 5 case này ở nấc **exact-match** (LLM-judge tới S3 mới xuất hiện). Câu văn đầy đủ thì không
+> agent nào khớp nổi. Đổi bên mình rẻ hơn bắt AIE-2 đổi luật chấm.
+
+**Bảng `chunk_id` — từ vựng chung để chấm citation** (đối chiếu tay với `docs/callisto/`, D4):
+
+| doc | c1 | c2 | c3 | c4 | c5 |
+|---|---|---|---|---|---|
+| `ankor-leave-001` · public | Thời hạn báo trước | Cách nộp đơn | Nghỉ đột xuất | Ngày phép năm | Liên hệ hỗ trợ |
+| `ankor-expense-001` · public | Nguyên tắc chung | **Hạn mức phê duyệt → `finance`** | Hồ sơ cần nộp | Thời gian hoàn ứng | Liên hệ hỗ trợ |
+| `ankor-salary-001` · hr | Cấu trúc thang lương | Xét tăng bậc | Phụ cấp | Kỳ trả lương | Bảo mật thông tin lương |
+| `borea-leave-001` · public | Thời hạn báo trước | Quy trình duyệt hai cấp | Nghỉ đột xuất | Ngày phép năm | Nghỉ không lương |
+| `borea-expense-001` · finance | Hạn mức phê duyệt | Quy trình đề nghị | Chứng từ | Hoàn ứng | Kiểm soát nội bộ |
+
+> `ankor-expense-001#c2` là chunk **duy nhất** trong bộ mang `section_role` khác front-matter
+> (override tại heading, `callisto-doc-schema.md` §5) — SC-03 là case duy nhất kiểm được luật đó.
 
 ```yaml
 cases:
