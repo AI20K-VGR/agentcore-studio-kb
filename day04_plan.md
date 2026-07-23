@@ -150,10 +150,15 @@ hẳn** (3 ngày vs 7 ngày) — đây là phép thử fence rẻ nhất (`calli
 
 ### D4-3 · `golden/smoke-5.yaml` — 5 case nhãn tay — ✅ **XONG (23/07)**
 
-> **TT:** file đã tạo, 5 case × 7 field, nạp được vào `GoldenSet` của AIE-2. Một điều chỉnh so với
-> thiết kế §8: `expected` của 3 case dương viết **dạng ngắn** (`"3 ngày làm việc"`) vì `harness.py:69`
-> so khớp **tuyệt đối** và `scorecard-v0.md:166` chốt bộ này ở nấc exact-match. Sửa bên mình rẻ hơn
-> bắt AIE-2 đổi luật chấm — nên **Q-F (dự định hỏi về exact-match) đã tự đóng, không cần hỏi.**
+> **TT:** file đã tạo, 5 case × 7 field, nạp được vào `GoldenSet` của AIE-2. `expected` của 3 case
+> dương viết **dạng ngắn** (`"3 ngày làm việc"`).
+>
+> ✅ **23/07: AIE-2 đồng ý đổi luật chấm sang `contains`** (`answer` chứa `expected` là PASS). Đã
+> kiểm với câu trả lời diễn đạt tự nhiên → SC-01/02/03 PASS. **Nhãn giữ nguyên, không sửa YAML.**
+> Ghi vào sổ chốt `format.md` §9b (spec của mình bắt: "không chốt miệng").
+>
+> ⚠️ Đừng rút nhãn ngắn thêm: `"3 ngày"` va với *"Nghỉ ốm từ 3 ngày liên tiếp"* ở `#c3` → PASS oan.
+> Luật nhãn dưới `contains`: **ngắn nhất mà vẫn duy nhất trong kho của tenant đó.**
 
 Đường dẫn theo **bút của chính tôi** `format.md` §1: `packages/kb/golden/smoke-5.yaml`.
 *(Brief `day-04.md:32` viết `golden/smoke_5.yaml` — gạch dưới. Giữ `smoke-5.yaml` cho khớp file
@@ -325,7 +330,7 @@ cost dashboard.
 | # | Hỏi ai | Nội dung | Nghiêng về |
 |---|---|---|---|
 | **Q-A** *(chặn DoD `:55`)* | **AIE-2** | `format.md` §1 chốt golden-set là **YAML ở `packages/kb/golden/`**, nhưng `run_smoke()` nhận `GoldenSet` in-memory và `cli.py` đang hard-code `_demo_golden_set()`. **Ai viết loader YAML → `GoldenSet`?** | **AIE-2** — §10 chia "DE giữ file · AIE-2 chỉ đọc", loader thuộc phía đọc. *Nếu AIE-2 không kịp:* tôi ship hàm đọc trong `packages/kb` trả `list[dict]` đúng 7 field, AIE-2 tự dựng `GoldenCase` — **không** để `packages/kb` import `studio_evalhub` (ngược chiều phụ thuộc, `make lint` chặn) |
-| **Q-B** *(chặn DoD `:55` — **đã có repro**)* | **AIE-2** | Nạp `golden/smoke-5.yaml` vào `GoldenSet` rồi chấm bằng một agent **hành xử đúng tuyệt đối** (trả đúng đáp án, từ chối đúng chỗ, không rò chunk nào) → **4/5 PASS**, SC-05 là case duy nhất đỏ. `expects_refusal = expected_tenant != tenant` **không biểu diễn được refusal chéo vai**. SC-05 (`ankor`/`[engineering]` hỏi thang lương `hr`) có `expected_tenant == tenant` → rơi vào nhánh trả-lời-được → agent **từ chối đúng** bị chấm **FAIL**. Sửa thế nào? | thêm trục thứ ba, **không** bắt tôi bẻ nhãn. Rẻ nhất: đọc sentinel `expected == "refusal"` (`format.md` §5) như một điều kiện `or`. Hoặc so `section_roles` với `section_role` của chunk đáp án — nhưng cái đó cần dữ liệu KB, đắt hơn |
+| **Q-B** *(chặn DoD `:55` — **đã có repro · CHƯA đóng sau khi chốt `contains`**)* | **AIE-2** | ⚠️ Đổi sang `contains` (23/07) **không sửa được cái này**: nhánh trả-lời-được bắt đầu bằng `not refused`, nên agent từ chối đúng fail ngay, luật so chuỗi phía sau không kịp có tác dụng. Lỗi **phân loại**, không phải lỗi so khớp. Repro: agent **hành xử đúng tuyệt đối** vẫn ra **4/5**, SC-05 đỏ dưới cả hai luật. `expects_refusal = expected_tenant != tenant` **không biểu diễn được refusal chéo vai**. SC-05 (`ankor`/`[engineering]` hỏi thang lương `hr`) có `expected_tenant == tenant` → rơi vào nhánh trả-lời-được → agent **từ chối đúng** bị chấm **FAIL**. Sửa thế nào? | thêm trục thứ ba, **không** bắt tôi bẻ nhãn. Rẻ nhất: đọc sentinel `expected == "refusal"` (`format.md` §5) như một điều kiện `or`. Hoặc so `section_roles` với `section_role` của chunk đáp án — nhưng cái đó cần dữ liệu KB, đắt hơn |
 | **Q-C** | **AIE-1** | Hôm nay bạn tiêm `kb.search` thật ở **đâu**? `demo_stubs.py:26` ghi "Day 6 · `apps/studio`" nhưng `day-04.md:39` giao nối thật hôm nay. Tôi sẽ export `StaticKbSearch` từ `studio_kb` — bạn import thẳng, hay cần tôi để ở chỗ khác? | import thẳng `from studio_kb.static_search import StaticKbSearch` cho đường **demo D4**; đường `apps/studio` vẫn để D6 |
 | **Q-D** *(chuyển tiếp, chưa có trả lời)* | SWE + mentor | Từ vựng `section_role` 4 giá trị `{public, hr, finance, engineering}` chốt chưa? SWE resolve role server-side nên phải khớp. *Ghi chú: demo của AIE-2 (`cli.py:31`) đang dùng `section_roles=["employee"]` — **ngoài từ vựng**. Case đó synthetic nên sẽ biến mất khi YAML thật land, nhưng nếu `"employee"` là ý định thật thì phải chốt lại từ vựng.* | giữ 4 giá trị |
 | **Q-E** | mentor | Tên file: `format.md` §1 dùng `smoke-5.yaml`, `day-04.md:32` dùng `smoke_5.yaml`. Giữ bản nào? | **`smoke-5.yaml`** — đã phát cho AIE-2 từ D2, đổi bây giờ tốn hơn |
