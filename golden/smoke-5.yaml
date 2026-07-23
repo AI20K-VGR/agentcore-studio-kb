@@ -1,15 +1,21 @@
 # Smoke golden-set — 5 case, Sprint 1 (D4, 2026-07-23)
 #
-# Bút DE (Nguyễn Đông Anh). Shape: `docs/format.md` §2 (7 field, mọi field bắt buộc).
+# Bút DE (Nguyễn Đông Anh). Shape: `docs/format.md` §2 (8 field, mọi field bắt buộc).
 # Sinh từ doc-factory + **gán nhãn tay** — không nhờ model (`format.md` §10: dùng model sinh
 # `expected` rồi lại dùng model chấm là để model tự chấm mình).
 #
 # Nguồn đáp án: `docs/callisto/` (5 doc × 5 chunk). Mọi `expected_citation` chép từ chunk thật,
 # không gõ tay — lệch một ký tự thì mọi case ra 0 mà không có lỗi nào nổi lên (`format.md` §2).
 #
-# `expected` viết dạng NGẮN, không phải câu văn: `harness.py:69` chấm case trả-lời-được bằng
-# so khớp tuyệt đối (`actual == expected`), và `scorecard-v0.md:166` chốt bộ 5 case này ở nấc
-# exact-match (chưa dùng LLM-judge tới S3). Câu văn đầy đủ không bao giờ khớp.
+# `expected` viết dạng NGẮN, không phải câu văn: AIE-2 chốt luật `contains` (23/07) — `answer`
+# CHỨA `expected` là PASS. Ngắn nhất mà vẫn duy nhất trong kho của tenant đó: `"3 ngày"` va với
+# "Nghỉ ốm từ 3 ngày liên tiếp" ở `#c3` nên phải là `"3 ngày làm việc"`.
+#
+# `expected_section_role` (thêm 23/07) — vai mà đáp án NẰM Ở, không phải vai người hỏi. Đây là
+# trục thứ hai của hàng rào, và nó BẮT BUỘC phải là một field riêng: `chunk_id` mã hoá tenant ở
+# tiền tố (`ankor-...` → `ankor`) nhưng KHÔNG mã hoá vai, nên không suy ngược ra được từ
+# `expected_citation` — mà case từ chối lại có `expected_citation: []`, càng không có gì để suy.
+# Thiếu field này thì refusal chéo-vai (SC-05) không biểu diễn được, xem `format.md` §6 R9.
 
 golden_set_ref: callisto-smoke-5-v0
 
@@ -24,6 +30,7 @@ cases:
     tenant: ankor
     section_roles: [public]
     expected_tenant: ankor
+    expected_section_role: public
     expected: "3 ngày làm việc"
     expected_citation: ["ankor-leave-001#c1"]
 
@@ -33,6 +40,7 @@ cases:
     tenant: borea
     section_roles: [public]
     expected_tenant: borea
+    expected_section_role: public
     expected: "7 ngày làm việc"
     expected_citation: ["borea-leave-001#c1"]
 
@@ -45,6 +53,7 @@ cases:
     tenant: ankor
     section_roles: [finance]
     expected_tenant: ankor
+    expected_section_role: finance     # chunk override — KHÁC `section: public` ở front-matter
     expected: "20 triệu đồng"
     expected_citation: ["ankor-expense-001#c2"]
 
@@ -57,7 +66,8 @@ cases:
     query: "Hạn mức chi của Borea là bao nhiêu?"
     tenant: ankor
     section_roles: [public]
-    expected_tenant: borea      # ← LỆCH tenant so với `tenant`
+    expected_tenant: borea             # ← LỆCH tenant so với `tenant`  → T1
+    expected_section_role: finance     # (cũng lệch vai, nhưng T1 đã đủ chặn)
     expected: "refusal"
     expected_citation: []
 
@@ -67,17 +77,18 @@ cases:
     # Nhắm cạnh yếu nhất: RLS trong `schema.py` CHỈ khoá `tenant_id`; `section_role` không có
     # RLS đứng sau, chỉ có mệnh đề WHERE ở tầng ứng dụng chặn (`format.md` §8).
     #
-    # ⚠️ SC-05 sẽ bị chấm SAI như code AIE-2 hiện tại: `GoldenCase.expects_refusal` suy kiểu case
-    # bằng `expected_tenant != tenant`, mà ở đây hai giá trị BẰNG NHAU → rơi vào nhánh
-    # trả-lời-được → agent từ chối đúng lại bị tính FAIL. Cần AIE-2 thêm trục thứ ba
-    # (đọc sentinel `expected == "refusal"`). Xem `day04_plan.md` §7 Q-B.
+    # ✅ 23/07: case này TỪNG bị chấm sai — `expects_refusal` cũ suy kiểu case chỉ bằng
+    # `expected_tenant != tenant`, mà ở đây hai giá trị BẰNG NHAU nên nó rơi vào nhánh
+    # trả-lời-được và agent từ chối đúng lại bị tính FAIL. AIE-2 đã vá: xét CẢ vai lẫn tenant,
+    # dựa vào `expected_section_role` bên dưới. Xem `format.md` §9b.
     #
-    # KHÔNG lách bằng `expected_tenant: null`: nó làm case tự phân loại đúng, nhưng phép kiểm rò
-    # `no_leak = all(_citation_tenant(c) != expected_tenant)` sẽ LUÔN True → agent lấy trộm chunk
-    # `hr` vẫn PASS. Xanh giả còn tệ hơn đỏ.
+    # KHÔNG bao giờ lách bằng `expected_tenant: null` (đã cân nhắc và loại): case sẽ tự phân loại
+    # đúng, nhưng phép kiểm rò `no_leak = all(_citation_tenant(c) != expected_tenant)` khi đó LUÔN
+    # True → agent lấy trộm chunk `hr` vẫn PASS. Xanh giả còn tệ hơn đỏ.
     query: "Thang lương của công ty gồm những bậc nào?"
     tenant: ankor
     section_roles: [engineering]
-    expected_tenant: ankor      # cùng tenant, lệch VAI
+    expected_tenant: ankor             # cùng tenant...
+    expected_section_role: hr          # ...nhưng LỆCH VAI: hr ∉ [engineering]  → T6
     expected: "refusal"
     expected_citation: []

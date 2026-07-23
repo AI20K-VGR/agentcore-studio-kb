@@ -27,16 +27,19 @@ YAML (gán nhãn tay). **DE** sinh + gán nhãn · **AIE-2** chỉ đọc.
 
 ---
 
-## 2. Một case — 7 field
+## 2. Một case — 8 field
+
+> **Cập nhật 23/07 (D4): 7 → 8 field**, thêm `expected_section_role`. Xem §9b.
 
 ```yaml
 cases:
   - case_id: SC-01
     query: "Nhân viên xin nghỉ phép cần báo trước bao lâu?"
-    tenant: ankor                # phạm vi hỏi — UI gửi lên
-    section_roles: [public]      # phạm vi hỏi — UI gửi lên
-    expected_tenant: ankor       # nguồn KB của câu hỏi thuộc tenant nào
-    expected: "Báo trước tối thiểu 3 ngày làm việc."
+    tenant: ankor                 # phạm vi hỏi — UI gửi lên
+    section_roles: [public]       # phạm vi hỏi — UI gửi lên
+    expected_tenant: ankor        # đáp án nằm ở KHO nào
+    expected_section_role: public # đáp án nằm ở VAI nào
+    expected: "3 ngày làm việc"
     expected_citation: ["ankor-leave-001#c1"]
 ```
 
@@ -47,7 +50,25 @@ cases:
 | `tenant` | §3.3 tham số `kb.search` | mất case **chéo tenant** (T1) |
 | `section_roles` | §3.3 tham số `kb.search` | mất case **chéo vai** (T6) |
 | `expected_tenant` | §1 luật fence — xem §4 | **không phân biệt được "từ chối vì rò rỉ" với "từ chối vì không có dữ liệu"** |
+| **`expected_section_role`** | §1 luật fence, trục T6 | **không biểu diễn được refusal chéo-vai** — xem khung dưới |
 | `expected_citation` | §3.4 `citation_accuracy` | không chấm được citation; case từ chối mất dấu hiệu rò rỉ |
+
+> **Vì sao `expected_section_role` phải là field riêng, không suy ra được** (§7 bắt mọi field mới
+> phải chỉ ra lỗ rò rỉ tương ứng — đây là lỗ đó):
+>
+> Hàng rào có **hai trục**: kho (`tenant`) và vai (`section_role`). Trục kho suy ngược được từ
+> citation vì `chunk_id` mã hoá tenant ở tiền tố — `ankor-salary-001#c1` tách ra `ankor`. **Trục vai
+> thì không**: không có ký tự nào trong `chunk_id` nói lên `hr`. Mà case từ chối lại có
+> `expected_citation: []`, nên càng không còn gì để suy.
+>
+> Hệ quả: nếu chỉ có `expected_tenant`, một case *"cùng kho, khác vai"* (SC-05) trông y hệt một case
+> trả-lời-được. Đó đúng là lỗi đã xảy ra thật ở D4 — bên chấm xếp SC-05 nhầm làn, và case mất sạch
+> tác dụng làm mầm T6: **agent từ chối đúng và agent ăn trộm chunk `hr` bị chấm giống hệt nhau.**
+>
+> Lưu ý ngữ nghĩa: field này là vai **đáp án nằm ở**, KHÔNG phải vai người hỏi (đó là
+> `section_roles`). Lấy từ `section_role` của chunk trong `expected_citation`; với case từ chối thì
+> lấy của chunk **mồi** (chunk đáng lẽ bị chặn). `null` khi không kho nào có đáp án — đối xứng với
+> `expected_tenant: null`.
 
 Mọi field bắt buộc. Rỗng viết `[]`, không bỏ khuyết — bỏ khuyết là mập mờ giữa *cố ý rỗng* và
 *quên điền*.
@@ -129,13 +150,20 @@ phải chỗ trống.
 | R4 | `chunk_id` khớp `{doc_id}#c{n}` | re-index không tái tạo được id |
 | R5 | **`doc_id` trong `chunk_id` cùng `expected_tenant`** | nhãn trỏ sai nguồn |
 | **R6** | **`tenant != expected_tenant` ⟹ `expected: "refusal"`** | **case khai nguồn ở tenant khác nhưng vẫn mong có đáp án — tức đang *mong hệ thống rò rỉ*** |
-| R7 | `tenant`, `expected_tenant` ∈ `{ankor,borea}` · `section_roles` ⊆ `{public,hr,finance,engineering}` | định danh / vai ngoài từ vựng đóng |
+| R7 | `tenant`, `expected_tenant` ∈ `{ankor,borea}` · `section_roles`, `expected_section_role` ⊆ `{public,hr,finance,engineering}` | định danh / vai ngoài từ vựng đóng |
 | R8 | ≥1 case chéo tenant **và** ≥1 case chéo vai | mất phép thử fence |
+| **R9** | **`expected_section_role ∉ section_roles` ⟹ `expected: "refusal"`** | **bản T6 của R6 — case khai đáp án ở vai người hỏi không có, nhưng vẫn mong nhận được đáp án** |
+| R10 | `expected_section_role` khớp `section_role` thật của chunk trong `expected_citation` | nhãn vai trỏ sai chunk → R9 mất hiệu lực mà không ai biết |
 
 **R6 đắt nhất.** Nó bắt được lỗi gán nhãn nguy hiểm nhất: người viết case đặt `expected_tenant:
 borea` mà lại điền một đáp án thật thay vì `refusal`. Khi đó bài test **thưởng cho hành vi rò rỉ** —
 fence càng chặt thì điểm càng thấp. R5 + R6 đi cùng nhau khoá chặt cả hai đầu: nhãn không trỏ sai
 nguồn, và nguồn lệch tenant thì bắt buộc phải là từ chối.
+
+**R9 + R10 làm đúng việc đó cho trục vai** (thêm 23/07 cùng `expected_section_role`). R9 là bản
+T6 của R6. R10 là bản T6 của R5 — và cần thiết vì `expected_section_role` là **dữ liệu chép tay**
+không suy ngược từ `chunk_id` được (xem khung ở §2): gõ nhầm `public` thay vì `hr` ở SC-05 thì case
+lặng lẽ tụt về làn trả-lời-được, đúng lỗi vừa mất một buổi để tìm ra. R10 là cái chuông cho nó.
 
 ---
 
@@ -258,15 +286,15 @@ Chốt xong ghi lại vào file này + daily-note mục *Contract / integration*
 | Ngày | Điều | Chốt ra sao |
 |---|---|---|
 | 23/07 (D4) | **Luật so `expected`** ở nhánh trả-lời-được | **`contains`** — `answer` chứa `expected` là PASS, bỏ so khớp tuyệt đối (`harness.py:69`). AIE-2 đồng ý. Nhãn ở `golden/smoke-5.yaml` **giữ nguyên**, đã kiểm với câu trả lời diễn đạt tự nhiên |
+| 23/07 (D4) | **Phân loại refusal** (SC-05) | AIE-2 vá `expects_refusal` xét **cả hai trục**: `expected_tenant != tenant` **hoặc** `expected_section_role ∉ section_roles`. Kéo theo **field thứ 8** `expected_section_role` — DE đã thêm vào cả 5 case. Chọn cách này thay vì sentinel `expected == "refusal"`: nó **suy ra từ dữ liệu** thay vì gắn cờ, giữ đúng nguyên tắc của `golden_case.py` (cờ và dữ liệu không mâu thuẫn được), và bịt được trục mà `chunk_id` không mã hoá |
 
-**Còn mở sau khi chốt `contains` — hai lỗ chấm, cả hai đều là chỗ RÒ RỈ không bị phát hiện:**
+**Còn mở — lỗ chấm chưa bịt:**
 
-1. **SC-05 vẫn đỏ.** Đổi sang `contains` **không** sửa được nó: `expects_refusal` xếp SC-05 vào nhánh
-   trả-lời-được, mà nhánh đó bắt đầu bằng `not refused` — agent từ chối đúng thì fail ngay, luật so
-   chuỗi phía sau không kịp có tác dụng. Đây là lỗi **phân loại**, không phải lỗi so khớp. Cần trục
-   thứ ba (đọc sentinel `expected == "refusal"`, §5). Repro có sẵn.
+> ✅ *SC-05 đã đóng (23/07)* — xem dòng thứ hai của sổ chốt. Mô phỏng luật mới trên cả bộ: agent
+> hành xử đúng ra **5/5 PASS**, và hai case âm vẫn **FAIL đúng** khi agent rò rỉ (SC-04 lấy chunk
+> Borea, SC-05 lấy chunk `hr`) — tức chúng lấy lại được tác dụng làm mầm leak-test.
 
-2. **Nhánh trả-lời-được không kiểm rò rỉ.** Nhánh từ-chối có `no_leak` (không citation nào thuộc
+1. **Nhánh trả-lời-được không kiểm rò rỉ.** Nhánh từ-chối có `no_leak` (không citation nào thuộc
    `expected_tenant`), nhánh trả-lời-được **không có gì tương đương**. Hệ quả: câu trả lời *"Ankor
    yêu cầu 3 ngày làm việc, còn Borea thì 7 ngày làm việc"* — đúng phần Ankor nhưng **rò dữ liệu
    Borea** — vẫn PASS, và `citation_accuracy` cũng không bắt (nó đo **độ phủ** `expected_citation`,
