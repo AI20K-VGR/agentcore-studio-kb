@@ -15,9 +15,14 @@ cổng kiểm sẽ xanh đúng ở trường hợp cần chặn (`day03_plan.md`
 
 from __future__ import annotations
 
+from uuid import UUID
+
 import pytest
-from studio_kb.doc_factory import Chunk
+from studio_kb.doc_factory import TENANT_IDS, Chunk
 from studio_kb.static_search import StaticKbSearch
+
+ANKOR_ID = TENANT_IDS["ankor"]
+BOREA_ID = TENANT_IDS["borea"]
 
 
 @pytest.fixture
@@ -31,30 +36,32 @@ def kb() -> StaticKbSearch:
 async def test_goi_duoc_bang_dung_4_keyword_arg(kb: StaticKbSearch) -> None:
     """Chữ ký chốt D3 (`kb-search.v0.md` v0.1 §1). Sai số tham số → `TypeError` ngay tại đây, đúng
     chỗ AIE-1 sẽ vỡ nếu wiring lệch."""
-    hits = await kb.search(query="báo trước bao lâu", tenant="ankor", section_roles=["public"], top_k=5)
-    assert all(h.chunk_id and h.text and h.tenant and h.section_role for h in hits)
+    hits = await kb.search(query="báo trước bao lâu", tenant_id=ANKOR_ID, section_roles=["public"], top_k=5)
+    assert all(h.chunk_id and h.text and h.tenant_id and h.section_role for h in hits)
 
 
 async def test_khong_khop_gi_thi_tra_rong_chu_khong_raise(kb: StaticKbSearch) -> None:
     """`[]` là kết quả HỢP LỆ (`kb-search.v0.md` §6.1) — `kb-retrieve` phải đi tiếp sang `llm-step`.
     Đây cũng đã là hình dạng của fail-closed sau này."""
-    assert await kb.search("zzzzz", "ankor", ["public"], 5) == []
-    assert await kb.search("báo trước", "khong-ton-tai", ["public"], 5) == []
-    assert await kb.search("báo trước", "ankor", [], 5) == []
-    assert await kb.search("báo trước", "ankor", ["public"], 0) == []
+    # UUID không có chunk nào trong bộ Callisto (chỉ có ankor + borea) — đứng cho "tenant lạ".
+    khong_ton_tai = UUID("c0000000-0000-0000-0000-000000000001")
+    assert await kb.search("zzzzz", ANKOR_ID, ["public"], 5) == []
+    assert await kb.search("báo trước", khong_ton_tai, ["public"], 5) == []
+    assert await kb.search("báo trước", ANKOR_ID, [], 5) == []
+    assert await kb.search("báo trước", ANKOR_ID, ["public"], 0) == []
 
 
 async def test_top_k_cat_dung_so_luong(kb: StaticKbSearch) -> None:
-    assert len(await kb.search("nghỉ phép báo trước đơn", "ankor", ["public"], 2)) == 2
+    assert len(await kb.search("nghỉ phép báo trước đơn", ANKOR_ID, ["public"], 2)) == 2
 
 
 async def test_xep_hang_tat_dinh_khi_diem_bang_nhau() -> None:
     """`chunk_id` làm khoá phụ. Không có nó, golden-set sẽ xanh/đỏ đổi theo thứ tự đọc file."""
     chunks = [
-        Chunk(chunk_id=f"d-001#c{n}", text="cùng một nội dung", tenant="ankor", section_role="public")
+        Chunk(chunk_id=f"d-001#c{n}", text="cùng một nội dung", tenant_id=ANKOR_ID, section_role="public")
         for n in (3, 1, 2)
     ]
-    hits = await StaticKbSearch(chunks).search("cùng một nội dung", "ankor", ["public"], 3)
+    hits = await StaticKbSearch(chunks).search("cùng một nội dung", ANKOR_ID, ["public"], 3)
     assert [h.chunk_id for h in hits] == ["d-001#c1", "d-001#c2", "d-001#c3"]
 
 
@@ -69,8 +76,8 @@ async def test_sc01_sc02_cung_cau_hoi_khac_tenant_ra_dap_an_khac(kb: StaticKbSea
     test vẫn xanh.
     """
     query = "Nhân viên xin nghỉ phép cần báo trước bao lâu?"
-    ankor = await kb.search(query, "ankor", ["public"], 3)
-    borea = await kb.search(query, "borea", ["public"], 3)
+    ankor = await kb.search(query, ANKOR_ID, ["public"], 3)
+    borea = await kb.search(query, BOREA_ID, ["public"], 3)
 
     assert ankor[0].chunk_id == "ankor-leave-001#c1"
     assert borea[0].chunk_id == "borea-leave-001#c1"
@@ -80,7 +87,7 @@ async def test_sc01_sc02_cung_cau_hoi_khac_tenant_ra_dap_an_khac(kb: StaticKbSea
 
 async def test_sc03_dung_vai_thi_lay_duoc_chunk_finance(kb: StaticKbSearch) -> None:
     """Chunk override `#c2` — hỏi từ vai `finance` thì thấy, và CHỈ thấy chunk mang đúng vai đó."""
-    hits = await kb.search("Trưởng nhóm được duyệt chi tối đa bao nhiêu?", "ankor", ["finance"], 5)
+    hits = await kb.search("Trưởng nhóm được duyệt chi tối đa bao nhiêu?", ANKOR_ID, ["finance"], 5)
     assert hits[0].chunk_id == "ankor-expense-001#c2"
     assert "20 triệu đồng" in hits[0].text
     assert all(h.section_role == "finance" for h in hits)
@@ -93,8 +100,8 @@ async def test_sc04_cheo_tenant_khong_ro_ri_chunk_cua_tenant_kia(kb: StaticKbSea
     Assert theo hướng LOẠI TRỪ chứ không assert `== []`: bản naive vẫn trả kết quả yếu, và siết
     thành rỗng ở đây sẽ khoá cứng một hành vi mà S2 (xếp hạng vector) chắc chắn đổi.
     """
-    hits = await kb.search("Hạn mức chi của Borea là bao nhiêu?", "ankor", ["public"], 5)
-    assert all(h.tenant == "ankor" for h in hits)
+    hits = await kb.search("Hạn mức chi của Borea là bao nhiêu?", ANKOR_ID, ["public"], 5)
+    assert all(h.tenant_id == ANKOR_ID for h in hits)
     assert not any("borea" in h.chunk_id for h in hits)
     assert not any("77 triệu" in h.text for h in hits)
 
@@ -102,12 +109,12 @@ async def test_sc04_cheo_tenant_khong_ro_ri_chunk_cua_tenant_kia(kb: StaticKbSea
 async def test_sc05_cheo_vai_khong_ro_ri_chunk_ngoai_vai(kb: StaticKbSearch) -> None:
     """Mầm leak-test T6 — cạnh yếu nhất: RLS trong `schema.py` CHỈ khoá `tenant_id`, `section_role`
     không có RLS đứng sau. Hỏi từ vai `engineering` về thang lương (`hr`) phải không thấy gì."""
-    hits = await kb.search("Thang lương của công ty gồm những bậc nào?", "ankor", ["engineering"], 5)
+    hits = await kb.search("Thang lương của công ty gồm những bậc nào?", ANKOR_ID, ["engineering"], 5)
     assert hits == []
 
     # cùng câu hỏi, đúng vai `hr` thì thấy — chứng minh case trên rỗng vì LỌC VAI,
     # không phải vì câu hỏi không khớp gì trong kho.
-    with_role = await kb.search("Thang lương của công ty gồm những bậc nào?", "ankor", ["hr"], 5)
+    with_role = await kb.search("Thang lương của công ty gồm những bậc nào?", ANKOR_ID, ["hr"], 5)
     assert with_role[0].chunk_id == "ankor-salary-001#c1"
 
 
@@ -115,5 +122,5 @@ async def test_loc_truoc_roi_moi_cat_top_k(kb: StaticKbSearch) -> None:
     """Thứ tự quan trọng kể cả ở bản naive: cắt `top_k` trước rồi mới lọc sẽ để chunk ngoài phạm vi
     chiếm chỗ rồi bị loại — mất một kết quả hợp lệ, và số lượng trả về phụ thuộc dữ liệu của tenant
     khác. `top_k=1` với vai `finance` vẫn phải ra đúng chunk finance."""
-    hits = await kb.search("Trưởng nhóm được duyệt chi tối đa bao nhiêu?", "ankor", ["finance"], 1)
+    hits = await kb.search("Trưởng nhóm được duyệt chi tối đa bao nhiêu?", ANKOR_ID, ["finance"], 1)
     assert [h.chunk_id for h in hits] == ["ankor-expense-001#c2"]

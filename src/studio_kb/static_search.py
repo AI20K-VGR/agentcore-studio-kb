@@ -20,7 +20,7 @@ tiêm vào** — nên một class tĩnh thoả `KbSearch` là đủ để bỏ `
 | | v0 hôm nay | S2–S3 (`KbSearchService`) |
 |---|---|---|
 | nguồn | 25 chunk tĩnh từ `doc_factory` | `kb.chunks` + pgvector |
-| lọc `tenant` | so chuỗi thẳng, naive | RLS trên connection non-owner |
+| lọc `tenant_id` | so UUID thẳng (`==`), naive | RLS trên connection non-owner |
 | lọc `section_roles` | so tập hợp, **tin giá trị client khai** | phân giải **server-side** (chặn T6) |
 | xếp hạng | trùng token thô | cosine trên vector |
 
@@ -34,6 +34,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from studio_contracts.kb import KbSearchResultItem
 
@@ -59,12 +60,15 @@ class StaticKbSearch:
     async def search(
         self,
         query: str,
-        tenant: str,
+        tenant_id: UUID,
         section_roles: list[str],
         top_k: int,
     ) -> list[KbSearchResultItem]:
-        """Trả các chunk khớp `query`, đã lọc theo `{tenant, section_roles}`, xếp giảm dần theo
+        """Trả các chunk khớp `query`, đã lọc theo `{tenant_id, section_roles}`, xếp giảm dần theo
         `score`, cắt còn `top_k`.
+
+        `tenant_id` là **UUID** (D-13): so bằng `==` với `chunk.tenant_id`, không so slug. Danh tính
+        tenant phải là thứ không trùng được — slug thì trùng được, nên nó chỉ còn là nhãn hiển thị.
 
         **Lọc TRƯỚC khi xếp hạng** — không phải lấy hết rồi cắt. Thứ tự này quan trọng kể cả ở bản
         naive: lọc sau khi cắt `top_k` sẽ để một chunk ngoài phạm vi chiếm chỗ rồi bị loại, làm mất
@@ -85,7 +89,7 @@ class StaticKbSearch:
 
         scored: list[tuple[float, Chunk]] = []
         for chunk in self._chunks:
-            if chunk.tenant != tenant or chunk.section_role not in allowed:
+            if chunk.tenant_id != tenant_id or chunk.section_role not in allowed:
                 continue
             overlap = len(query_tokens & _tokens(chunk.text))
             if overlap == 0:
@@ -101,7 +105,7 @@ class StaticKbSearch:
                 chunk_id=chunk.chunk_id,
                 text=chunk.text,
                 score=score,
-                tenant=chunk.tenant,
+                tenant_id=chunk.tenant_id,
                 section_role=chunk.section_role,
             )
             for score, chunk in scored[:top_k]

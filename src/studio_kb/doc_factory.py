@@ -25,11 +25,41 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import UUID
 
 SECTION_VOCAB = frozenset({"public", "hr", "finance", "engineering"})
 """Từ vựng đóng (`callisto-doc-schema.md` §3). Đóng thật: gặp giá trị lạ thì raise, không im lặng
 bỏ qua — một `section_role` gõ sai mà lọt sẽ tạo ra chunk không ai với tới được, và fence sẽ trông
 như đang chạy đúng."""
+
+TENANT_IDS: dict[str, UUID] = {
+    "ankor": UUID("a0000000-0000-0000-0000-000000000001"),
+    "borea": UUID("b0000000-0000-0000-0000-000000000001"),
+}
+"""⚠️ **FIXTURE Sprint 1 — KHÔNG phải cách phân giải thật.** D-13 chốt danh tính tenant là
+`core.tenants.id` **UUID bất biến**; slug (`ankor`/`borea`) chỉ còn là **nhãn hiển thị**. Front-matter
+tài liệu vẫn viết slug, nên đâu đó phải ánh xạ slug → UUID. Bảng thật là `core.tenants`, và middleware
+đã phân giải cho request-path (`apps/studio/middleware.py`) — nhưng `studio_kb` **không được import
+`core.*`** (`.importlinter`), và ingest-path chưa có ai phân giải (đó là **Q-G**, chưa chốt).
+
+Nên S1 dùng bảng cứng này: giá trị **khớp nguyên văn** hằng số của SWE
+(`studio_workbench/builder_d4.py` `ANKOR_ID`) để cả workspace nói cùng một UUID cho `ankor`; `borea`
+theo cùng quy luật (chữ đầu = tên tenant) vì trước D5 chưa ai cần tới. Khi Q-G chốt đường phân giải
+thật (composition-root truyền `tenant_id` UUID xuống ingest), **xoá bảng này**, không để nó hoá thành
+thiết kế."""
+
+
+def resolve_tenant_id(slug: str) -> UUID:
+    """Ánh xạ slug tài liệu → `tenant_id` UUID (S1 fixture, xem `TENANT_IDS`).
+
+    Đóng như `SECTION_VOCAB`: slug lạ thì **raise**, không im lặng. Một tenant gõ sai mà lọt sẽ tạo
+    chunk mang UUID rác, không ai với tới, và fence trông như đang chạy đúng.
+    """
+    try:
+        return TENANT_IDS[slug]
+    except KeyError:
+        raise ValueError(f"tenant slug {slug!r} ngoài bảng phân giải S1 {sorted(TENANT_IDS)}") from None
+
 
 DEFAULT_DOC_DIR = Path(__file__).resolve().parents[2] / "docs" / "callisto"
 """`packages/kb/docs/callisto/`. Suy từ vị trí file để test chạy được không cần cwd cố định."""
@@ -45,11 +75,15 @@ class Chunk:
     Không dùng `KbSearchResultItem` ở đây: item đó mang `score`, mà `score` là thứ sinh ra **lúc
     tìm**, không phải thuộc tính của đoạn văn. Trộn hai thứ vào một kiểu thì mỗi lần cắt lại phải
     bịa ra một điểm số vô nghĩa.
+
+    `tenant_id` là **UUID** (D-13), phân giải từ slug front-matter qua `resolve_tenant_id`. Slug gốc
+    KHÔNG mất — nó vẫn nằm trong `chunk_id` (`"ankor-leave-001#c1"`) làm nhãn hiển thị, đúng chủ ý
+    D-13 (chunk_id là con trỏ bền qua re-index, giữ nguyên).
     """
 
     chunk_id: str
     text: str
-    tenant: str
+    tenant_id: UUID
     section_role: str
 
 
@@ -90,6 +124,7 @@ def chunk_document(raw: str) -> list[Chunk]:
     doc_id, tenant, doc_section = fields["doc_id"], fields["tenant"], fields["section"]
     if doc_section not in SECTION_VOCAB:
         raise ValueError(f"{doc_id}: section {doc_section!r} ngoài từ vựng {sorted(SECTION_VOCAB)}")
+    tenant_id = resolve_tenant_id(tenant)  # slug front-matter → UUID (D-13); raise nếu slug lạ
 
     chunks: list[Chunk] = []
     lines: list[str] = []
@@ -104,7 +139,7 @@ def chunk_document(raw: str) -> list[Chunk]:
                 Chunk(
                     chunk_id=f"{doc_id}#c{len(chunks) + 1}",
                     text=text,
-                    tenant=tenant,
+                    tenant_id=tenant_id,
                     section_role=section_role,
                 )
             )

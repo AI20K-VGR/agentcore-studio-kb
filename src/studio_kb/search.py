@@ -19,6 +19,7 @@ R-SPEC A3, A1#3):
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 from psycopg import AsyncConnection
 from psycopg_pool import AsyncConnectionPool
@@ -38,7 +39,7 @@ class KbSearchService:
     async def search(
         self,
         query: str,
-        tenant: str,
+        tenant_id: UUID,
         section_roles: list[str],
         top_k: int,
     ) -> list[KbSearchResultItem]:
