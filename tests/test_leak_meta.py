@@ -16,9 +16,10 @@ def test_leak_file_still_has_t1_t6_assertions() -> None:
     # T1 IDOR — the requesting tenant's own chunk must be INCLUDED (positive teeth so a
     # []-returning impl can't false-pass), the cross-tenant chunk must be EXCLUDED, and every
     # returned item must belong to the requesting tenant.
+    # (Tên field theo D-13 #25: `item.tenant_id` UUID — răng không đổi, chỉ đổi tên/kiểu.)
     assert 'assert "chunk-a-1" in result_chunk_ids' in source
     assert 'assert "chunk-b-1" not in result_chunk_ids' in source
-    assert 'assert all(item.tenant == "tenant-a" for item in results)' in source
+    assert "assert all(item.tenant_id == TENANT_A for item in results)" in source
 
     # T6 label-spoof — a confidential chunk must be excluded from the search response.
     assert 'assert "chunk-confidential" not in result_chunk_ids' in source

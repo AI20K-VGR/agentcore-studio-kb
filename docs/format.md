@@ -18,12 +18,27 @@ contract_ref: umbrella §3.3 · §3.4 · §1
 
 ## 1. File
 
-```
-packages/kb/golden/smoke-5.yaml      # 5 case, S1
-packages/kb/golden/golden-30.yaml    # 30 case, S2
-```
+| file | `golden_set_ref` | |
+|---|---|---|
+| `packages/kb/golden/smoke-5.yaml` | **`callisto-smoke-5-v0`** | 5 case, S1 |
+| `packages/kb/golden/golden-30.yaml` | *(chưa đặt)* | 30 case, S2 |
 
 YAML (gán nhãn tay). **DE** sinh + gán nhãn · **AIE-2** chỉ đọc.
+
+**`golden_set_ref` là TÊN của bộ case, do bên sinh ra nó đặt** *(ghi rõ 23/07)*. Đây là chuỗi mà
+`Recipe.golden_set_ref` và `Scorecard.golden_set_ref` trỏ tới; `EvalHarness.run(agent_id,
+golden_set_ref)` **tra theo đúng tên này**. Nguyên tắc lấy từ chính bút AIE-2
+(`golden_case.py`): *"bên sản xuất sở hữu tên trên dây"* — cùng logic với §10 (*DE sinh + gán nhãn ·
+AIE-2 chỉ đọc*).
+
+> ⚠️ **Chỉ hai chỗ trong repo là con trỏ thật:** file YAML này (tên hiện vật) và
+> `workbench/builder_d4.py` (`Recipe.golden_set_ref` trỏ tới nó). Mọi giá trị khác đang có
+> (`golden-set-1`, `golden-1`, `golden-set-eval-1`, `gs-smoke`, `golden_set_1`) đều là **dữ liệu
+> test** — chỉ cần *là một chuỗi* để dựng object, không ai tra ra bộ case nào. **Đừng dọn chúng**;
+> chỉ giữ hai con trỏ thật khớp nhau.
+>
+> Ghi ra đây vì D4 đã lệch một lần: recipe trỏ `"golden-set-d4-callisto"` — một tên không tồn tại.
+> Chưa vỡ vì AIE-2 truyền bộ case thẳng vào `run_smoke()`, sẽ vỡ khi dùng `EvalHarness.run()`.
 
 ---
 
@@ -286,6 +301,7 @@ Chốt xong ghi lại vào file này + daily-note mục *Contract / integration*
 | Ngày | Điều | Chốt ra sao |
 |---|---|---|
 | 23/07 (D4) | **Luật so `expected`** ở nhánh trả-lời-được | **`contains`** — `answer` chứa `expected` là PASS, bỏ so khớp tuyệt đối (`harness.py:69`). AIE-2 đồng ý. Nhãn ở `golden/smoke-5.yaml` **giữ nguyên**, đã kiểm với câu trả lời diễn đạt tự nhiên |
+| 23/07 (D4) | **Ai đặt tên bộ case** | **Bên sinh ra đặt** — `golden_set_ref = "callisto-smoke-5-v0"` (§1). Recipe chỉ tham chiếu. Phát hiện khi `builder_d4.py` trỏ vào `"golden-set-d4-callisto"`, một tên không tồn tại; AIE-2 đã dùng đúng tên. Nguyên nhân: DE phát bảng `chunk_id` nhưng **quên phát tên bộ** — nay ghi vào §1 |
 | 23/07 (D4) | **Phân loại refusal** (SC-05) | AIE-2 vá `expects_refusal` xét **cả hai trục**: `expected_tenant != tenant` **hoặc** `expected_section_role ∉ section_roles`. Kéo theo **field thứ 8** `expected_section_role` — DE đã thêm vào cả 5 case. Chọn cách này thay vì sentinel `expected == "refusal"`: nó **suy ra từ dữ liệu** thay vì gắn cờ, giữ đúng nguyên tắc của `golden_case.py` (cờ và dữ liệu không mâu thuẫn được), và bịt được trục mà `chunk_id` không mã hoá |
 
 **Còn mở — lỗ chấm chưa bịt:**

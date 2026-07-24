@@ -21,12 +21,16 @@ from __future__ import annotations
 
 import hashlib
 import math
+from uuid import UUID
 
 import pytest
 from psycopg import sql
-from studio_kb.doc_factory import Chunk, load_callisto
+from studio_kb.doc_factory import TENANT_IDS, Chunk, load_callisto
 from studio_kb.postgres import KbIngest, PgKbSearch
 from studio_kb.schema import EMBEDDING_DIM
+
+ANKOR_ID = TENANT_IDS["ankor"]
+BOREA_ID = TENANT_IDS["borea"]
 
 _TOKEN_BUCKETS = EMBEDDING_DIM
 
@@ -65,13 +69,13 @@ def embedding() -> BagOfWordsEmbedding:
     return BagOfWordsEmbedding()
 
 
-def _chunk(chunk_id: str, tenant: str, section_role: str, text: str) -> Chunk:
-    return Chunk(chunk_id=chunk_id, text=text, tenant=tenant, section_role=section_role)
+def _chunk(chunk_id: str, tenant_id: UUID, section_role: str, text: str) -> Chunk:
+    return Chunk(chunk_id=chunk_id, text=text, tenant_id=tenant_id, section_role=section_role)
 
 
-async def _count_rows(pool: object, tenant: str) -> int:
+async def _count_rows(pool: object, tenant_id: UUID) -> int:
     async with pool.connection() as conn, conn.transaction():  # type: ignore[attr-defined]
-        await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (tenant,))
+        await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(tenant_id),))
         cur = await conn.execute("SELECT count(*) FROM kb.chunks")
         row = await cur.fetchone()
     return int(row[0])
@@ -87,11 +91,11 @@ async def test_ingest_giu_nguyen_chunk_id_do_doc_factory_sinh(pool: object, embe
     ghi id tường minh để đè default. Quên là mọi `expected_citation` trong golden-set trỏ vào hư
     không — và hỏng lặng lẽ, vì hàng vẫn vào bảng bình thường.
     """
-    chunks = [_chunk("ankor-leave-001#c1", "ankor", "public", "báo trước 3 ngày làm việc")]
+    chunks = [_chunk("ankor-leave-001#c1", ANKOR_ID, "public", "báo trước 3 ngày làm việc")]
     assert await KbIngest(pool, embedding).ingest(chunks) == 1  # type: ignore[arg-type]
 
     async with pool.connection() as conn, conn.transaction():  # type: ignore[attr-defined]
-        await conn.execute("SELECT set_config('app.tenant_id', %s, true)", ("ankor",))
+        await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(ANKOR_ID),))
         cur = await conn.execute("SELECT chunk_id, section_role FROM kb.chunks")
         rows = await cur.fetchall()
     assert rows == [("ankor-leave-001#c1", "public")]
@@ -101,13 +105,13 @@ async def test_ingest_idempotent_chay_lai_khong_nhan_doi(pool: object, embedding
     """`re_index` bắt **giữ nguyên `chunk_id`** (`callisto-doc-schema.md` §6) — `ON CONFLICT DO
     UPDATE` là cách thực hiện điều đó. Chạy lại phải cập nhật tại chỗ, không đẻ dòng mới."""
     ingest = KbIngest(pool, embedding)  # type: ignore[arg-type]
-    chunks = [_chunk("ankor-leave-001#c1", "ankor", "public", "bản cũ")]
+    chunks = [_chunk("ankor-leave-001#c1", ANKOR_ID, "public", "bản cũ")]
     await ingest.ingest(chunks)
-    await ingest.ingest([_chunk("ankor-leave-001#c1", "ankor", "public", "bản mới")])
+    await ingest.ingest([_chunk("ankor-leave-001#c1", ANKOR_ID, "public", "bản mới")])
 
-    assert await _count_rows(pool, "ankor") == 1
+    assert await _count_rows(pool, ANKOR_ID) == 1
     async with pool.connection() as conn, conn.transaction():  # type: ignore[attr-defined]
-        await conn.execute("SELECT set_config('app.tenant_id', %s, true)", ("ankor",))
+        await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(ANKOR_ID),))
         cur = await conn.execute("SELECT text FROM kb.chunks WHERE chunk_id = %s", ("ankor-leave-001#c1",))
         row = await cur.fetchone()
     assert row[0] == "bản mới"
@@ -118,12 +122,12 @@ async def test_ingest_hai_tenant_moi_ben_chi_thay_phan_minh(pool: object, embedd
     cả giao dịch**, trộn hai tenant sẽ bị `WITH CHECK` chặn vế thứ hai."""
     await KbIngest(pool, embedding).ingest(  # type: ignore[arg-type]
         [
-            _chunk("ankor-leave-001#c1", "ankor", "public", "ankor báo trước 3 ngày"),
-            _chunk("borea-leave-001#c1", "borea", "public", "borea báo trước 7 ngày"),
+            _chunk("ankor-leave-001#c1", ANKOR_ID, "public", "ankor báo trước 3 ngày"),
+            _chunk("borea-leave-001#c1", BOREA_ID, "public", "borea báo trước 7 ngày"),
         ]
     )
-    assert await _count_rows(pool, "ankor") == 1
-    assert await _count_rows(pool, "borea") == 1
+    assert await _count_rows(pool, ANKOR_ID) == 1
+    assert await _count_rows(pool, BOREA_ID) == 1
 
 
 async def test_embedding_sai_chieu_bi_chan_ngay(pool: object) -> None:
@@ -135,7 +139,7 @@ async def test_embedding_sai_chieu_bi_chan_ngay(pool: object) -> None:
             return [[0.0] * (EMBEDDING_DIM + 1) for _ in texts]
 
     with pytest.raises(ValueError, match="sai chiều"):
-        await KbIngest(pool, WrongDim()).ingest([_chunk("x#c1", "ankor", "public", "t")])  # type: ignore[arg-type]
+        await KbIngest(pool, WrongDim()).ingest([_chunk("x#c1", ANKOR_ID, "public", "t")])  # type: ignore[arg-type]
 
 
 # ── Hàng rào: hai trục ──────────────────────────────────────────────────────────
@@ -149,16 +153,16 @@ async def test_t1_khong_ro_ri_cheo_tenant(pool: object, embedding: object) -> No
     """
     await KbIngest(pool, embedding).ingest(  # type: ignore[arg-type]
         [
-            _chunk("ankor-leave-001#c1", "ankor", "public", "hồ sơ mật của ankor"),
-            _chunk("borea-leave-001#c1", "borea", "public", "hồ sơ mật của borea"),
+            _chunk("ankor-leave-001#c1", ANKOR_ID, "public", "hồ sơ mật của ankor"),
+            _chunk("borea-leave-001#c1", BOREA_ID, "public", "hồ sơ mật của borea"),
         ]
     )
-    hits = await PgKbSearch(pool, embedding).search("hồ sơ mật", "ankor", ["public"], 10)  # type: ignore[arg-type]
+    hits = await PgKbSearch(pool, embedding).search("hồ sơ mật", ANKOR_ID, ["public"], 10)  # type: ignore[arg-type]
 
     ids = {h.chunk_id for h in hits}
     assert "ankor-leave-001#c1" in ids
     assert "borea-leave-001#c1" not in ids
-    assert all(h.tenant == "ankor" for h in hits)
+    assert all(h.tenant_id == ANKOR_ID for h in hits)
 
 
 async def test_t6_khong_ro_ri_cheo_vai(pool: object, embedding: object) -> None:
@@ -170,17 +174,17 @@ async def test_t6_khong_ro_ri_cheo_vai(pool: object, embedding: object) -> None:
     """
     await KbIngest(pool, embedding).ingest(  # type: ignore[arg-type]
         [
-            _chunk("ankor-salary-001#c1", "ankor", "hr", "thang lương gồm 6 bậc"),
-            _chunk("ankor-leave-001#c1", "ankor", "public", "thang đo nghỉ phép 6 ngày"),
+            _chunk("ankor-salary-001#c1", ANKOR_ID, "hr", "thang lương gồm 6 bậc"),
+            _chunk("ankor-leave-001#c1", ANKOR_ID, "public", "thang đo nghỉ phép 6 ngày"),
         ]
     )
     search = PgKbSearch(pool, embedding)  # type: ignore[arg-type]
 
-    sai_vai = await search.search("thang lương", "ankor", ["engineering"], 10)
+    sai_vai = await search.search("thang lương", ANKOR_ID, ["engineering"], 10)
     assert all(h.chunk_id != "ankor-salary-001#c1" for h in sai_vai)
     assert all(h.section_role == "engineering" for h in sai_vai)
 
-    dung_vai = await search.search("thang lương", "ankor", ["hr"], 10)
+    dung_vai = await search.search("thang lương", ANKOR_ID, ["hr"], 10)
     assert "ankor-salary-001#c1" in {h.chunk_id for h in dung_vai}
 
 
@@ -188,18 +192,18 @@ async def test_section_roles_rong_la_khong_co_quyen_nao(pool: object, embedding:
     """Rỗng phải hiểu là **không quyền nào**, tuyệt đối không phải "bỏ lọc". Đọc nhầm chiều này là
     kiểu hở fence kinh điển: request không khai vai → thấy tất cả."""
     await KbIngest(pool, embedding).ingest(  # type: ignore[arg-type]
-        [_chunk("ankor-leave-001#c1", "ankor", "public", "nội dung")]
+        [_chunk("ankor-leave-001#c1", ANKOR_ID, "public", "nội dung")]
     )
-    assert await PgKbSearch(pool, embedding).search("nội dung", "ankor", [], 10) == []  # type: ignore[arg-type]
+    assert await PgKbSearch(pool, embedding).search("nội dung", ANKOR_ID, [], 10) == []  # type: ignore[arg-type]
 
 
 async def test_top_k_khong_am_va_cat_dung_so_luong(pool: object, embedding: object) -> None:
     await KbIngest(pool, embedding).ingest(  # type: ignore[arg-type]
-        [_chunk(f"ankor-leave-001#c{n}", "ankor", "public", f"đoạn số {n} nói về nghỉ phép") for n in (1, 2, 3)]
+        [_chunk(f"ankor-leave-001#c{n}", ANKOR_ID, "public", f"đoạn số {n} nói về nghỉ phép") for n in (1, 2, 3)]
     )
     search = PgKbSearch(pool, embedding)  # type: ignore[arg-type]
-    assert len(await search.search("nghỉ phép", "ankor", ["public"], 2)) == 2
-    assert await search.search("nghỉ phép", "ankor", ["public"], 0) == []
+    assert len(await search.search("nghỉ phép", ANKOR_ID, ["public"], 2)) == 2
+    assert await search.search("nghỉ phép", ANKOR_ID, ["public"], 0) == []
 
 
 async def test_bo_callisto_that_25_chunk_khong_ro_ri(pool: object, embedding: object) -> None:
@@ -215,15 +219,15 @@ async def test_bo_callisto_that_25_chunk_khong_ro_ri(pool: object, embedding: ob
     search = PgKbSearch(pool, embedding)  # type: ignore[arg-type]
 
     # phạm vi SC-01: ankor/public — 14 chunk public toàn bộ, nhưng chỉ 9 của ankor
-    sc01 = await search.search("nghỉ phép báo trước", "ankor", ["public"], 50)
+    sc01 = await search.search("nghỉ phép báo trước", ANKOR_ID, ["public"], 50)
     assert sc01, "truy xuất phải trả về thật thì phép loại trừ mới có nghĩa"
-    assert all(h.tenant == "ankor" and h.section_role == "public" for h in sc01)
+    assert all(h.tenant_id == ANKOR_ID and h.section_role == "public" for h in sc01)
     assert not any(h.chunk_id.startswith("borea-") for h in sc01)
 
     # phạm vi SC-05: ankor/engineering — không doc nào mang vai này → rỗng, và đó là ĐÚNG
-    assert await search.search("thang lương", "ankor", ["engineering"], 50) == []
+    assert await search.search("thang lương", ANKOR_ID, ["engineering"], 50) == []
     # phản chứng: cùng câu hỏi, đúng vai `hr` thì thấy → rỗng ở trên là do LỌC VAI
-    assert await search.search("thang lương", "ankor", ["hr"], 50)
+    assert await search.search("thang lương", ANKOR_ID, ["hr"], 50)
 
 
 async def test_khong_dat_tenant_thi_khong_thay_gi(pool: object, embedding: object) -> None:
@@ -234,7 +238,7 @@ async def test_khong_dat_tenant_thi_khong_thay_gi(pool: object, embedding: objec
     tenant — nếu nó đổi thành fail-open thì `WHERE tenant_id` còn lại là tầng phòng thủ duy nhất.
     """
     await KbIngest(pool, embedding).ingest(  # type: ignore[arg-type]
-        [_chunk("ankor-leave-001#c1", "ankor", "public", "nội dung")]
+        [_chunk("ankor-leave-001#c1", ANKOR_ID, "public", "nội dung")]
     )
     async with pool.connection() as conn:  # type: ignore[attr-defined]
         cur = await conn.execute(sql.SQL("SELECT count(*) FROM kb.chunks"))

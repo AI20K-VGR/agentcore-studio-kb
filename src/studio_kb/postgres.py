@@ -42,6 +42,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from psycopg import AsyncConnection
 from psycopg_pool import AsyncConnectionPool
@@ -84,15 +85,20 @@ def _vector_literal(values: Sequence[float]) -> str:
     return "[" + ",".join(repr(float(v)) for v in values) + "]"
 
 
-async def _bind_tenant(conn: AsyncConnection[Any], tenant: str) -> None:
+async def _bind_tenant(conn: AsyncConnection[Any], tenant_id: UUID) -> None:
     """Đặt `app.tenant_id` cho **giao dịch hiện tại** — đây là thứ kích hoạt RLS.
 
     Dùng `set_config(..., is_local => true)` thay vì `SET LOCAL`: `SET LOCAL` không nhận tham số
     nên phải nội suy chuỗi vào câu lệnh, còn `set_config` nhận binding bình thường. Tham số thứ ba
     `true` giới hạn phạm vi trong giao dịch, nên kết nối trả về pool không mang theo tenant cũ —
     nếu rò sang request sau thì fence hỏng theo kiểu khó lần ra nhất.
+
+    **Truyền `str(tenant_id)`, không phải object `UUID`.** `set_config(name, value, is_local)` nhận
+    `value` kiểu **text**; psycopg sẽ adapt một `UUID` thành tham số kiểu `uuid`, và Postgres không
+    tìm thấy `set_config(text, uuid, bool)` → lỗi phân giải hàm. Phía policy mới cast ngược lại
+    `::uuid` (xem `schema.py`), nên biến phiên là text còn cột so sánh là uuid — khớp sau cast.
     """
-    await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (tenant,))
+    await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(tenant_id),))
 
 
 class KbIngest:
@@ -118,12 +124,12 @@ class KbIngest:
         giao dịch**, nên không thể trộn hai tenant trong cùng một transaction — WITH CHECK sẽ chặn
         vế thứ hai. Đây là ràng buộc của fence, không phải chi tiết tối ưu.
         """
-        by_tenant: dict[str, list[Chunk]] = defaultdict(list)
+        by_tenant: dict[UUID, list[Chunk]] = defaultdict(list)
         for chunk in chunks:
-            by_tenant[chunk.tenant].append(chunk)
+            by_tenant[chunk.tenant_id].append(chunk)
 
         written = 0
-        for tenant, batch in by_tenant.items():
+        for tenant_id, batch in by_tenant.items():
             vectors = await self._embedding.embed([c.text for c in batch])
             if len(vectors) != len(batch):
                 raise ValueError(f"embed() trả {len(vectors)} vector cho {len(batch)} chunk")
@@ -134,11 +140,11 @@ class KbIngest:
                     raise ValueError(f"embedding sai chiều: {len(vector)} != {EMBEDDING_DIM}")
 
             async with self._pool.connection() as conn, conn.transaction():
-                await _bind_tenant(conn, tenant)
+                await _bind_tenant(conn, tenant_id)
                 for chunk, vector in zip(batch, vectors, strict=True):
                     await conn.execute(
                         _UPSERT,
-                        (chunk.chunk_id, chunk.tenant, chunk.section_role, chunk.text, _vector_literal(vector)),
+                        (chunk.chunk_id, chunk.tenant_id, chunk.section_role, chunk.text, _vector_literal(vector)),
                     )
                     written += 1
         return written
@@ -154,11 +160,15 @@ class PgKbSearch:
     async def search(
         self,
         query: str,
-        tenant: str,
+        tenant_id: UUID,
         section_roles: list[str],
         top_k: int,
     ) -> list[KbSearchResultItem]:
-        """Trả `top_k` chunk gần `query` nhất theo cosine, **trong phạm vi `{tenant, section_roles}`**.
+        """Trả `top_k` chunk gần `query` nhất theo cosine, **trong phạm vi `{tenant_id, section_roles}`**.
+
+        `tenant_id` là **UUID** (D-13). RLS khoá theo `app.tenant_id` (biến phiên đặt bằng
+        `_bind_tenant`), còn `WHERE tenant_id = %s` vẫn viết ra tường minh — xem đầu module vì sao
+        cả hai cùng tồn tại.
 
         Lọc nằm **trong câu SQL**, không phải lọc sau khi lấy về. `search.py` gọi thẳng tên cách làm
         sai: lấy hết rồi để LLM tự quyết là anti-pattern bị cấm — chunk ngoài phạm vi không được
@@ -180,12 +190,13 @@ class PgKbSearch:
         literal = _vector_literal(vectors[0])
 
         async with self._pool.connection() as conn, conn.transaction():
-            await _bind_tenant(conn, tenant)
-            cursor = await conn.execute(_SEARCH, (literal, tenant, list(section_roles), literal, top_k))
+            await _bind_tenant(conn, tenant_id)
+            cursor = await conn.execute(_SEARCH, (literal, tenant_id, list(section_roles), literal, top_k))
             rows = await cursor.fetchall()
 
+        # `row[3]` là `tenant_id` từ cột UUID → psycopg trả về object `UUID`, khớp thẳng contract.
         return [
-            KbSearchResultItem(chunk_id=row[0], text=row[1], score=float(row[2]), tenant=row[3], section_role=row[4])
+            KbSearchResultItem(chunk_id=row[0], text=row[1], score=float(row[2]), tenant_id=row[3], section_role=row[4])
             for row in rows
         ]
 
