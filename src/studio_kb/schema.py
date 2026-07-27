@@ -5,12 +5,21 @@ module and calls `ddl()` via the ADMIN (`studio_owner`) pool — that ownership 
 ROW LEVEL SECURITY` below bite the owner too, instead of the owner silently bypassing the fence.
 
 Fence mechanism (F10, plan.md Decision #3): `ENABLE`+`FORCE ROW LEVEL SECURITY` plus a policy with
-BOTH `USING` (reads) and `WITH CHECK` (writes) keyed off `current_setting('app.tenant_id', true)`
-— the `true` argument makes an unset setting resolve to `NULL` rather than raising, and
-`tenant_id = NULL` is never true in SQL, so an unset session sees/writes 0 rows (fail-closed, not
-"everything"). `CREATE EXTENSION vector` is deliberately NOT here — it runs once, as the
+BOTH `USING` (reads) and `WITH CHECK` (writes) keyed off
+`NULLIF(current_setting('app.tenant_id', true), '')::uuid` — three layers, each fail-closed:
+  - `current_setting(..., true)` — the `true` makes an UNSET session resolve to `NULL`, not raise;
+  - `NULLIF(..., '')` — a session set to the EMPTY STRING (some set-paths produce `''`, not NULL)
+    also collapses to `NULL`, because `''::uuid` would otherwise RAISE (loud, but wrong kind of
+    loud — a fence must return 0 rows, not throw a 500 at the user);
+  - `::uuid` — cast the text session var to `uuid` so it compares against the `uuid` column (D-13).
+`tenant_id = NULL` is never true in SQL, so an unset/empty session sees/writes 0 rows (fail-closed,
+not "everything"). `CREATE EXTENSION vector` is deliberately NOT here — it runs once, as the
 `postgres` superuser, from `docker/postgres-init/01-extensions.sql` (Phase 3): both `studio_owner`
 and `studio_app` are `NOSUPERUSER` and cannot create extensions at boot.
+
+`tenant_id` is `UUID` (D-13 / DEC-B): tenant identity is the immutable `core.tenants.id`, never a
+human-collidable slug. The producer (middleware) resolves a header slug → UUID before binding
+`app.tenant_id`; ingest binds `str(tenant_id)` (see `postgres.py::_bind_tenant`).
 """
 
 from __future__ import annotations
@@ -28,7 +37,7 @@ CREATE SCHEMA IF NOT EXISTS kb;
 
 CREATE TABLE IF NOT EXISTS kb.chunks (
     chunk_id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    tenant_id TEXT NOT NULL,
+    tenant_id UUID NOT NULL,
     section_role TEXT NOT NULL,
     text TEXT NOT NULL,
     embedding vector({EMBEDDING_DIM}),
@@ -45,8 +54,8 @@ ALTER TABLE kb.chunks FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS kb_chunks_tenant_isolation ON kb.chunks;
 CREATE POLICY kb_chunks_tenant_isolation ON kb.chunks
-    USING (tenant_id = current_setting('app.tenant_id', true))
-    WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
 """
 
 

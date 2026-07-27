@@ -104,6 +104,41 @@ Trong cùng một `run_id`:
 
 Thiếu một event ở giữa nguy hiểm hơn hỏng hẳn: timeline vẫn **trông** liền mạch, người đọc không biết mình đang thiếu.
 
+#### 4.2a "0-gap" nghĩa là gì — chốt bằng chữ *(bổ sung 24/07, D5)*
+
+Câu "0-gap" đọc được theo **hai** cách, và hai cách cho ra hai reader khác hẳn nhau. Ghi ra đây vì
+đây là loại câu hỏi mà mỗi người tự suy một kiểu rồi không ai phát hiện lệch:
+
+| cách hiểu | nghĩa | chọn? |
+|---|---|---|
+| **thời gian liên tục** | không có khoảng trống giữa các `ts` | ❌ **vô nghĩa** — node chạy nhanh chậm khác nhau là bình thường, mọi run đều sẽ "có gap" |
+| **không sót node** | mỗi node trong chuỗi kỳ vọng có **đúng một** event | ✅ **chọn** — đúng chữ DoD *"Mọi node của 1 run emit event (không sót node)"* |
+
+Ba hệ quả ràng buộc reader, không phải gợi ý:
+
+1. **So theo `node_type`, không theo `node_id`.** `node_id` do người viết recipe đặt (`"n1"`, `"n2"`…),
+   không đoán trước được; `node_type` thuộc tập đóng 6 giá trị và là thứ "chuỗi kỳ vọng" nói tới.
+2. **Chuỗi kỳ vọng hiện tại là 4 node, không phải 6.** `studio_engine.interpreter._WALK_ORDER`
+   hardcode `kb-retrieve → llm-step → tool-call → end`; `condition` và `hitl-pause` **không bao giờ
+   được dispatch** ở phase này (đọc `recipe.dag.edges` để đi động là Day-6 scope). So với 6 là báo
+   thiếu oan. Khi vòng đi thành động, truyền chuỗi thật của recipe vào thay vì sửa hằng số.
+3. **Trùng cũng là sai, không chỉ thiếu.** Luật viết là *"mọi node emit event"* — số ít. Hai event
+   cho cùng một node nghĩa là emit-hook chạy hai lần; reader phải kêu, không được im.
+
+**`ts` dùng để SẮP, tập node dùng để KIỂM — đừng trộn hai việc.** Dùng khoảng cách thời gian để suy
+ra thiếu node sẽ báo động giả mỗi khi một node chạy lâu.
+
+> ⚠️ **`ts` là cột `TEXT`.** `ORDER BY ts` là **so chuỗi**, chỉ trùng với thứ tự thời gian khi mọi
+> timestamp cùng định dạng và cùng độ dài — có/không `Z`, có/không micro-giây, lệch múi giờ đều làm
+> thứ tự sai, và sai **im lặng**. Reader phải parse ra `datetime` rồi mới sắp, và **raise** khi parse
+> hỏng thay vì lặng lẽ giữ thứ tự DB trả về.
+>
+> Ngược lại, **không** assert `ts` tăng nghiêm ngặt: hai node chạy cùng mili-giây trùng `ts` là
+> chuyện bình thường. Trùng thì giữ thứ tự đầu vào (sắp ổn định), và đầu vào đã `ORDER BY ts,
+> event_id` nên kết quả tất định.
+
+Bản hiện thực: `studio_kb.trace_reader` — `check_walk()` / `sort_events()` / `render_timeline()`.
+
 ### 4.3 tenant NOT NULL
 
 `tenant` là **ràng buộc dữ liệu**, không phải field tuỳ chọn. Một event `tenant = NULL` là một event không thuộc về ai, và mọi phép lọc theo tenant đều trượt qua nó — vừa hỏng dashboard, vừa hở INV-1. Sink phải **từ chối ghi**, không được ghi rồi sửa sau.
@@ -215,3 +250,4 @@ từ đó. Đây cũng chính là cơ chế đỡ cho invariant cost-lineage ở
 | Bản | Ngày | Đổi gì |
 |---|---|---|
 | v0 | 2026-07-21 (D2) | Bản nháp đầu — cắt 9/12 field cho tuần 1, chốt 3 invariant, mở seam `ctx'` với AIE-1 |
+| v0.1 | 2026-07-24 (D5) | Thêm **§4.2a — "0-gap" nghĩa là gì**, chốt bằng chữ trước khi code. Không đổi schema, không đổi invariant; chỉ **nói rõ một câu vốn đọc được hai kiểu**: chọn *"không sót node"*, bác *"thời gian liên tục"*. Kèm 3 hệ quả ràng buộc reader (so theo `node_type`; chuỗi kỳ vọng là **4** node theo `_WALK_ORDER` chứ không phải 6; trùng cũng là sai) và bẫy `ts` là cột `TEXT` (so chuỗi → phải parse rồi mới sắp, raise khi hỏng; nhưng **không** assert tăng nghiêm ngặt vì trùng `ts` là hợp lệ). Sinh ra cùng lúc với bản hiện thực `studio_kb.trace_reader` (#21) |

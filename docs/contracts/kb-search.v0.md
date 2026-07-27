@@ -27,11 +27,12 @@ updated: 2026-07-22
 ## 1. Chữ ký v0 — tuần 1
 
 ```python
+from uuid import UUID
 from studio_contracts.kb import KbSearch, KbSearchResultItem
 
 async def search(
     query: str,
-    tenant: str,
+    tenant_id: UUID,
     section_roles: list[str],
     top_k: int,
 ) -> list[KbSearchResultItem]: ...
@@ -42,8 +43,13 @@ async def search(
 `KbSearchResultItem` (đã có sẵn, `packages/contracts/src/studio_contracts/kb.py:21-28`, `frozen=True`):
 
 ```
-chunk_id: str · text: str · score: float · tenant: str · section_role: str
+chunk_id: str · text: str · score: float · tenant_id: UUID · section_role: str
 ```
+
+> **D-13 (#25, 24/07):** `tenant` → `tenant_id: UUID`. Danh tính tenant là `core.tenants.id` bất
+> biến, không phải slug trùng-được. Slug (`ankor`/`borea`) chỉ còn là **nhãn hiển thị** — vẫn nằm
+> trong `chunk_id` (`"ankor-leave-001#c1"`). Bản kb đã adopt: cột `kb.chunks.tenant_id UUID`, RLS
+> cast `::uuid` bọc `NULLIF(...,'')`. Xem §9 lịch sử.
 
 `top_k` **không có giá trị mặc định** trong Protocol — bên gọi phải truyền.
 
@@ -56,7 +62,7 @@ chunk_id: str · text: str · score: float · tenant: str · section_role: str
 ```python
 async def search(
     query: str,
-    tenant: str,
+    tenant_id: UUID,
     section_roles: list[str],
     top_k: int,
 ) -> list[KbSearchResultItem]: ...
@@ -174,6 +180,31 @@ trace. Hai: nó biến một ràng buộc dữ liệu (luôn đúng) thành mộ
 Node `kb-retrieve` nhận `[]` thì **đi tiếp sang `llm-step`**, không raise, không dừng chuỗi. Xem §5.1
 để hiểu vì sao đây là hành vi lâu dài chứ không phải vá tạm.
 
+#### 6.1a Kết quả **khác rỗng KHÔNG có nghĩa là có đáp án** *(bổ sung 23/07)*
+
+Hàm này lọc theo **phạm vi**, không lọc theo **mức liên quan**. Nó trả về mọi chunk mà người hỏi
+**được phép đọc** và có khớp truy vấn ở mức nào đó — kể cả khi **không chunk nào trả lời được câu
+hỏi**. §4 nói đúng chữ đó: kết quả ở bản freeze là *"chunk khớp **scope**"*.
+
+Hai tình huống dưới đây **khác nhau**, đừng gộp:
+
+| tình huống | `kb.search` trả về |
+|---|---|
+| bị hàng rào chặn (ngoài phạm vi) | `[]` |
+| **trong phạm vi nhưng không có đáp án** | **chunk trong phạm vi, không liên quan** — KHÔNG rỗng |
+
+> ⚠️ **Hệ quả — không được suy "agent phải từ chối" từ độ rỗng của kết quả.** Rỗng nghĩa là *không có
+> gì trong phạm vi*; **khác rỗng không** nghĩa là *có đáp án*. "Agent có từ chối hay không" là thuộc
+> tính của **câu trả lời**, không suy được từ tầng truy xuất.
+>
+> Ca phản ví dụ có thật trong golden-set — **SC-04** (`golden/smoke-5.yaml`, mầm leak-test T1):
+> `tenant=ankor`, `section_roles=[public]`, hỏi hạn mức chi của **Borea**. Hàng rào loại sạch chunk
+> Borea (đúng), nhưng vẫn còn **3 chunk `ankor` hợp lệ về phạm vi**, không chunk nào trả lời được.
+> Truy xuất **không rỗng**, mà agent **vẫn phải từ chối**.
+>
+> Ghi ra đây vì §6 là chỗ AIE-1 đọc khi nối `kb-retrieve`, và cách đọc "rỗng ⟺ phải từ chối" là suy
+> diễn tự nhiên mà bản v0 (luôn trả `[]`) vô tình khuyến khích.
+
 ### 6.2 `citations` tuần này sẽ rỗng theo
 
 Không có chunk ra khỏi `kb.search` → không có `chunk_id` để đưa vào `citations` của trace-event.
@@ -251,3 +282,5 @@ cứng (leakage = 0) và sẽ land ở S2/S3. v0 nhận tham số chỉ để **
 | v0 | 2026-07-21 (D2) | Bản nháp đầu — chữ ký **3 tham số** (`query, tenant, top_k`) theo brief tuần 1, ghi sẵn 3 luật fence S2/S3, nêu rõ v0 là tập con của bản freeze |
 | v0.1 | 2026-07-22 (D3) | **Chữ ký nâng lên 4 tham số** — nhận `section_roles` (bỏ qua ở v0). Đóng Q-A. Chữ ký v0 từ nay **trùng bản freeze**, chỉ khác hành vi. Gộp ghi chú wiring cho AIE-1 (§6) — trước đó nằm ở file riêng `kb-search-wiring-d03.md`, đã xoá để tránh hai nguồn lệch nhau. Thêm Q-D. |
 | v0.1a | 2026-07-22 (D3, cuối ngày) | Thêm **§3.1 bảng đối chiếu brief↔code** — ghi lại đầy đủ chỗ lệch: `day-02.md:36` và `day-04.md:22` đều ghi 3 tham số, còn Protocol + seam đều 4. Không đổi chữ ký; chỉ ghi **vết** để người chấm Day 4 truy được vì sao code khác brief. |
+| v0.1b | 2026-07-23 (D4, cuối ngày) | Thêm **§6.1a — "khác rỗng ≠ có đáp án"**. Không đổi chữ ký, không đổi hành vi; chỉ **nói rõ một điều hợp đồng vốn đã đúng nhưng chưa viết ra**: hàm lọc theo *phạm vi*, không theo *mức liên quan*. Sinh ra từ một hiểu lầm có thật ở tích hợp D4 — `llm-step` (AIE-1) suy `refused = not retrieved_chunks`, lập luận rằng "câu bị fence hiện ra thành `[]`". Đúng với ca **bị chặn**, sai với ca **trong phạm vi mà không có đáp án** (SC-04). Bản v0 luôn trả `[]` nên vô tình khuyến khích cách đọc "rỗng ⟺ phải từ chối"; §6.1a chặn nó lại. |
+| **v0.2** | 2026-07-24 (D5, #25) | **Chữ ký đổi kiểu — `tenant: str` → `tenant_id: UUID`** theo **D-13** (`SCHEMA_VERSION 0.2.0-draft`). Đây là **breaking change đã chốt ở contracts@main** (không phải đề xuất): danh tính tenant = `core.tenants.id` UUID bất biến, slug chỉ còn là nhãn hiển thị. Bản kb adopt trọn: cột `kb.chunks.tenant_id UUID`, RLS cast `NULLIF(...,'')::uuid`, `_bind_tenant` truyền `str(uuid)`, `doc_factory`/`static_search`/`postgres` khoá theo UUID. Slug giữ nguyên trong `chunk_id` + golden-set `expected_tenant`. Ánh xạ slug→UUID lúc ingest dùng **fixture S1** (`TENANT_IDS` trong `doc_factory`) — đường phân giải thật là **Q-G**, chưa chốt. Kiểm chứng: `pytest packages/kb/tests` 48 passed / 2 xfailed trên Postgres thật; T1/T6 + RLS-framework xanh với role `studio_owner` (không phải superuser). |
