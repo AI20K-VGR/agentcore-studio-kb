@@ -1,0 +1,78 @@
+# deep-facts.yml — TTS-side deep-facts CI (P29): real coverage% + lint-violation-count, emitted as
+# an artifact the cockpit's read-only deep_facts_reader.py (GET-only, inv#11) consumes. Runs in THIS
+# repo's own ephemeral CI. 0-secret (inv#4), no-LLM (inv#3). Content-agnostic (inv#13): auto-detects
+# the stack (Python/Node) and runs the repo's OWN tooling — it MEASURES, it never GATES (a low
+# coverage or a lint hit is a real metric, not a CI failure), so the job is green on any tree.
+name: deep-facts
+
+on:
+  push:
+    branches: ["**"]
+  pull_request: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  deep-facts:
+    name: TTS deep-facts (coverage% + lint count, ephemeral, 0-secret, metric-only)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (this repo's own code)
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Measure coverage + lint, then write result (tolerant, metric-only — never gates)
+        run: |
+          set +e
+          COV=0; LINT=0; STACK=none
+          if [ -f pyproject.toml ] || [ -f requirements.txt ] || [ -d src ] || ls *.py >/dev/null 2>&1; then
+            STACK=python
+            python -m pip install -q coverage pytest ruff >/dev/null 2>&1
+            [ -f requirements.txt ] && python -m pip install -q -r requirements.txt >/dev/null 2>&1
+            [ -f pyproject.toml ] && python -m pip install -q -e . >/dev/null 2>&1
+            coverage run -m pytest -q >/dev/null 2>&1
+            coverage json -o /tmp/cov.json >/dev/null 2>&1
+            COV=$(python -c "import json;print(round(json.load(open('/tmp/cov.json'))['totals']['percent_covered'],1))" 2>/dev/null || echo 0)
+            LINT=$(ruff check --output-format=json . 2>/dev/null | python -c "import json,sys;print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+          elif [ -f package.json ]; then
+            STACK=node
+            (npm ci --silent || npm install --silent) >/dev/null 2>&1
+            npx --yes eslint . -f json >/tmp/lint.json 2>/dev/null
+            LINT=$(python3 -c "import json;print(sum(f.get('errorCount',0)+f.get('warningCount',0) for f in json.load(open('/tmp/lint.json'))))" 2>/dev/null || echo 0)
+            COV=0
+          fi
+          [ -z "$COV" ] && COV=0
+          [ -z "$LINT" ] && LINT=0
+          echo "detected stack=$STACK coverage_pct=$COV lint_violation_count=$LINT"
+          python3 - "$STACK" "$COV" "$LINT" > deep-facts-result.json <<'PY'
+          import json, sys
+          stack, cov, lint = sys.argv[1], sys.argv[2], sys.argv[3]
+          try: cov_v = float(cov)
+          except ValueError: cov_v = 0
+          try: lint_v = int(float(lint))
+          except ValueError: lint_v = 0
+          print(json.dumps([
+              {"metric_id": "coverage_pct", "value": cov_v, "unit": "percent", "stack": stack},
+              {"metric_id": "lint_violation_count", "value": lint_v, "unit": "count", "stack": stack},
+          ], indent=2))
+          PY
+          cat deep-facts-result.json
+          {
+            echo "### deep-facts"
+            echo "- stack: \`$STACK\`"
+            echo "- coverage_pct: **$COV**"
+            echo "- lint_violation_count: **$LINT**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload deep-facts result (read later by cockpit deep_facts_reader.py, inv#11 GET-only)
+        uses: actions/upload-artifact@v4
+        with:
+          name: deep-facts-result
+          path: deep-facts-result.json
+          if-no-files-found: error
