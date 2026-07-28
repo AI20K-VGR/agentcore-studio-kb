@@ -28,10 +28,10 @@ rỗng); kiểm citation ra `chunk_id`"*.
 
 | Việc | DE? | Trạng thái vào D6 |
 |---|---|---|
-| **trace reader** — timeline in-order, phát hiện thiếu node | ✅ | mang từ D5 sang nếu chưa xong |
+| **trace reader** — timeline in-order, phát hiện thiếu node | ✅ | **xong ở D5** (`trace_reader.py` + `test_trace_reader.py`) — không mang sang |
 | **trace sink nhận call thật** — chứng minh event vào `obs.trace_events` rồi đọc lại được | ✅ | **deliverable chính** |
-| `kb.search` nhận call thật | ✅ | **đã xong 23/07** — xem §1 |
-| citation ra `chunk_id` | ✅ | **đã xong 23/07** |
+| `kb.search` nhận call thật | ✅ | **API xong** (D-13: `tenant_id: UUID`, #25) — xem §1 |
+| citation ra `chunk_id` | ⚠️ | kb trả `chunk_id` thật, nhưng **đường end-to-end đang tắc slug→UUID** — §1 + §D6-3 |
 | Interpreter đọc `dag` từ recipe (bỏ hardcode) | ❌ | AIE-1 (`:38`) |
 | Emit-trace hook (mỗi node → 1 event) | ❌ | SWE (`day-05.md:38`) — xem §4 Q-B |
 | Recipe feed vào interpreter entry đầy đủ | ❌ | SWE (`:37`) |
@@ -62,18 +62,22 @@ liệu thật**, được AIE-1 tiêm vào qua Protocol. Thứ phải gỡ là `
 
 ---
 
-## 1. Đã xong trước D6 (23/07) — không làm lại
+## 1. Trạng thái trước D6 — `kb.search` xong (API), đường citation vướng D-13
 
-Kiểm bằng chạy thật, không phải tự khai:
+Kiểm bằng chạy thật, không phải tự khai. Lần chạy 23/07 (**TRƯỚC #25**):
 
 ```
 recipe SWE (create_recipe_d4)  →  interpreter  →  StaticKbSearch
-  scope 'ankor/public' → node.params{tenant, section_roles}
+  scope 'ankor/public' → node.params{tenant(slug), section_roles}
   kb-retrieve  → ['ankor-leave-001#c1', '#c3', '#c2']
   citations    → ['ankor-leave-001#c1']
 ```
 
-→ **Hai vế của `:39` là `kb.search` và citation đã đạt.** Còn lại đúng một vế: **trace**.
+→ **`kb.search` (API) đã đạt** và giờ đã lên D-13: `search(tenant_id: UUID)`, DE cấp sẵn
+`resolve_tenant_id` (slug→UUID). **NHƯNG** sau #25 đường end-to-end **hồi quy**: `executors.py:77`
+vẫn truyền `node.params["tenant"]` (slug `"ankor"`) vào arg UUID → `chunk.tenant_id (UUID) != "ankor"
+(str)` → lọc rỗng → **không ra citation**. Nên vế citation của `:39`/`:55` **chưa với tới đầu-cuối**
+cho tới khi có bước resolve ở biên (§D6-3, vai AIE-1/SWE). Vế còn lại thuộc DE: **trace**.
 
 ---
 
@@ -95,9 +99,10 @@ uv run pytest packages/kb/tests -q          # 10 test D4 phải XANH trước đ
 
 ---
 
-### D6-1 · Trace reader — nếu D5 chưa xong thì đây là ưu tiên 1
+### D6-1 · Trace reader — **xong ở D5** (không mang sang)
 
-Toàn bộ thiết kế đã nằm ở `plans/day05_plan.md` §D5-1/D5-2, không lặp lại. Ba điểm phải giữ:
+`trace_reader.py` + `test_trace_reader.py` đã land trên nhánh này (D5), **không còn là việc D6**. Giữ
+mục này để đối chiếu; thiết kế đầy đủ ở `plans/day05_plan.md` §D5-1/D5-2. Ba tính chất phải bảo toàn:
 
 1. `read_run(run_id)` xếp theo `ts` — **parse ra `datetime` rồi mới sắp**, không `ORDER BY ts` (cột
    là `TEXT`, so chuỗi sai lặng lẽ khi định dạng lệch). Parse hỏng thì **raise**.
@@ -151,6 +156,9 @@ Việc thật của DE ở đây là **`:56` — ghi điểm gãy còn lại**. 
 
 | điểm gãy | ai | |
 |---|---|---|
+| **`kb-retrieve` truyền slug vào arg UUID** (`executors.py:77`) → lọc rỗng, mất citation | **AIE-1 (#22)** | kb.search cần `tenant_id: UUID` (D-13); executor đọc `node.params["tenant"]`=slug, chưa resolve. DE đã cấp `resolve_tenant_id`. **Chặn `:55`** |
+| **Recipe mang 2 danh tính tenant** | SWE/AIE-1 | `builder_d4` đặt `node.params["tenant"]`=slug **và** `recipe.tenant_id`=UUID; node mang slug còn seam cần UUID → nên đưa `tenant_id` UUID vào `node.params` |
+| **#25 (UUID) chưa merge lên kb `main`** → workspace/demo kéo kb=str | DE + mentor | `feat/day5-reader-d13` chưa vào `main`; con trỏ cha + PR #60 trỏ kb `main` (str) ⟂ `contracts@UUID`. **Chặn `:53`** — việc: merge #25 → kb main rồi bump con trỏ (§3) |
 | Đường đưa `query` vào lúc chạy | SWE + AIE-1 | `create_recipe_d4` không có tham số `query`; `interpreter.run()` cũng không → chạy 5 case thì 3 case sai đề |
 | `refused = not retrieved_chunks` (SC-04) | AIE-1 | đã có đề xuất kiểm chứng, chưa gửi |
 | Citation không đối chiếu khi truy xuất rỗng | AIE-1 | `citations = extracted` — dấu ngoặc nào cũng lọt |
@@ -165,6 +173,7 @@ Ghi vào daily-note D6 — đó là artifact `:56` đòi.
 
 | Slot | Việc | TT |
 |---|---|---|
+| **Trước T2** | **Merge `feat/day5-reader-d13` → kb `main`** (#25 UUID) để demo kéo kb khớp `contracts@UUID` — chặn `:53` | ⬜ |
 | **Trước T2** | Nhắn mentor **Q-A** (composition), nhắn SWE+AIE-1 **Q-B** (emit hook) | ⬜ |
 | Sáng 1 | **D6-0** Docker + 10 test D4 xanh | ⬜ |
 | Sáng 2 | **D6-1** reader (nếu D5 chưa xong) | ⬜ |
@@ -194,9 +203,10 @@ Ghi vào daily-note D6 — đó là artifact `:56` đòi.
 
 ## 5. Tự kiểm trước khi push
 
-- [ ] Trên **nhánh** `day6/trace-sink-live`, không phải `main` (guard chặn push thẳng).
+- [ ] **#25 (UUID) đã merge lên kb `main`** trước khi demo kéo submodule (chưa thì demo lấy kb=str → vỡ).
+- [ ] Trên **nhánh** `day6/trace-sink-live` tách từ **kb `main` đã có #25**, không phải `main` (guard chặn push thẳng).
 - [ ] 10 test D4 (`test_pg_kb.py`) **xanh thật**, không còn skip.
-- [ ] Reader đọc đúng thứ tự **và** báo được node thiếu (có test cố ý bỏ node).
+- [x] Reader đọc đúng thứ tự **và** báo được node thiếu — **xong ở D5** (`test_trace_reader.py`, có test cố ý bỏ node).
 - [ ] `apps/studio/**` không đổi một dòng.
 - [ ] `search.py` + `pipeline.py` vẫn nguyên; `test_search_contract.py` xanh.
 - [ ] `lint-imports` xanh — reader **không** import `studio_app` trong `src/`.

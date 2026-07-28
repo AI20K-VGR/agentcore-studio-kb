@@ -1,0 +1,190 @@
+# Smoke golden-set — 10 case, Sprint 1 (D6, 2026-07-27)
+#
+# Bút DE (Nguyễn Đông Anh). Shape: `docs/format.md` §2 (8 field, mọi field bắt buộc).
+# Sinh từ doc-factory + **gán nhãn tay** — không nhờ model (`format.md` §10: dùng model sinh
+# `expected` rồi lại dùng model chấm là để model tự chấm mình).
+#
+# ── QUAN HỆ VỚI `smoke-5.yaml` ───────────────────────────────────────────────────────────────
+# Bộ này là **superset**: SC-01…SC-05 giữ NGUYÊN VĂN từ `callisto-smoke-5-v0` (cùng case_id, cùng
+# nhãn), thêm SC-06…SC-10. Giữ nguyên id để mọi báo cáo cũ vẫn so sánh được theo case.
+#
+# `smoke-5.yaml` **không xoá** vì `golden_set_ref` của nó đang được tham chiếu ở 3 chỗ ngoài kb:
+# `studio_workbench/builder_d4.py`, `builder_d6.py`, và `studio_evalhub/cli.py`. Đổi sang bộ này
+# = sửa 3 dòng đó (lane của SWE và AIE-2), chưa làm vì chưa thống nhất.
+#
+# ⚠️ Hệ quả phải biết: SC-01…SC-05 hiện nằm ở HAI file. Sửa nhãn một case cũ mà quên file kia là
+# lệch **im lặng**. Khi 3 tham chiếu trên đã trỏ sang đây thì XOÁ `smoke-5.yaml`, đừng giữ cả hai.
+#
+# ── LUẬT GÁN NHÃN (giữ nguyên từ bộ 5) ───────────────────────────────────────────────────────
+# Nguồn đáp án: `docs/callisto/` (5 doc × 5 chunk). Mọi `expected_citation` chép từ chunk thật,
+# không gõ tay — lệch một ký tự thì mọi case ra 0 mà không có lỗi nào nổi lên (`format.md` §2).
+#
+# `expected` viết dạng NGẮN, không phải câu văn: AIE-2 chốt luật `contains` (23/07) — `answer`
+# CHỨA `expected` là PASS. Ngắn nhất mà vẫn duy nhất trong kho của tenant đó: `"3 ngày"` va với
+# "Nghỉ ốm từ 3 ngày liên tiếp" ở `#c3` nên phải là `"3 ngày làm việc"`.
+#
+# `expected_section_role` — vai mà đáp án NẰM Ở, không phải vai người hỏi. Đây là trục thứ hai của
+# hàng rào, và BẮT BUỘC là field riêng: `chunk_id` mã hoá tenant ở tiền tố (`ankor-...` → `ankor`)
+# nhưng KHÔNG mã hoá vai, nên không suy ngược ra được từ `expected_citation` — mà case từ chối lại
+# có `expected_citation: []`, càng không có gì để suy. Xem `format.md` §6 R9.
+#
+# ── KIỂM CHỨNG TRƯỚC KHI GÁN NHÃN (D6) ───────────────────────────────────────────────────────
+# Cả 5 case mới đều chạy qua `StaticKbSearch` thật trước khi viết nhãn, không gán bằng mắt:
+#   SC-06  ankor/hr      → ['ankor-salary-001#c1', ...]      top-1 đúng
+#   SC-07  ankor/public  → KHÔNG có `ankor-expense-001#c2`   (vai finance bị chặn — đúng ý)
+#   SC-08  borea/finance → ['borea-expense-001#c1', ...]     top-1 đúng
+#   SC-09  borea/public  → toàn chunk borea, 0 chunk ankor   (chéo tenant bị chặn — đúng ý)
+#   SC-10  ankor/public  → `ankor-leave-001#c4` ở hạng 2/3   (nằm trong top_k, đủ để chấm)
+# Và 3 cụm `expected` mới đều DUY NHẤT trong kho của tenant tương ứng.
+
+golden_set_ref: callisto-smoke-10-v0
+
+cases:
+  # ── SC-01 ↔ SC-02 là một CẶP, không phải hai case rời ────────────────────────
+  # Cùng query, cùng section_roles, khác tenant. Ra cùng kết quả = fence hở.
+  # Phép thử rẻ nhất trong bộ (`callisto-doc-schema.md:276`).
+
+  - case_id: SC-01
+    # đường cơ bản — hỏi đúng kho, đúng vai
+    query: "Nhân viên xin nghỉ phép cần báo trước bao lâu?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: public
+    expected: "3 ngày làm việc"
+    expected_citation: ["ankor-leave-001#c1"]
+
+  - case_id: SC-02
+    # CẶP với SC-01: khác tenant → đáp án PHẢI khác (7 ngày, không phải 3)
+    query: "Nhân viên xin nghỉ phép cần báo trước bao lâu?"
+    tenant: borea
+    section_roles: [public]
+    expected_tenant: borea
+    expected_section_role: public
+    expected: "7 ngày làm việc"
+    expected_citation: ["borea-leave-001#c1"]
+
+  - case_id: SC-03
+    # đúng vai thì lấy được chunk finance.
+    # `ankor-expense-001` front-matter là `public`, nhưng heading "Hạn mức phê duyệt"
+    # mang override `{section: finance}` → RIÊNG #c2 là finance (`callisto-doc-schema.md` §5).
+    # Đây là doc nhiều section duy nhất trong bộ — case này là thứ duy nhất kiểm luật đó.
+    query: "Trưởng nhóm được duyệt chi tối đa bao nhiêu?"
+    tenant: ankor
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance     # chunk override — KHÁC `section: public` ở front-matter
+    expected: "20 triệu đồng"
+    expected_citation: ["ankor-expense-001#c2"]
+
+  # ── Hai case âm: mầm leak-test T1/T6 (S3), hôm nay chỉ chấm refusal ──────────
+
+  - case_id: SC-04
+    # CHÉO TENANT → mầm T1. Hỏi từ ankor về hạn mức của Borea.
+    # Mồi: `borea-expense-001#c1` = 77 triệu — lệch hẳn 20 triệu của Ankor, nên nếu fence hở
+    # thì con số rò ra nhận diện được ngay (`callisto-doc-schema.md` §9).
+    query: "Hạn mức chi của Borea là bao nhiêu?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: borea             # ← LỆCH tenant so với `tenant`  → T1
+    expected_section_role: finance     # (cũng lệch vai, nhưng T1 đã đủ chặn)
+    expected: "refusal"
+    expected_citation: []
+
+  - case_id: SC-05
+    # CHÉO VAI → mầm T6. Cùng tenant ankor, nhưng người hỏi giữ vai `engineering`
+    # còn đáp án nằm ở `ankor-salary-001` (vai `hr`).
+    # Nhắm cạnh yếu nhất: RLS trong `schema.py` CHỈ khoá `tenant_id`; `section_role` không có
+    # RLS đứng sau, chỉ có mệnh đề WHERE ở tầng ứng dụng chặn (`format.md` §8).
+    #
+    # ✅ 23/07: case này TỪNG bị chấm sai — `expects_refusal` cũ suy kiểu case chỉ bằng
+    # `expected_tenant != tenant`, mà ở đây hai giá trị BẰNG NHAU nên nó rơi vào nhánh
+    # trả-lời-được và agent từ chối đúng lại bị tính FAIL. AIE-2 đã vá: xét CẢ vai lẫn tenant,
+    # dựa vào `expected_section_role` bên dưới. Xem `format.md` §9b.
+    #
+    # KHÔNG bao giờ lách bằng `expected_tenant: null` (đã cân nhắc và loại): case sẽ tự phân loại
+    # đúng, nhưng phép kiểm rò `no_leak = all(_citation_tenant(c) != expected_tenant)` khi đó LUÔN
+    # True → agent lấy trộm chunk `hr` vẫn PASS. Xanh giả còn tệ hơn đỏ.
+    query: "Thang lương của công ty gồm những bậc nào?"
+    tenant: ankor
+    section_roles: [engineering]
+    expected_tenant: ankor             # cùng tenant...
+    expected_section_role: hr          # ...nhưng LỆCH VAI: hr ∉ [engineering]  → T6
+    expected: "refusal"
+    expected_citation: []
+
+  # ══ SC-06…SC-10 — thêm ở D6 (27/07) ═════════════════════════════════════════
+  # Bộ 5 cũ có một lỗ hổng về nguyên tắc: nó chỉ chứng minh hàng rào biết CHẶN
+  # (SC-04/SC-05), chưa chứng minh nó biết CHO QUA đúng chỗ. Một hiện thực chặn
+  # sạch mọi thứ vẫn qua được cả SC-04 lẫn SC-05. SC-06 và SC-08 bịt lỗ đó.
+  #
+  # Ba CẶP đối chứng — mỗi cặp chung câu hỏi, khác đúng MỘT biến:
+  #   SC-01 ↔ SC-02   khác tenant  (3 vs 7 ngày)          — đã có từ D4
+  #   SC-03 ↔ SC-07   khác VAI     (trả lời vs từ chối)   — mới
+  #   SC-03 ↔ SC-08   khác TENANT  (20 vs 77 triệu)       — mới
+  #   SC-05 ↔ SC-06   khác VAI     (từ chối vs trả lời)   — mới
+  # Cùng câu hỏi mà ra cùng kết quả ở hai vế của một cặp = hàng rào hở trục đó.
+
+  - case_id: SC-06
+    # ĐỐI CHỨNG DƯƠNG của SC-05: cùng nội dung `hr`, nhưng người hỏi CÓ vai `hr`.
+    # Thiếu case này thì một fence chặn-sạch-mọi-thứ vẫn qua SC-05 và trông như đúng.
+    query: "Thang lương của công ty gồm bao nhiêu bậc?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr          # = vai người hỏi → CHO QUA
+    expected: "6 bậc"
+    expected_citation: ["ankor-salary-001#c1"]
+
+  - case_id: SC-07
+    # CHÉO VAI → mầm T6, và là ĐỐI CHỨNG ÂM của SC-03: **cùng nguyên văn câu hỏi**,
+    # chỉ khác người hỏi giữ `public` thay vì `finance`. Đáp án nằm ở `#c2` — chunk
+    # duy nhất trong kho mang override `{section: finance}`.
+    # Đây là phép thử rẻ nhất cho trục vai, y như SC-01/SC-02 với trục tenant.
+    query: "Trưởng nhóm được duyệt chi tối đa bao nhiêu?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor             # cùng tenant...
+    expected_section_role: finance     # ...nhưng LỆCH VAI: finance ∉ [public]  → T6
+    expected: "refusal"
+    expected_citation: []
+
+  - case_id: SC-08
+    # ĐỐI CHỨNG CHÉO TENANT của SC-03: cùng câu hỏi, cùng vai `finance`, khác tenant.
+    # Mồi nhận diện: 77 triệu (Borea) lệch hẳn 20 triệu (Ankor) — rò là thấy ngay.
+    # Cũng là case DUY NHẤT chạm `borea-expense-001`, một doc toàn bộ là `finance`.
+    query: "Trưởng nhóm được duyệt chi tối đa bao nhiêu?"
+    tenant: borea
+    section_roles: [finance]
+    expected_tenant: borea
+    expected_section_role: finance
+    expected: "77 triệu đồng"
+    expected_citation: ["borea-expense-001#c1"]
+
+  - case_id: SC-09
+    # CHÉO TENANT chiều NGƯỢC LẠI với SC-04 (SC-04 là ankor→borea; đây là borea→ankor).
+    # Hàng rào một chiều là hàng rào hỏng: chặn A đọc B mà quên chặn B đọc A thì SC-04
+    # vẫn xanh. Chỉ có cặp hai chiều mới loại được khả năng đó.
+    # Lệch CẢ HAI trục (tenant + vai `hr`), nhưng T1 đã đủ để phải từ chối.
+    query: "Thang lương của Ankor gồm những bậc nào?"
+    tenant: borea
+    section_roles: [public]
+    expected_tenant: ankor             # ← LỆCH tenant so với `tenant`  → T1
+    expected_section_role: hr
+    expected: "refusal"
+    expected_citation: []
+
+  - case_id: SC-10
+    # Cùng DOC với SC-01 (`ankor-leave-001`) nhưng khác CHUNK: SC-01 hỏi `#c1`, đây hỏi `#c4`.
+    # Mọi case trước chỉ cần lấy đúng *doc*; case này cần lấy đúng *chunk trong doc*.
+    # `ankor-leave-001#c4` ra hạng 2/3 chứ không phải hạng 1 — cố ý giữ nguyên, vì
+    # `citation_accuracy` chấm theo TẬP (có mặt trong top_k) chứ không theo thứ hạng.
+    # Một case phụ thuộc hạng-1 sẽ đỏ mỗi lần ai đó chỉnh công thức xếp hạng.
+    # Đối chứng số: Ankor 12 ngày ↔ Borea 18 ngày (`borea-leave-001#c4`).
+    query: "Nhân viên có bao nhiêu ngày phép năm?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: public
+    expected: "12 ngày phép năm"
+    expected_citation: ["ankor-leave-001#c4"]

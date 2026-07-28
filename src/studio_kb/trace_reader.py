@@ -30,6 +30,7 @@ from uuid import UUID
 from psycopg import AsyncConnection
 from psycopg_pool import AsyncConnectionPool
 from studio_contracts.nodes import NodeType
+from studio_contracts.recipe import Dag
 from studio_contracts.trace import Tokens, TraceEvent
 
 Pool = AsyncConnectionPool[AsyncConnection[Any]]
@@ -40,15 +41,26 @@ EXPECTED_WALK: tuple[NodeType, ...] = (
     NodeType.TOOL_CALL,
     NodeType.END,
 )
-"""Chuỗi node kỳ vọng của một run — **4 node, không phải 6**.
+"""Chuỗi node **mặc định** — 4 node, đúng với recipe D4/D6 của SWE.
 
-`NodeType` có 6 giá trị, nhưng `studio_engine.interpreter._WALK_ORDER` hardcode đúng 4 node
-(`kb-retrieve → llm-step → tool-call → end`); `condition` và `hitl-pause` **không bao giờ chạy** ở
-giai đoạn này (đọc `recipe.dag.edges` để đi động là Day-6 scope, phase hiện tại cấm). So với 6 là
-báo thiếu oan hai node vốn không được dispatch.
+⚠️ **Đây không còn là nguồn sự thật.** Tới D6 (#27) AIE-1 đã bỏ hằng số
+`studio_engine.interpreter._WALK_ORDER` và đi động theo `recipe.dag.edges`. Thứ tự node giờ do
+**recipe quyết định**, không do một hằng số ở đây quyết định — nguồn đúng là
+`walk_from_dag(recipe.dag)`.
 
-Tham số hoá được ở `check_walk(expected=...)`: khi AIE-1 mở vòng đi động, truyền chuỗi thật của
-recipe vào thay vì sửa hằng số này.
+Hằng số này ở lại vì hai lý do, không phải vì quán tính:
+
+1. `create_recipe_d4`/`create_recipe_d6` đều dựng chuỗi thẳng `kb-retrieve → llm-step → tool-call
+   → end`, nên nó vẫn là câu trả lời đúng cho mọi recipe đang chạy hôm nay;
+2. nó là mặc định để gọi `check_walk(events)` một tham số lúc đang gỡ lỗi, khi trong tay chỉ có
+   event chứ không có recipe.
+
+`NodeType` có 6 giá trị nhưng ở đây chỉ 4: `condition` cần đánh giá `Edge.when` (chưa có —
+`_build_next_map` của engine **raise** khi một node có >1 edge ra), `hitl-pause` cần lưu-và-tiếp-tục
+trạng thái run. So với 6 là báo thiếu oan hai node không recipe nào hiện dựng.
+
+**Khi chấm một run có recipe trong tay, truyền `expected=walk_from_dag(recipe.dag)`** — đừng dựa
+vào hằng số này.
 """
 
 _READ_RUN = """
@@ -66,6 +78,79 @@ class TraceTimestampError(ValueError):
     Có kiểu riêng thay vì `ValueError` trần để test khẳng định được **đúng lý do vỡ**: một bài
     `pytest.raises(ValueError)` sẽ xanh cả khi hàm vỡ vì lý do khác hoàn toàn.
     """
+
+
+class RecipeWalkError(ValueError):
+    """`dag` không mô tả một chuỗi đi được, nên không suy ra được chuỗi node kỳ vọng.
+
+    Kiểu riêng vì cùng lý do như `TraceTimestampError`: phân biệt được "recipe có hình dạng sai"
+    với "reader hỏng". Bốn hình dạng bị từ chối — xem `walk_from_dag`.
+    """
+
+
+def walk_from_dag(dag: Dag) -> tuple[NodeType, ...]:
+    """Suy chuỗi `NodeType` mà interpreter SẼ đi, từ chính `recipe.dag`.
+
+    Đây là thứ thay cho `EXPECTED_WALK` kể từ khi AIE-1 mở vòng đi động (#27): thứ tự node đến từ
+    `dag.edges`, nên chuỗi kỳ vọng cũng phải đến từ đó. Dùng:
+
+        check_walk(events, expected=walk_from_dag(recipe.dag))
+
+    **Soi theo đúng `studio_engine.interpreter.run()`**, không phải một cách đi tự nghĩ ra. Bốn luật
+    dưới đây chép lại nguyên vẹn hành vi của nó, kể cả các nhánh vỡ:
+
+    1. **Đúng 1 node vào** (không edge nào trỏ tới) — `_find_start_node_id`. 0 nghĩa là cả đồ thị
+       nằm trong vòng; >1 nghĩa là không biết bắt đầu từ đâu.
+    2. **Mỗi node ≤ 1 edge ra** — `_build_next_map`. >1 là rẽ nhánh `condition`, mà `Edge.when`
+       chưa được đánh giá ở phase này.
+    3. **Không thăm lại node đã thăm** — biến `visited` trong vòng `while`. "Thòng lọng" (`a→b→b`)
+       lọt cả hai luật trên và sẽ quay vô hạn.
+    4. **Phải kết ở node `end`** — nhánh `next_id is None`. Hết edge trước khi tới `end` là run
+       cụt, mà `RunResult` không mang cờ nào nói nó cụt nên không ai ở dưới phát hiện được.
+
+    **Không import `studio_engine`** — `.importlinter` cấm quadrant chạm quadrant. Vì thế đây là
+    bản chép, và bản chép thì trôi được: nếu engine đổi cách đi (đánh giá `when` chẳng hạn), hàm
+    này phải đổi theo. Đổi mà quên thì reader báo thiếu/thừa oan, nên chỗ này neo bằng bảng trên.
+
+    **Recipe có `condition` thì hàm này vỡ, và vỡ là đúng.** Khi rẽ nhánh chạy thật, tập node đi qua
+    **phụ thuộc dữ liệu** — không có chuỗi kỳ vọng tĩnh nào tồn tại, nên đoán một chuỗi rồi chấm
+    theo nó còn tệ hơn là không chấm. Lúc đó "0-gap" phải định nghĩa lại theo đường đi thực tế.
+    """
+    targets = {edge.to for edge in dag.edges}
+    starts = [node.id for node in dag.nodes if node.id not in targets]
+    if len(starts) != 1:
+        raise RecipeWalkError(f"dag phải có đúng 1 node vào (không edge nào trỏ tới), thấy {len(starts)}: {starts}")
+
+    next_by_id: dict[str, str] = {}
+    for edge in dag.edges:
+        if edge.from_ in next_by_id:
+            raise RecipeWalkError(
+                f"node {edge.from_!r} có >1 edge ra — rẽ nhánh `condition` chưa được đánh giá, "
+                "không suy ra được một chuỗi kỳ vọng duy nhất"
+            )
+        next_by_id[edge.from_] = edge.to
+
+    nodes_by_id = {node.id: node for node in dag.nodes}
+    walk: list[NodeType] = []
+    visited: set[str] = set()
+    current_id = starts[0]
+    while True:
+        if current_id in visited:
+            raise RecipeWalkError(f"dag có chu trình — node {current_id!r} bị thăm lại")
+        if current_id not in nodes_by_id:
+            raise RecipeWalkError(f"edge trỏ tới node {current_id!r} không tồn tại trong dag.nodes")
+        visited.add(current_id)
+        node_type = nodes_by_id[current_id].type
+        walk.append(node_type)
+        if node_type is NodeType.END:
+            return tuple(walk)
+        next_id = next_by_id.get(current_id)
+        if next_id is None:
+            raise RecipeWalkError(
+                f"dag hết edge ở node {current_id!r} mà chưa tới node `end` — chuỗi cụt, "
+                f"đã đi {len(visited)} node: {sorted(visited)}"
+            )
+        current_id = next_id
 
 
 def _parse_ts(raw: str) -> datetime:
@@ -135,6 +220,12 @@ def check_walk(
     So theo `node_type` chứ không theo `node_id`: `node_id` do người viết recipe đặt (`"n1"`,
     `"n2"`…), không đoán trước được; `node_type` thuộc tập đóng 6 giá trị và là thứ chuỗi kỳ vọng
     nói tới.
+
+    **`expected` lấy từ đâu.** Từ D6 (#27) interpreter đi theo `recipe.dag.edges`, nên chuỗi kỳ vọng
+    thuộc về recipe chứ không thuộc về hằng số trong module này. Có recipe trong tay thì truyền
+    `expected=walk_from_dag(recipe.dag)`; mặc định `EXPECTED_WALK` chỉ đúng vì mọi recipe hiện có
+    (`create_recipe_d4`/`d6`) đều là chuỗi thẳng 4 node — nó là tiện lợi lúc gỡ lỗi, không phải
+    hợp đồng.
     """
     counts: dict[NodeType, int] = {}
     for event in events:
