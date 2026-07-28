@@ -19,49 +19,32 @@ thật (AIE-1), kiểm ở chỗ khác.
 
 from __future__ import annotations
 
-import hashlib
-import math
 from uuid import UUID
 
 import pytest
 from psycopg import sql
 from studio_kb.doc_factory import TENANT_IDS, Chunk, load_callisto
+from studio_kb.embeddings import derive_vector
 from studio_kb.postgres import KbIngest, PgKbSearch
 from studio_kb.schema import EMBEDDING_DIM
 
 ANKOR_ID = TENANT_IDS["ankor"]
 BOREA_ID = TENANT_IDS["borea"]
 
-_TOKEN_BUCKETS = EMBEDDING_DIM
-
 
 class BagOfWordsEmbedding:
     """`EmbeddingService` giả, tất định, đúng `EMBEDDING_DIM` chiều.
 
-    Băm mỗi token vào 1 trong 8 ô rồi chuẩn hoá — văn bản giống nhau ra vector giống nhau, văn bản
-    chia sẻ từ thì gần nhau. Dùng `blake2b` chứ KHÔNG dùng `hash()` dựng sẵn: `hash()` của Python
-    ngẫu nhiên hoá theo tiến trình (PYTHONHASHSEED), nên vector sẽ đổi giữa các lần chạy và test
-    thành nhấp nháy.
+    D7: thân hàm đã dời sang `studio_kb.embeddings.derive_vector` và class này gọi lại nó. Trước
+    đó công thức nằm ở đây, còn `golden/embeddings-callisto-v0.json` sinh bằng một công thức khác —
+    hai nguồn cho cùng một thứ, và chỗ lệch sẽ chỉ lộ ra khi vector đã nằm trong `kb.chunks`.
 
-    Không import `FakeEmbedding` của `apps/studio`: `.importlinter` cấm `studio_kb` chạm
+    Vẫn KHÔNG import `FakeEmbedding` của `apps/studio`: `.importlinter` cấm `studio_kb` chạm
     `studio_app`. Đó cũng là lý do `EMBEDDING_DIM` được ghim trong `schema.py` chứ không ở app.
     """
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        return [self._vector(t) for t in texts]
-
-    @staticmethod
-    def _vector(text: str) -> list[float]:
-        buckets = [0.0] * _TOKEN_BUCKETS
-        for token in text.lower().split():
-            digest = hashlib.blake2b(token.encode("utf-8"), digest_size=2).digest()
-            buckets[int.from_bytes(digest, "big") % _TOKEN_BUCKETS] += 1.0
-        norm = math.sqrt(sum(x * x for x in buckets))
-        if norm == 0.0:
-            # Vector 0 làm cosine không xác định (chia 0) — pgvector trả NaN và thứ tự thành vô
-            # nghĩa. Văn bản rỗng phải ra một vector hợp lệ nào đó, không phải gốc toạ độ.
-            return [1.0] + [0.0] * (_TOKEN_BUCKETS - 1)
-        return [x / norm for x in buckets]
+        return [derive_vector(t) for t in texts]
 
 
 @pytest.fixture
