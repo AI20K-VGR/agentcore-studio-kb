@@ -57,6 +57,12 @@ async def test_query_nhac_tenant_khac_van_chi_tra_tenant_da_resolve() -> None:
 
     # borea hỏi về ankor (chiều ngược)
     res_rev = await kb.search("Thang lương của Ankor gồm những bậc nào?", _BOREA, ["public"], 5)
+    # Guard đối xứng với dòng trên: thiếu nó thì `res_rev` rỗng làm hai assert dưới pass RỖNG NGHĨA
+    # (`all([])` là True, `any([])` là False) — test xanh mà không khoá gì, đúng lúc chiều B→A là
+    # thứ cần khoá nhất. Hiện `res_rev` không rỗng nhờ token "lương" khớp `borea-leave-001#c5`
+    # ("Nghỉ không lương") — trùng hợp từ vựng, không phải Borea có bậc lương thật; sửa chữ trong
+    # chunk đó là mất chiều này mà không ai biết. (SWE bắt, kb#4.)
+    assert res_rev, "query có từ chung, phải ra vài chunk borea — nếu rỗng là test tự vô hiệu"
     assert all(r.tenant_id == _BOREA for r in res_rev)
     assert not any(r.tenant_id == _ANKOR for r in res_rev)
 
