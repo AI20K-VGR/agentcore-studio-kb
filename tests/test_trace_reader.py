@@ -204,6 +204,56 @@ async def _write(pool: object, events: list[TraceEvent]) -> None:
         await writer.write(event)
 
 
+async def test_db_doc_lai_nguyen_ven_tung_truong(admin_pool: object, pool: object) -> None:
+    """KHÓA phần còn thiếu của *"rebuild-read"* (`day-09.md:36`): đọc lại đúng **NỘI DUNG**, không
+    chỉ đúng thứ tự.
+
+    Mọi test DB khác trong file này chỉ khẳng định `node_type`, `event_id`, hoặc tập rỗng — tức là
+    **thứ tự và danh tính**. Không bài nào kiểm payload đọc lên có khớp payload đã ghi. Đo được bằng
+    cách đột biến từng cột trong `_row_to_event`:
+
+        outputs     → 3 test đỏ, nhưng toàn ở `test_spine_live.py`
+        inputs_hash → 1 test đỏ, cũng ở `test_spine_live.py`
+        citations   → 2 test đỏ, cũng ở `test_spine_live.py`
+        tokens      → KHÔNG ai đỏ
+        cost        → KHÔNG ai đỏ
+
+    `cost` là chỗ đau nhất: docstring của `TraceEvent` chốt *"`cost` must be the SAME number surfaced
+    on all 3 downstream surfaces (UI test/trace/dashboard)"*. Reader trả `0.0` cho mọi event thì cả
+    suite vẫn xanh, và ba mặt kia cùng hiển thị sai một cách nhất quán — kiểu hỏng không ai nghi ngờ.
+
+    **Vì sao phải dựng event riêng thay vì dùng `_full_walk()`.** Factory `_event()` để mọi payload ở
+    mặc định — `outputs={}`, `tokens=0/0`, `cost=0.0`, `citations=None` — mà đó đúng bằng giá trị một
+    reader hỏng sẽ trả về. So sánh round-trip trên dữ liệu đó luôn xanh dù reader có đọc cột hay
+    không. Event dưới đây cố ý cho mỗi trường một giá trị **không trùng mặc định nào**.
+
+    So bằng `==` cả model thay vì liệt từng trường: `TraceEvent` là pydantic frozen nên `==` là so
+    field-by-field, và cách này tự phủ luôn trường được thêm vào contract sau này — liệt tay thì
+    trường mới lặng lẽ không ai kiểm, đúng kiểu hở mà bài này đang vá.
+    """
+    del admin_pool  # chỉ cần thứ tự dựng schema
+
+    goc = TraceEvent(
+        event_id="ev-payload-1",
+        run_id="run-payload",
+        agent_id="agent-callisto-d4",
+        tenant_id=ANKOR_ID,
+        node_id="n-kb-retrieve",
+        node_type=NodeType.KB_RETRIEVE,
+        ts="2026-07-30T09:00:00.000000+00:00",
+        inputs_hash="sha256:0123456789abcdef",
+        outputs={"chunks": [{"chunk_id": "ankor-leave-001#c1"}], "so_luong": 1},
+        tokens=Tokens(prompt=137, completion=42),  # khác nhau VÀ khác 0
+        cost=0.001234,  # khác 0, đủ lẻ để không trùng hằng số nào
+        citations=["ankor-leave-001#c1", "ankor-expense-001#c2"],
+    )
+    await _write(pool, [goc])
+
+    events = await PgTraceReader(pool).read_run("run-payload", ANKOR_ID)  # type: ignore[arg-type]
+
+    assert events == [goc], "event đọc lại phải khớp từng trường với event đã ghi"
+
+
 async def test_db_doc_lai_dung_thu_tu_va_bao_0_gap(admin_pool: object, pool: object) -> None:
     """Vòng tròn đầy đủ: ghi 4 event **xáo trộn thứ tự** → đọc lại đúng thứ tự, kết luận 0-gap."""
     del admin_pool  # chỉ cần thứ tự dựng schema

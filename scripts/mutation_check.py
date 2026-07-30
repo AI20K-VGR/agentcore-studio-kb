@@ -94,6 +94,24 @@ MUTANTS = (
         ),
     ),
     Mutant(
+        # M5/M6 là hai cột mà TRƯỚC D9 không một bài nào khoá: đột biến chúng cho 0 test đỏ. Giữ lại
+        # trong bộ vì đó là hai cột "im lặng" — sai mà không có triệu chứng nào ngoài con số hiển thị.
+        ten="M5 reader-roi-tokens",
+        mo_ta="PgTraceReader trả tokens 0/0 — số token mọi node thành 0",
+        duong_dan=_SRC / "trace_reader.py",
+        anchor="        tokens=Tokens(**row[9]),",
+        thay_bang="        tokens=Tokens(prompt=0, completion=0),  # MUTANT\n",
+        ky_vong_bat=("test_db_doc_lai_nguyen_ven_tung_truong",),
+    ),
+    Mutant(
+        ten="M6 reader-roi-cost",
+        mo_ta="PgTraceReader trả cost=0.0 — contract đòi cost khớp trên cả 3 mặt hiển thị",
+        duong_dan=_SRC / "trace_reader.py",
+        anchor="        cost=float(row[10]),",
+        thay_bang="        cost=0.0,  # MUTANT\n",
+        ky_vong_bat=("test_db_doc_lai_nguyen_ven_tung_truong",),
+    ),
+    Mutant(
         # Mutant DUY NHẤT nằm ngoài kb. Có mặt vì `:53` (*"một nguồn số"*) là hợp đồng GIỮA hai
         # quadrant: hỏng ở phía bộ chấm thì con số citation-accuracy sai, mà không bài nào trong kb
         # đỏ — trừ bài khoá đúng cái bắt tay đó. Đây là phép đo cho câu hỏi Q-B trong plan D9.
@@ -110,6 +128,14 @@ MUTANTS = (
 )
 
 
+_MA_MAU = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _bo_mau(text: str) -> str:
+    """Gỡ mã màu ANSI. Xem chú thích trong `_chay_suite` về vì sao đây không phải chuyện thẩm mỹ."""
+    return _MA_MAU.sub("", text)
+
+
 def _chay_suite() -> tuple[int, int, set[str]]:
     """Chạy suite kb, trả `(so_pass, so_fail, ten_cac_test_do)`.
 
@@ -118,12 +144,16 @@ def _chay_suite() -> tuple[int, int, set[str]]:
     cùng con số và trông như đạt.
     """
     proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "packages/kb", "-q", "--no-header", "-p", "no:cacheprovider"],
+        # `--color=no`: pytest vẫn phun mã màu ANSI kể cả khi stdout là pipe, và `\x1b[31m` đứng
+        # trước `FAILED` làm regex neo đầu dòng không khớp — lúc đó script báo "không cắn" cho MỌI
+        # mutant trong khi số đếm vẫn đúng. Đã dính đúng bẫy này một lần; `_bo_mau` bên dưới là lớp
+        # chặn thứ hai phòng khi cờ này bị bỏ qua.
+        [sys.executable, "-m", "pytest", "packages/kb", "-q", "--no-header", "--color=no", "-p", "no:cacheprovider"],
         cwd=_ROOT,
         capture_output=True,
         text=True,
     )
-    out = proc.stdout
+    out = _bo_mau(proc.stdout)
     do = set(re.findall(r"^FAILED \S+::(\w+)", out, re.MULTILINE))
     so_pass = int(m.group(1)) if (m := re.search(r"(\d+) passed", out)) else 0
     so_fail = int(m.group(1)) if (m := re.search(r"(\d+) failed", out)) else 0
