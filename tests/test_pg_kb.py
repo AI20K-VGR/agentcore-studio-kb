@@ -186,6 +186,11 @@ async def test_top_k_khong_am_va_cat_dung_so_luong(pool: object, embedding: obje
     )
     search = PgKbSearch(pool, embedding)  # type: ignore[arg-type]
     assert len(await search.search("nghỉ phép", ANKOR_ID, ["public"], 2)) == 2
+    # `top_k=1` là biên bị bỏ sót: 0 và 2 đã có, còn 1 thì không. Quét đột biến bắt được chỗ này —
+    # đổi chặn sớm thành `top_k <= 1` thì mọi bài trên vẫn xanh, trong khi người dùng xin 1 kết quả
+    # lại nhận về rỗng. Bản `StaticKbSearch` đã khoá biên này (`test_loc_truoc_roi_moi_cat_top_k`);
+    # bản Postgres thì chưa, mà hai bản phải thay được cho nhau.
+    assert len(await search.search("nghỉ phép", ANKOR_ID, ["public"], 1)) == 1
     assert await search.search("nghỉ phép", ANKOR_ID, ["public"], 0) == []
 
 
