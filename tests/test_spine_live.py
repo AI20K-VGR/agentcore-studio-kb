@@ -76,14 +76,18 @@ class _UnusedEmbedding:
         return []
 
 
-async def _run_spine(pool: Pool, *, answer: str, tenant_id: UUID = ANKOR_ID):
+async def _run_spine(pool: Pool, *, answer: str, tenant_id: UUID = ANKOR_ID, recipe_tenant_id: UUID | None = None):
     """Chạy trọn một run với sink thật, trả `(recipe, RunResult)`.
 
     `trace_writer=PgTraceWriter(pool)` là mấu chốt của cả file: đây là chỗ event rời khỏi bộ nhớ
     tiến trình và xuống Postgres thật. Trả kèm `recipe` vì từ D6 chuỗi node kỳ vọng suy từ
     `recipe.dag`, không từ một hằng số.
+
+    `tenant_id` là tenant **của phiên** (server-resolve). `recipe_tenant_id` là tenant **recipe tự
+    khai** — mặc định trùng phiên, và tách rời được là điều kiện để kiểm INV-1: hai nguồn khai cùng
+    một giá trị thì không bài test nào phân biệt nổi hệ thống đang đọc nguồn nào.
     """
-    recipe = create_recipe_d4(tenant_id=tenant_id)
+    recipe = create_recipe_d4(tenant_id=tenant_id if recipe_tenant_id is None else recipe_tenant_id)
     result = await run(
         recipe,
         # D8/INV-1: `run()` đòi `session_context` BẮT BUỘC (engine `a6967a2`, PR #12) — tenant đi qua
@@ -226,6 +230,50 @@ async def test_citations_are_grounded(spine) -> None:
     assert set(cited) <= retrieved_ids
     # `_CITED_CHUNK` là id có thật; nó được trích khi và chỉ khi nó nằm trong tập truy xuất.
     assert cited == [c for c in [_CITED_CHUNK] if c in retrieved_ids]
+
+
+async def test_inv1_recipe_tu_khai_tenant_khac_thi_phien_thang(pool: Pool) -> None:
+    """KHÓA INV-1 (`day-08.md`, issue #40) — *"client tự khai tenant bị bỏ qua"*.
+
+    **Vì sao bài này phải tồn tại dù cả file đã truyền `session_context`.** Mọi bài khác trong file
+    dựng recipe và phiên với CÙNG một `tenant_id`, nên hai nguồn không phân biệt được: hệ thống đọc
+    nguồn nào cũng ra cùng kết quả. Đo được — đổi `interpreter.py` để lấy `recipe.tenant_id` thay vì
+    `session_context.tenant_id` (đúng cái INV-1 cấm) thì **cả suite kb 66 test vẫn xanh**, kể cả bài
+    `test_kb_retrieve_got_a_real_uuid_scoped_call` vốn trông như đang canh chỗ đó.
+
+    Nói cách khác: trước bài này, "đã truyền `session_context`" mới là *chạy qua* được API mới, chưa
+    phải *bằng chứng* cho DoD D8.
+
+    Bài này tách hai nguồn ra: recipe tự khai **borea** (vai kẻ tấn công — client khai bừa để với
+    sang kho tenant khác), phiên server-resolve ra **ankor**. Mọi thứ hạ nguồn phải đi theo PHIÊN.
+
+    Ba vế, cố ý phủ ba tầng khác nhau chứ không phải lặp lại một ý:
+      1. tầng dữ liệu — chunk truy xuất được thuộc ankor, không một chunk borea nào;
+      2. tầng quan trắc — `TraceEvent.tenant_id` là ankor, vì trace sai tenant thì kiểm toán sau này
+         quy trách nhiệm nhầm chỗ;
+      3. tầng đọc lại — đọc bằng borea (tenant recipe khai) trả rỗng.
+    """
+    recipe, result = await _run_spine(
+        pool,
+        answer=f"Nhân viên cần báo trước 3 ngày làm việc. [{_CITED_CHUNK}]",
+        tenant_id=ANKOR_ID,  # phiên: server-resolve
+        recipe_tenant_id=BOREA_ID,  # recipe tự khai — phải bị bỏ qua
+    )
+    assert recipe.tenant_id == BOREA_ID, "tiền đề của bài: recipe phải thật sự khai tenant khác phiên"
+
+    events = await PgTraceReader(pool).read_run(result.run_id, ANKOR_ID)
+    retrieve = next(e for e in events if e.node_type is NodeType.KB_RETRIEVE)
+    chunks = retrieve.outputs["chunks"]
+
+    # Cầu chì: rỗng thì hai assert dưới pass rỗng nghĩa, mà "không truy xuất được gì" cũng là cách
+    # một fence hỏng có thể trông như đang chặn.
+    assert chunks, "phải truy xuất được chunk ankor — rỗng thì phép loại trừ dưới vô nghĩa"
+    assert all(c["tenant_id"] == str(ANKOR_ID) for c in chunks)
+    assert not any(str(c["chunk_id"]).startswith("borea-") for c in chunks)
+
+    assert all(e.tenant_id == ANKOR_ID for e in events), "trace phải mang tenant của phiên, không của recipe"
+
+    assert await PgTraceReader(pool).read_run(result.run_id, BOREA_ID) == []
 
 
 async def test_trace_la_nguon_citation_dung_duoc_cho_bo_cham(spine) -> None:

@@ -35,6 +35,7 @@ _KB = Path(__file__).resolve().parent.parent
 _ROOT = _KB.parent.parent
 _SRC = _KB / "src" / "studio_kb"
 _EVALHUB = _ROOT / "packages" / "evalhub" / "src" / "studio_evalhub"
+_ENGINE = _ROOT / "packages" / "engine" / "src" / "studio_engine"
 
 
 @dataclass(frozen=True)
@@ -110,6 +111,26 @@ MUTANTS = (
         anchor="        cost=float(row[10]),",
         thay_bang="        cost=0.0,  # MUTANT\n",
         ky_vong_bat=("test_db_doc_lai_nguyen_ven_tung_truong",),
+    ),
+    Mutant(
+        # M7/M8 đánh thẳng vào INV-1: lấy tenant từ recipe (client tự khai) thay vì từ phiên. TRƯỚC
+        # khi có `test_inv1_recipe_tu_khai_tenant_khac_thi_phien_thang`, cả hai cho 0 test đỏ — tức
+        # bất biến trung tâm của D8 không được bài nào trong kb khoá, dù cả file đã truyền
+        # `session_context`. Truyền được API mới không đồng nghĩa với chứng minh được bất biến.
+        ten="M7 tenant-tu-recipe-kb",
+        mo_ta="interpreter tiêm recipe.tenant_id vào kb-retrieve thay vì session (INV-1 vỡ ở tầng dữ liệu)",
+        duong_dan=_ENGINE / "interpreter.py",
+        anchor='"tenant_id": session_context.tenant_id',
+        thay_bang='"tenant_id": recipe.tenant_id',
+        ky_vong_bat=("test_inv1_recipe_tu_khai_tenant_khac_thi_phien_thang",),
+    ),
+    Mutant(
+        ten="M8 tenant-tu-recipe-trace",
+        mo_ta="TraceEvent mang recipe.tenant_id thay vì session (INV-1 vỡ ở tầng quan trắc)",
+        duong_dan=_ENGINE / "interpreter.py",
+        anchor="tenant_id=session_context.tenant_id,",
+        thay_bang="tenant_id=recipe.tenant_id,  # MUTANT",
+        ky_vong_bat=("test_inv1_recipe_tu_khai_tenant_khac_thi_phien_thang",),
     ),
     Mutant(
         # Mutant DUY NHẤT nằm ngoài kb. Có mặt vì `:53` (*"một nguồn số"*) là hợp đồng GIỮA hai
