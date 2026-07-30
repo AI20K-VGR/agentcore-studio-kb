@@ -38,6 +38,7 @@ from studio_kb.doc_factory import TENANT_IDS
 from studio_kb.static_search import StaticKbSearch
 from studio_kb.trace_reader import PgTraceReader, check_walk, walk_from_dag
 from studio_workbench import create_recipe_d4
+from studio_workbench.tenant_wall import resolve_session
 
 ANKOR_ID = TENANT_IDS["ankor"]
 BOREA_ID = TENANT_IDS["borea"]
@@ -85,6 +86,14 @@ async def _run_spine(pool: Pool, *, answer: str, tenant_id: UUID = ANKOR_ID):
     recipe = create_recipe_d4(tenant_id=tenant_id)
     result = await run(
         recipe,
+        # D8/INV-1: `run()` đòi `session_context` BẮT BUỘC (engine `a6967a2`, PR #12) — tenant đi qua
+        # identity server-resolve, không lấy từ `recipe.tenant_id` nữa. Dùng thẳng `resolve_session`
+        # của SWE thay vì tự dựng double: nhờ vậy file này thành chỗ DUY NHẤT trong kit chạy trọn
+        # chuỗi thật resolver(SWE) → interpreter(AIE-1) → fence(DE) → Postgres → đọc lại, tức bằng
+        # chứng chạy được cho DoD D8. Xem `docs/inv1_tenant_wall.md` §5.1.
+        # (`ResolvedContext` là `@dataclass(frozen=True, slots=True)` đúng 3 field nên thoả
+        # `SessionContext` Protocol về cấu trúc — `studio_engine/session.py:49-63`.)
+        session_context=resolve_session({"tenant_id": tenant_id, "user": "spine-test"}),
         kb_search=StaticKbSearch(),
         llm=_CitingLLM(answer),
         embedding=_UnusedEmbedding(),
@@ -169,6 +178,14 @@ async def test_inputs_hash_differs_per_node(spine) -> None:
     """
     _recipe, _result, events = spine
 
+    # Cầu chì chống rỗng-nghĩa: `events` rỗng làm CẢ HAI assert dưới xanh vô nghĩa —
+    # `len(set()) == len([])` là `0 == 0`, và `all([])` là True.
+    # Đo được: cho `PgTraceReader.read_run` trả `[]` (reader nuốt hết event) → 9 test khác đỏ, riêng
+    # bài này VẪN XANH. Có dòng này thì nó đỏ theo.
+    # Chỉ khẳng định không-rỗng, KHÔNG chốt `== 4`: chuỗi node thuộc về recipe kể từ D6 (#27) và
+    # `test_walk_matches_the_recipe_dag` mới là chỗ sở hữu phép kiểm đó — chốt 4 ở đây là chụp ảnh
+    # hình dạng recipe hôm nay vào một bài test không nói gì về hình dạng recipe.
+    assert events, "spine phải emit event — rỗng thì hai assert dưới không khoá gì"
     assert len({e.inputs_hash for e in events}) == len(events)
     assert all(e.inputs_hash for e in events)
 
@@ -209,6 +226,42 @@ async def test_citations_are_grounded(spine) -> None:
     assert set(cited) <= retrieved_ids
     # `_CITED_CHUNK` là id có thật; nó được trích khi và chỉ khi nó nằm trong tập truy xuất.
     assert cited == [c for c in [_CITED_CHUNK] if c in retrieved_ids]
+
+
+async def test_trace_la_nguon_citation_dung_duoc_cho_bo_cham(spine) -> None:
+    """KHÓA phần DE của DoD `day-09.md:53` — *"smoke-eval lấy citation TỪ TRACE (một nguồn số)"*.
+
+    DE sở hữu **nguồn**: `obs.trace_events` → `PgTraceReader`. AIE-2 sở hữu **bộ chấm** (#44). Chỗ
+    hai bên gặp nhau là kiểu của `TraceEvent.citations`, và đó là chỗ "một nguồn số" hỏng được mà
+    không ai đỏ: reader đọc ra một dạng, bộ chấm mong một dạng khác, mỗi bên tự tính một con số.
+    Bài này khoá đúng cái bắt tay đó bằng cách cho hàm THẬT của AIE-2 ăn event THẬT đọc từ Postgres.
+
+    Hai điều được khẳng định, và chúng khác nhau:
+
+    1. **Dùng được** — `citations_from_trace` trên event đọc-từ-DB phải ra đúng chunk mà LLM trích.
+       Không có vế này thì "nối vào trace" chỉ là nói.
+    2. **Không mất mát qua DB** — bản đọc-từ-DB và bản trong-RAM cho CÙNG kết quả.
+       `test_events_come_from_db_not_memory` chỉ so `event_id`, nên một reader đánh rơi `citations`
+       vẫn xanh ở đó; con số chấm điểm thì đã sai. Vế này là chỗ bắt điều đó.
+
+    Không assert `isinstance(list[str])`: `TraceEvent` là pydantic `BaseModel` nên `citations=row[11]`
+    đã bị validate ngay tại biên reader — JSONB sai kiểu là `ValidationError` lúc dựng event, không
+    phải lúc chấm. Thêm một assert kiểu ở đây là kiểm lại việc pydantic đã làm.
+
+    Import `studio_evalhub` trong test là cố ý và cùng đường đã dùng cho `studio_engine` /
+    `studio_workbench` ở đầu file: `.importlinter` ràng namespace `studio_kb` (tức `src/`), không quét
+    test. Gọi hàm thật của AIE-2 thay vì chép lại logic gom — chép lại thì khớp với bản chép, không
+    khớp với bộ chấm.
+    """
+    from studio_evalhub.harness import citations_from_trace
+
+    _recipe, result, events = spine
+
+    tu_db = citations_from_trace(events)
+    tu_ram = citations_from_trace(result.events)
+
+    assert tu_db == [_CITED_CHUNK], "bộ chấm phải lấy được đúng chunk đã trích, từ trace đọc-từ-DB"
+    assert tu_db == tu_ram, "đường xuống Postgres làm lệch citations — hai bên sẽ chấm ra hai số"
 
 
 async def test_refusal_is_derived_from_grounding(pool: Pool) -> None:
