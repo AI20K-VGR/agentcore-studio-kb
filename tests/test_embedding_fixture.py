@@ -17,9 +17,16 @@ trong plan D7.
 from __future__ import annotations
 
 import json
+import math
 
 from studio_kb.doc_factory import load_callisto
-from studio_kb.embeddings import FIXTURE_PATH, FIXTURE_REF, dump_fixture, load_callisto_embeddings
+from studio_kb.embeddings import (
+    FIXTURE_PATH,
+    FIXTURE_REF,
+    derive_vector,
+    dump_fixture,
+    load_callisto_embeddings,
+)
 from studio_kb.schema import EMBEDDING_DIM
 
 
@@ -46,6 +53,26 @@ def test_every_vector_has_the_pinned_width() -> None:
     """
     widths = {len(vector) for vector in load_callisto_embeddings().values()}
     assert widths == {EMBEDDING_DIM}
+
+
+def test_van_ban_rong_van_ra_vector_hop_le_dung_chieu() -> None:
+    """Ca biên vector 0 — docstring `derive_vector` chốt, nhưng trước D9 không bài nào khoá.
+
+    Text rỗng (hoặc chỉ khoảng trắng) làm mọi ô đếm bằng 0, nên chuẩn hoá L2 sẽ chia cho 0. Hàm
+    trả `[1, 0, …]` thay vì gốc toạ độ, và lý do nằm ở tầng dưới: pgvector tính cosine với vector 0
+    ra `NaN`, lúc đó **thứ hạng thành vô nghĩa mà không có lỗi nào nổi lên** — đúng kiểu hỏng im
+    lặng khó lần nhất.
+
+    Quét đột biến bắt được: đổi `dim - 1` thành `dim - 2` ở nhánh này thì cả suite vẫn xanh, trong
+    khi vector trả ra chỉ còn 7 chiều và `KbIngest` sẽ vỡ lúc ingest.
+
+    Khẳng định TÍNH CHẤT, không dán vector quan sát được: đúng số chiều, và chuẩn bằng 1. Ô nào
+    mang giá trị 1 là chi tiết hiện thực, khoá nó là khoá thứ bài test không định khoá.
+    """
+    for text in ("", "   ", "\n\t "):
+        vector = derive_vector(text)
+        assert len(vector) == EMBEDDING_DIM, f"text {text!r} ra vector lệch chiều"
+        assert math.isclose(math.sqrt(sum(x * x for x in vector)), 1.0), f"text {text!r} phải ra vector đơn vị"
 
 
 def test_declared_dim_matches_the_pinned_constant() -> None:

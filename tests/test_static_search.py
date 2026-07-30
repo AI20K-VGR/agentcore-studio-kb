@@ -37,6 +37,12 @@ async def test_goi_duoc_bang_dung_4_keyword_arg(kb: StaticKbSearch) -> None:
     """Chữ ký chốt D3 (`kb-search.v0.md` v0.1 §1). Sai số tham số → `TypeError` ngay tại đây, đúng
     chỗ AIE-1 sẽ vỡ nếu wiring lệch."""
     hits = await kb.search(query="báo trước bao lâu", tenant_id=ANKOR_ID, section_roles=["public"], top_k=5)
+    # Cầu chì chống rỗng-nghĩa: `all([])` là True, nên `hits` rỗng làm assert dưới xanh mà không kiểm
+    # gì. Răng thật của bài này là lời gọi 4-kwarg ở trên không raise `TypeError`; assert dưới chỉ là
+    # phụ, và chính vì phụ mà nó dễ bị tưởng là đang kiểm nội dung.
+    # Đo được: cho `StaticKbSearch.search` trả `[]` (mô phỏng impl hỏng) → 9 test khác trong suite đỏ,
+    # riêng bài này VẪN XANH. Có dòng này thì nó đỏ theo. Cùng khuôn `test_leak.py:46-50`.
+    assert hits, "gọi được chữ ký rồi thì phải ra chunk — rỗng nghĩa là assert dưới không kiểm gì"
     assert all(h.chunk_id and h.text and h.tenant_id and h.section_role for h in hits)
 
 
@@ -101,6 +107,14 @@ async def test_sc04_cheo_tenant_khong_ro_ri_chunk_cua_tenant_kia(kb: StaticKbSea
     thành rỗng ở đây sẽ khoá cứng một hành vi mà S2 (xếp hạng vector) chắc chắn đổi.
     """
     hits = await kb.search("Hạn mức chi của Borea là bao nhiêu?", ANKOR_ID, ["public"], 5)
+    # Cầu chì chống rỗng-nghĩa: cả ba assert dưới đều theo hướng LOẠI TRỪ, nên `hits` rỗng làm cả ba
+    # xanh vô nghĩa (`all([])` True, `any([])` False) — tập rỗng loại trừ được mọi thứ. Đây là bản
+    # `StaticKbSearch` của đúng lỗi SWE bắt ở `test_tenant_wall.py` chiều B→A (kb#4, vá 77dd9e4).
+    # Đo được: cho `StaticKbSearch.search` trả `[]` → 9 test khác đỏ, riêng bài này VẪN XANH — tức là
+    # bài canh rò-rỉ-chéo-tenant lại không phát hiện nổi một impl chết. Có dòng này thì nó đỏ theo.
+    # Khẳng định không-rỗng, KHÔNG chốt số lượng: docstring trên nói rõ S2 (xếp hạng vector) sẽ đổi
+    # tập chunk yếu này, chốt số là khoá cứng hành vi mà chính bài test không định khoá.
+    assert hits, "phải ra vài chunk ankor điểm thấp — nếu rỗng thì ba phép loại trừ dưới vô nghĩa"
     assert all(h.tenant_id == ANKOR_ID for h in hits)
     assert not any("borea" in h.chunk_id for h in hits)
     assert not any("77 triệu" in h.text for h in hits)
