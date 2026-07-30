@@ -25,6 +25,7 @@ vi đó **không được bài test nào khoá** — đó là phát hiện, khô
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -182,6 +183,16 @@ def _chay_suite() -> tuple[int, int, set[str]]:
 
 
 def main() -> int:
+    # Từ chối chạy khi thiếu DSN, thay vì chạy rồi cho số SAI. Đo được: không có hai biến này thì
+    # 34 test DB skip (`36 passed, 34 skipped` thay vì `68 passed`), và M4 bị báo "không cắn" trong
+    # khi thực tế nó cắn — người đọc kết luận bằng chứng là khai láo. Cảnh báo `goc_pass == 0` bên
+    # dưới KHÔNG bắt được ca này vì vẫn có 36 test chạy; một công cụ đo tự tin trong khi đo nhầm thứ
+    # là đúng họ lỗi cả bộ này sinh ra để chống.
+    if not os.environ.get("STUDIO_DATABASE_URL_ADMIN") or not os.environ.get("STUDIO_DATABASE_URL"):
+        print("⚠ Thiếu STUDIO_DATABASE_URL / STUDIO_DATABASE_URL_ADMIN — 34 test DB sẽ skip và kết quả")
+        print("  đo sẽ SAI (không phải chỉ thiếu). Xem khối lệnh ở `docs/evidence-d9.md` §1.")
+        return 1
+
     print("=" * 78)
     print("Nền: suite sạch, không mutant")
     goc_pass, goc_fail, goc_do = _chay_suite()
