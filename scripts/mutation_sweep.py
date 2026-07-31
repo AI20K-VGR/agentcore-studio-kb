@@ -52,13 +52,43 @@ from pathlib import Path
 _KB = Path(__file__).resolve().parent.parent
 ROOT = _KB.parent.parent
 SRC = _KB / "src" / "studio_kb"
+_ORIG_SUFFIX = ".mutation_sweep.orig"
+
+
+def _restore_orig_files() -> None:
+    """Khôi phục file `.orig` còn sót lại từ lần sweep bị kill giữa chừng.
+
+    `finally: f.write_text(goc)` chỉ chạy khi Python kịp xử lý — bị `SIGKILL`, hết bộ nhớ,
+    hoặc tiến trình cha hạ bằng tín hiệu không bắt được thì `finally` KHÔNG chạy và file
+    nguồn nằm lại ở trạng thái đột biến. Mọi con số đo trên cây đó là vô nghĩa.
+
+    Cơ chế: trước khi ghi mutant, lưu bản gốc sang `<file>.mutation_sweep.orig`. Sau khi
+    restore, xoá `.orig`. Nếu `.orig` còn tồn tại lúc khởi động → lần trước bị kill, phải
+    khôi phục trước khi đo bất cứ gì.
+    """
+    for orig in SRC.glob(f"*{_ORIG_SUFFIX}"):
+        # `with_suffix` chỉ đổi suffix cuối; `.py` nằm trong stem nên phải cắt bằng
+        # `removesuffix` — nếu không, `<tên>.py.mutation_sweep.orig` ra `<tên>.py.py`
+        # (không bao giờ tồn tại) và nhánh restore không chạy.
+        src_file = orig.with_name(orig.name.removesuffix(_ORIG_SUFFIX))
+        # Luôn ghi bản gốc trước (write_text tự tạo file nếu nguồn đã bị xoá), rồi mới
+        # xoá `.orig`. Tuyệt đối không xoá `.orig` khi chưa restore — đó là bản copy duy nhất.
+        src_file.write_text(orig.read_text())
+        print(f"⚠ Khôi phục {src_file.name} từ {orig.name} (lần sweep trước bị kill)")
+        orig.unlink()
+
 
 _CMP_SWAP = {
-    ast.Eq: ast.NotEq, ast.NotEq: ast.Eq,
-    ast.Lt: ast.GtE, ast.GtE: ast.Lt,
-    ast.Gt: ast.LtE, ast.LtE: ast.Gt,
-    ast.In: ast.NotIn, ast.NotIn: ast.In,
-    ast.Is: ast.IsNot, ast.IsNot: ast.Is,
+    ast.Eq: ast.NotEq,
+    ast.NotEq: ast.Eq,
+    ast.Lt: ast.GtE,
+    ast.GtE: ast.Lt,
+    ast.Gt: ast.LtE,
+    ast.LtE: ast.Gt,
+    ast.In: ast.NotIn,
+    ast.NotIn: ast.In,
+    ast.Is: ast.IsNot,
+    ast.IsNot: ast.Is,
 }
 
 
@@ -76,11 +106,19 @@ def _thu_thap(tree: ast.AST) -> list[Cand]:
         if isinstance(node, ast.Compare):
             for op in node.ops:
                 if type(op) in _CMP_SWAP:
-                    out.append(Cand("cmp", getattr(node, "lineno", 0),
-                                    f"{type(op).__name__} -> {_CMP_SWAP[type(op)].__name__}"))
+                    out.append(
+                        Cand(
+                            "cmp", getattr(node, "lineno", 0), f"{type(op).__name__} -> {_CMP_SWAP[type(op)].__name__}"
+                        )
+                    )
         elif isinstance(node, ast.BoolOp):
-            out.append(Cand("bool", getattr(node, "lineno", 0),
-                            f"{type(node.op).__name__} -> {'Or' if isinstance(node.op, ast.And) else 'And'}"))
+            out.append(
+                Cand(
+                    "bool",
+                    getattr(node, "lineno", 0),
+                    f"{type(node.op).__name__} -> {'Or' if isinstance(node.op, ast.And) else 'And'}",
+                )
+            )
         elif isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
             out.append(Cand("not", getattr(node, "lineno", 0), "bỏ `not`"))
         elif isinstance(node, ast.Constant):
@@ -141,9 +179,23 @@ def _chay_suite() -> tuple[bool, str]:
             f.unlink(missing_ok=True)
     try:
         p = subprocess.run(
-            [sys.executable, "-B", "-m", "pytest", "packages/kb", "-x", "-q", "--no-header",
-             "--color=no", "-p", "no:cacheprovider"],
-            cwd=ROOT, capture_output=True, text=True, timeout=180,
+            [
+                sys.executable,
+                "-B",
+                "-m",
+                "pytest",
+                "packages/kb",
+                "-x",
+                "-q",
+                "--no-header",
+                "--color=no",
+                "-p",
+                "no:cacheprovider",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=180,
         )
     except subprocess.TimeoutExpired:
         return False, "TIMEOUT (coi như bị bắt)"
@@ -154,6 +206,10 @@ def _chay_suite() -> tuple[bool, str]:
 
 
 def main() -> int:
+    # Bước 0: khôi phục nếu lần trước bị kill giữa chừng.
+    # Phải chạy TRƯỚC mọi phép đo — số đo trên cây còn mutant không dùng được.
+    _restore_orig_files()
+
     if not os.environ.get("STUDIO_DATABASE_URL_ADMIN"):
         print("⚠ Chưa có biến DSN — 31 test DB sẽ skip và kết quả quét vô nghĩa.")
         return 1
@@ -165,13 +221,16 @@ def main() -> int:
 
     for f in files:
         goc = f.read_text()
+        orig_path = f.with_suffix(f".py{_ORIG_SUFFIX}")
         tree = ast.parse(goc)
         cands = _thu_thap(tree)
 
         # Kiểm nền: unparse KHÔNG đột biến phải giữ suite xanh. Nếu không, mọi số dưới là nhiễu.
+        orig_path.write_text(goc)
         f.write_text(ast.unparse(ast.parse(goc)))
         nen_xanh, tom = _chay_suite()
         f.write_text(goc)
+        orig_path.unlink(missing_ok=True)
         if not nen_xanh:
             print(f"⚠ {f.name}: unparse trần đã làm suite đỏ ({tom}) — bỏ file này, số sẽ không tin được.")
             continue
@@ -181,12 +240,14 @@ def main() -> int:
             tong += 1
             try:
                 m = _dot_bien(ast.parse(goc), i)
+                orig_path.write_text(goc)
                 f.write_text(ast.unparse(m))
                 xanh, tom = _chay_suite()
-            except (SyntaxError, ValueError, RecursionError):  # mutant không unparse/parse được
+            except SyntaxError, ValueError, RecursionError:  # mutant không unparse/parse được
                 continue
             finally:
                 f.write_text(goc)
+                orig_path.unlink(missing_ok=True)
 
             if xanh:
                 song_sot.append((f.name, c))
