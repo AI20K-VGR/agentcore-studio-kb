@@ -31,8 +31,8 @@ from typing import cast
 from uuid import UUID
 
 import pytest_asyncio
-from studio_app.core._db import Pool  # type: ignore[import-untyped]
-from studio_app.obs.trace_writer import PgTraceWriter  # type: ignore[import-untyped]
+from studio_app.core._db import Pool
+from studio_app.obs.trace_writer import PgTraceWriter
 from studio_contracts.nodes import NodeType
 from studio_contracts.recipe import Recipe
 from studio_contracts.trace import TraceEvent

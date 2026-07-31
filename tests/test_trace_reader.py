@@ -197,9 +197,9 @@ def test_run_rong_khong_raise() -> None:
 
 async def _write(pool: object, events: list[TraceEvent]) -> None:
     """Ghi event bằng chính sink đã có ở `apps/studio` — không dựng lại đường ghi."""
-    from studio_app.obs.trace_writer import PgTraceWriter  # type: ignore[import-untyped]
+    from studio_app.obs.trace_writer import PgTraceWriter
 
-    writer = PgTraceWriter(pool)
+    writer = PgTraceWriter(pool)  # type: ignore[arg-type]
     for event in events:
         await writer.write(event)
 
