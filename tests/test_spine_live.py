@@ -27,13 +27,16 @@ Cần Postgres: `docker compose -f docker-compose.test.yml up -d` + hai biến D
 
 from __future__ import annotations
 
+from typing import cast
 from uuid import UUID
 
 import pytest_asyncio
-from studio_app.core._db import Pool
-from studio_app.obs.trace_writer import PgTraceWriter
+from studio_app.core._db import Pool  # type: ignore[import-untyped]
+from studio_app.obs.trace_writer import PgTraceWriter  # type: ignore[import-untyped]
 from studio_contracts.nodes import NodeType
-from studio_engine import run
+from studio_contracts.recipe import Recipe
+from studio_contracts.trace import TraceEvent
+from studio_engine import RunResult, run
 from studio_kb.doc_factory import TENANT_IDS
 from studio_kb.static_search import StaticKbSearch
 from studio_kb.trace_reader import PgTraceReader, check_walk, walk_from_dag
@@ -76,7 +79,9 @@ class _UnusedEmbedding:
         return []
 
 
-async def _run_spine(pool: Pool, *, answer: str, tenant_id: UUID = ANKOR_ID, recipe_tenant_id: UUID | None = None):
+async def _run_spine(
+    pool: Pool, *, answer: str, tenant_id: UUID = ANKOR_ID, recipe_tenant_id: UUID | None = None
+) -> tuple[Recipe, RunResult]:
     """Chạy trọn một run với sink thật, trả `(recipe, RunResult)`.
 
     `trace_writer=PgTraceWriter(pool)` là mấu chốt của cả file: đây là chỗ event rời khỏi bộ nhớ
@@ -107,7 +112,7 @@ async def _run_spine(pool: Pool, *, answer: str, tenant_id: UUID = ANKOR_ID, rec
 
 
 @pytest_asyncio.fixture
-async def spine(pool: Pool):
+async def spine(pool: Pool) -> tuple[Recipe, RunResult, list[TraceEvent]]:
     """Chạy spine MỘT lần, dùng lại cho nhiều assert — mỗi lần chạy là một round-trip DB thật.
 
     Trả `(recipe, result, events_đọc_từ_DB)`. Cố ý **không** chỉ trả `result.events`: xem
@@ -118,7 +123,7 @@ async def spine(pool: Pool):
     return recipe, result, events
 
 
-async def test_walk_matches_the_recipe_dag(spine) -> None:
+async def test_walk_matches_the_recipe_dag(spine: tuple[Recipe, RunResult, list[TraceEvent]]) -> None:
     """KHÓA: chuỗi node đã emit khớp chuỗi mà **recipe** khai, ĐÚNG thứ tự.
 
     Đối chiếu với `walk_from_dag(recipe.dag)` chứ không với hằng số `EXPECTED_WALK`: từ D6 (#27)
@@ -135,7 +140,7 @@ async def test_walk_matches_the_recipe_dag(spine) -> None:
     assert check_walk(events, expected).ok
 
 
-async def test_events_come_from_db_not_memory(pool: Pool, spine) -> None:
+async def test_events_come_from_db_not_memory(pool: Pool, spine: tuple[Recipe, RunResult, list[TraceEvent]]) -> None:
     """KHÓA: bản trong DB và bản trong RAM khớp nhau — sink thật sự đã ghi.
 
     Đây là bài chống lại cách viết test dễ sai nhất ở đây: assert vào `result.events` (bản sao
@@ -148,7 +153,7 @@ async def test_events_come_from_db_not_memory(pool: Pool, spine) -> None:
     assert len(events) == len(walk_from_dag(recipe.dag))
 
 
-async def test_tenant_fence_on_read(pool: Pool, spine) -> None:
+async def test_tenant_fence_on_read(pool: Pool, spine: tuple[Recipe, RunResult, list[TraceEvent]]) -> None:
     """KHÓA: đọc bằng tenant khác trả rỗng.
 
     `obs.trace_events` **không có RLS** (khác `kb.chunks`), nên mệnh đề `WHERE ... AND tenant_id`
@@ -160,7 +165,7 @@ async def test_tenant_fence_on_read(pool: Pool, spine) -> None:
     assert await PgTraceReader(pool).read_run(result.run_id, BOREA_ID) == []
 
 
-async def test_reader_reports_missing_node(spine) -> None:
+async def test_reader_reports_missing_node(spine: tuple[Recipe, RunResult, list[TraceEvent]]) -> None:
     """KHÓA: reader có răng — bỏ node cuối thì phải kêu.
 
     Một reader chỉ biết in ra thì lúc nào cũng trông như thành công. Bài này chứng minh nhánh báo
@@ -173,7 +178,7 @@ async def test_reader_reports_missing_node(spine) -> None:
     assert NodeType.END in check.missing
 
 
-async def test_inputs_hash_differs_per_node(spine) -> None:
+async def test_inputs_hash_differs_per_node(spine: tuple[Recipe, RunResult, list[TraceEvent]]) -> None:
     """KHÓA: `inputs_hash` là hash thật của `node.params`, không phải hằng số.
 
     Bốn node có `params` khác nhau ⇒ bốn hash khác nhau. Không có assert này thì một hiện thực trả
@@ -194,7 +199,7 @@ async def test_inputs_hash_differs_per_node(spine) -> None:
     assert all(e.inputs_hash for e in events)
 
 
-async def test_kb_retrieve_got_a_real_uuid_scoped_call(spine) -> None:
+async def test_kb_retrieve_got_a_real_uuid_scoped_call(spine: tuple[Recipe, RunResult, list[TraceEvent]]) -> None:
     """KHÓA: `kb-retrieve` gọi được `kb.search` và lấy về chunk thật.
 
     Đây là vế `kb.search nhận call thật` của DoD. Rỗng ở đây nghĩa là đường slug→UUID lại tắc:
@@ -204,13 +209,13 @@ async def test_kb_retrieve_got_a_real_uuid_scoped_call(spine) -> None:
     _recipe, _result, events = spine
     retrieve = next(e for e in events if e.node_type is NodeType.KB_RETRIEVE)
 
-    chunks = retrieve.outputs["chunks"]
+    chunks = cast(list[dict[str, object]], retrieve.outputs["chunks"])
     assert isinstance(chunks, list)
     assert chunks, "kb-retrieve trả 0 chunk — nhiều khả năng tenant_id không tới được dạng UUID"
     assert all(c["tenant_id"] == str(ANKOR_ID) for c in chunks)
 
 
-async def test_citations_are_grounded(spine) -> None:
+async def test_citations_are_grounded(spine: tuple[Recipe, RunResult, list[TraceEvent]]) -> None:
     """KHÓA: chỉ chunk ĐÃ truy xuất mới được trích.
 
     Luật grounding (engine `1e25a3a`): citation phải vừa được `kb-retrieve` trả về, vừa được nhắc
@@ -224,7 +229,7 @@ async def test_citations_are_grounded(spine) -> None:
     retrieve = next(e for e in events if e.node_type is NodeType.KB_RETRIEVE)
     llm = next(e for e in events if e.node_type is NodeType.LLM_STEP)
 
-    retrieved_ids = {c["chunk_id"] for c in retrieve.outputs["chunks"]}
+    retrieved_ids = {c["chunk_id"] for c in cast(list[dict[str, object]], retrieve.outputs["chunks"])}
     cited = llm.citations or []
 
     assert set(cited) <= retrieved_ids
@@ -263,7 +268,7 @@ async def test_inv1_recipe_tu_khai_tenant_khac_thi_phien_thang(pool: Pool) -> No
 
     events = await PgTraceReader(pool).read_run(result.run_id, ANKOR_ID)
     retrieve = next(e for e in events if e.node_type is NodeType.KB_RETRIEVE)
-    chunks = retrieve.outputs["chunks"]
+    chunks = cast(list[dict[str, object]], retrieve.outputs["chunks"])
 
     # Cầu chì: rỗng thì hai assert dưới pass rỗng nghĩa, mà "không truy xuất được gì" cũng là cách
     # một fence hỏng có thể trông như đang chặn.
@@ -276,7 +281,7 @@ async def test_inv1_recipe_tu_khai_tenant_khac_thi_phien_thang(pool: Pool) -> No
     assert await PgTraceReader(pool).read_run(result.run_id, BOREA_ID) == []
 
 
-async def test_trace_la_nguon_citation_dung_duoc_cho_bo_cham(spine) -> None:
+async def test_trace_la_nguon_citation_dung_duoc_cho_bo_cham(spine: tuple[Recipe, RunResult, list[TraceEvent]]) -> None:
     """KHÓA phần DE của DoD `day-09.md:53` — *"smoke-eval lấy citation TỪ TRACE (một nguồn số)"*.
 
     DE sở hữu **nguồn**: `obs.trace_events` → `PgTraceReader`. AIE-2 sở hữu **bộ chấm** (#44). Chỗ
