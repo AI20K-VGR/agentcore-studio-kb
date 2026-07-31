@@ -54,11 +54,16 @@ ROOT = _KB.parent.parent
 SRC = _KB / "src" / "studio_kb"
 
 _CMP_SWAP = {
-    ast.Eq: ast.NotEq, ast.NotEq: ast.Eq,
-    ast.Lt: ast.GtE, ast.GtE: ast.Lt,
-    ast.Gt: ast.LtE, ast.LtE: ast.Gt,
-    ast.In: ast.NotIn, ast.NotIn: ast.In,
-    ast.Is: ast.IsNot, ast.IsNot: ast.Is,
+    ast.Eq: ast.NotEq,
+    ast.NotEq: ast.Eq,
+    ast.Lt: ast.GtE,
+    ast.GtE: ast.Lt,
+    ast.Gt: ast.LtE,
+    ast.LtE: ast.Gt,
+    ast.In: ast.NotIn,
+    ast.NotIn: ast.In,
+    ast.Is: ast.IsNot,
+    ast.IsNot: ast.Is,
 }
 
 
@@ -76,11 +81,19 @@ def _thu_thap(tree: ast.AST) -> list[Cand]:
         if isinstance(node, ast.Compare):
             for op in node.ops:
                 if type(op) in _CMP_SWAP:
-                    out.append(Cand("cmp", getattr(node, "lineno", 0),
-                                    f"{type(op).__name__} -> {_CMP_SWAP[type(op)].__name__}"))
+                    out.append(
+                        Cand(
+                            "cmp", getattr(node, "lineno", 0), f"{type(op).__name__} -> {_CMP_SWAP[type(op)].__name__}"
+                        )
+                    )
         elif isinstance(node, ast.BoolOp):
-            out.append(Cand("bool", getattr(node, "lineno", 0),
-                            f"{type(node.op).__name__} -> {'Or' if isinstance(node.op, ast.And) else 'And'}"))
+            out.append(
+                Cand(
+                    "bool",
+                    getattr(node, "lineno", 0),
+                    f"{type(node.op).__name__} -> {'Or' if isinstance(node.op, ast.And) else 'And'}",
+                )
+            )
         elif isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
             out.append(Cand("not", getattr(node, "lineno", 0), "bỏ `not`"))
         elif isinstance(node, ast.Constant):
@@ -141,9 +154,23 @@ def _chay_suite() -> tuple[bool, str]:
             f.unlink(missing_ok=True)
     try:
         p = subprocess.run(
-            [sys.executable, "-B", "-m", "pytest", "packages/kb", "-x", "-q", "--no-header",
-             "--color=no", "-p", "no:cacheprovider"],
-            cwd=ROOT, capture_output=True, text=True, timeout=180,
+            [
+                sys.executable,
+                "-B",
+                "-m",
+                "pytest",
+                "packages/kb",
+                "-x",
+                "-q",
+                "--no-header",
+                "--color=no",
+                "-p",
+                "no:cacheprovider",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=180,
         )
     except subprocess.TimeoutExpired:
         return False, "TIMEOUT (coi như bị bắt)"
@@ -183,7 +210,7 @@ def main() -> int:
                 m = _dot_bien(ast.parse(goc), i)
                 f.write_text(ast.unparse(m))
                 xanh, tom = _chay_suite()
-            except (SyntaxError, ValueError, RecursionError):  # mutant không unparse/parse được
+            except SyntaxError, ValueError, RecursionError:  # mutant không unparse/parse được
                 continue
             finally:
                 f.write_text(goc)
