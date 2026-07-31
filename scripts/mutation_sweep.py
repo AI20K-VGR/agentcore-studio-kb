@@ -67,11 +67,14 @@ def _restore_orig_files() -> None:
     khôi phục trước khi đo bất cứ gì.
     """
     for orig in SRC.glob(f"*{_ORIG_SUFFIX}"):
-        src_file = orig.with_suffix("").with_suffix(".py")
-        if src_file.exists():
-            # File nguồn hiện tại là mutant — ghi đè bằng bản gốc
-            src_file.write_text(orig.read_text())
-            print(f"⚠ Khôi phục {src_file.name} từ {orig.name} (lần sweep trước bị kill)")
+        # `with_suffix` chỉ đổi suffix cuối; `.py` nằm trong stem nên phải cắt bằng
+        # `removesuffix` — nếu không, `<tên>.py.mutation_sweep.orig` ra `<tên>.py.py`
+        # (không bao giờ tồn tại) và nhánh restore không chạy.
+        src_file = orig.with_name(orig.name.removesuffix(_ORIG_SUFFIX))
+        # Luôn ghi bản gốc trước (write_text tự tạo file nếu nguồn đã bị xoá), rồi mới
+        # xoá `.orig`. Tuyệt đối không xoá `.orig` khi chưa restore — đó là bản copy duy nhất.
+        src_file.write_text(orig.read_text())
+        print(f"⚠ Khôi phục {src_file.name} từ {orig.name} (lần sweep trước bị kill)")
         orig.unlink()
 
 
