@@ -27,7 +27,6 @@ Cần Postgres: `docker compose -f docker-compose.test.yml up -d` + hai biến D
 
 from __future__ import annotations
 
-from typing import cast
 from uuid import UUID
 
 import pytest_asyncio
@@ -123,6 +122,21 @@ async def spine(pool: Pool) -> tuple[Recipe, RunResult, list[TraceEvent]]:
     return recipe, result, events
 
 
+def _chunks(e: TraceEvent) -> list[dict[str, str]]:
+    """Lấy `outputs["chunks"]` với hàng rào runtime — `cast` chỉ là lời khai lúc biên dịch.
+
+    Ba chỗ trong file cùng truy xuất `e.outputs["chunks"]` rồi duyệt dict bên trong.
+    Dùng `cast(list[dict[str, object]], ...)` thì `{c["chunk_id"] for c in ...}` ra
+    `set[object]`, nên `set(cited) <= retrieved_ids` vẫn type-check kể cả khi `cited`
+    thôi không còn là `str` — annotation ghi ít hơn điều test đang assert.
+
+    `assert isinstance` là hàng rào lúc chạy (cùng lập luận workbench#9).
+    """
+    chunks = e.outputs["chunks"]
+    assert isinstance(chunks, list), f"outputs['chunks'] không phải list: {type(chunks)}"
+    return chunks
+
+
 async def test_walk_matches_the_recipe_dag(spine: tuple[Recipe, RunResult, list[TraceEvent]]) -> None:
     """KHÓA: chuỗi node đã emit khớp chuỗi mà **recipe** khai, ĐÚNG thứ tự.
 
@@ -209,8 +223,7 @@ async def test_kb_retrieve_got_a_real_uuid_scoped_call(spine: tuple[Recipe, RunR
     _recipe, _result, events = spine
     retrieve = next(e for e in events if e.node_type is NodeType.KB_RETRIEVE)
 
-    chunks = cast(list[dict[str, object]], retrieve.outputs["chunks"])
-    assert isinstance(chunks, list)
+    chunks = _chunks(retrieve)
     assert chunks, "kb-retrieve trả 0 chunk — nhiều khả năng tenant_id không tới được dạng UUID"
     assert all(c["tenant_id"] == str(ANKOR_ID) for c in chunks)
 
@@ -229,7 +242,7 @@ async def test_citations_are_grounded(spine: tuple[Recipe, RunResult, list[Trace
     retrieve = next(e for e in events if e.node_type is NodeType.KB_RETRIEVE)
     llm = next(e for e in events if e.node_type is NodeType.LLM_STEP)
 
-    retrieved_ids = {c["chunk_id"] for c in cast(list[dict[str, object]], retrieve.outputs["chunks"])}
+    retrieved_ids = {c["chunk_id"] for c in _chunks(retrieve)}
     cited = llm.citations or []
 
     assert set(cited) <= retrieved_ids
@@ -268,7 +281,7 @@ async def test_inv1_recipe_tu_khai_tenant_khac_thi_phien_thang(pool: Pool) -> No
 
     events = await PgTraceReader(pool).read_run(result.run_id, ANKOR_ID)
     retrieve = next(e for e in events if e.node_type is NodeType.KB_RETRIEVE)
-    chunks = cast(list[dict[str, object]], retrieve.outputs["chunks"])
+    chunks = _chunks(retrieve)
 
     # Cầu chì: rỗng thì hai assert dưới pass rỗng nghĩa, mà "không truy xuất được gì" cũng là cách
     # một fence hỏng có thể trông như đang chặn.
