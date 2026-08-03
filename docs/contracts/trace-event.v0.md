@@ -13,9 +13,10 @@ updated: 2026-08-03
 # 🖊️ trace-event — INTERFACE (FREEZE-READY D11)
 
 > ## 🧊 FREEZE-READY (03/08, D11) — nội dung câu-chữ đã khoá; còn chờ **người**.
-> Tên + nghĩa mọi khoá đã khớp `studio_contracts.trace.TraceEvent` (delta §7: *"v0 chỉ THIẾU, không
-> MÂU THUẪN"*). Ngày freeze này **không** thêm field — chỉ **chốt câu chữ đang đọc-hai-kiểu** và đóng/
-> hoãn-có-ghi các câu mở. **Hai cổng còn lại là việc người, không phải câu chữ** (xem §0.1):
+> Tên + nghĩa mọi khoá khớp `studio_contracts.trace.TraceEvent` **sau khi sửa drift D-13**
+> (`tenant: str` → `tenant_id: UUID`) trong bản 03/08 — xem §7. *(Trước bản này doc còn `tenant: str`,
+> **mâu thuẫn** với runtime; AIE-2 review bắt, đã sửa.)* Ngày freeze này **không** thêm field — chỉ
+> **chốt câu chữ + căn lại theo runtime** và đóng/hoãn-có-ghi các câu mở. **Hai cổng còn lại là việc người** (xem §0.1):
 > **Q-1** (bản `FROZEN` nằm ở draft kb hay PR bump `SCHEMA_VERSION` ở `contracts`) + **4/4 chữ ký**.
 > Đổi sau khi freeze = mini-RFC + 4/4 chữ ký + decision-log; đổi bản freeze-ready này = nhắn DE.
 
@@ -76,7 +77,7 @@ trace_event:
   event_id:    str        # khoá chính, duy nhất toàn hệ
   run_id:      str        # gom mọi event của 1 lần chạy
   agent_id:    str
-  tenant:      str        # NOT NULL — INV-1
+  tenant_id:   uuid       # NOT NULL — INV-1 · UUID (D-13, đổi từ `tenant: str`)
   node_id:     str        # id node trong DAG của recipe
   node_type:   str        # ∈ 6 loại đóng (§5)
   ts:          iso8601    # monotonic trong 1 run_id
@@ -102,7 +103,7 @@ Tiêu chí cắt: **"Day 5 (trace sink + reader timeline) có cần field này �
 | `event_id` | ✅ bắt buộc | không có thì không dedupe được |
 | `run_id` | ✅ bắt buộc | không có thì không gom được 1 lần chạy |
 | `agent_id` | ✅ bắt buộc | dashboard cộng theo agent |
-| `tenant` | ✅ **NOT NULL** | ràng buộc dữ liệu, không phải field tuỳ chọn — xem §4.3 |
+| `tenant_id` (UUID) | ✅ **NOT NULL** | ràng buộc dữ liệu, không phải field tuỳ chọn — xem §4.3 (D-13: UUID, không phải slug) |
 | `node_id` | ✅ bắt buộc | timeline phải chỉ được node nào |
 | `node_type` | ✅ bắt buộc | enum đóng, xem §5 |
 | `ts` | ✅ bắt buộc | thứ tự timeline |
@@ -174,9 +175,10 @@ ra thiếu node sẽ báo động giả mỗi khi một node chạy lâu.
 
 Bản hiện thực: `studio_kb.trace_reader` — `check_walk()` / `sort_events()` / `render_timeline()`.
 
-### 4.3 tenant NOT NULL
+### 4.3 tenant_id NOT NULL
 
-`tenant` là **ràng buộc dữ liệu**, không phải field tuỳ chọn. Một event `tenant = NULL` là một event không thuộc về ai, và mọi phép lọc theo tenant đều trượt qua nó — vừa hỏng dashboard, vừa hở INV-1. Sink phải **từ chối ghi**, không được ghi rồi sửa sau.
+`tenant_id` (**UUID**, D-13 — danh tính tenant là `core.tenants.id` bất biến, không phải slug) là
+**ràng buộc dữ liệu**, không phải field tuỳ chọn. Một event `tenant_id = NULL` là một event không thuộc về ai, và mọi phép lọc theo tenant đều trượt qua nó — vừa hỏng dashboard, vừa hở INV-1. Sink phải **từ chối ghi**, không được ghi rồi sửa sau.
 
 ---
 
@@ -217,13 +219,19 @@ AIE-1 đang phác node-executor dạng `execute(node, ctx) -> ctx'`.
 
 | Field | v0 (file này) | freeze §3.2 + `trace.py` | Ghi chú |
 |---|---|---|---|
-| 9 field lõi (§3) | ✅ có, dùng thật | ✅ có | khớp hoàn toàn |
+| 8 field lõi khác | ✅ có, dùng thật | ✅ có | khớp hoàn toàn |
+| **`tenant` → `tenant_id`** | trước 03/08: `tenant: str` ❌ | `tenant_id: UUID` | **🔴 D-13 breaking rename+retype.** Doc này **đã drift sau D-13** (contract runtime đổi, doc quên đổi); **sửa 03/08** cho khớp `trace.py:30`. Trước bản sửa đây LÀ mâu thuẫn thật. |
 | `inputs_hash` | có trong schema, **chưa điền** | bắt buộc | hoãn S2 |
 | `outputs` | có trong schema, **chưa điền** | bắt buộc | hoãn S2 |
 | `citations` | có trong schema, **chưa điền** | optional (`list[str] \| None`) | hoãn Day 4 |
 | Kiểu `node_type` | `str` mô tả trong tài liệu | `NodeType` (StrEnum) | code phải dùng enum, không dùng `str` trần |
 
-**v0 chỉ THIẾU, không MÂU THUẪN** — nâng v0 lên bản freeze là *điền nốt 3 field*, không đổi tên hay đổi nghĩa khoá nào. Vì thế AIE-1 nối theo v0 hôm nay sẽ không phải sửa call-site khi freeze.
+**Đính chính (03/08, review AIE-2):** câu cũ *"v0 chỉ THIẾU, không MÂU THUẪN"* **đúng ở D2, sai sau D-13.**
+D-13 đổi danh tính tenant `str`→`UUID` và tên field `tenant`→`tenant_id` ở contract runtime, nhưng doc
+này **chưa được cập nhật** nên §2/§3/§4.3 vẫn ghi `tenant: str` — **một mâu thuẫn thật**, không phải chỉ
+thiếu. Người mới đọc bản cũ sẽ wire `tenant: "ankor"` và **fail runtime validation**. Bản 03/08 sửa mọi
+chỗ `tenant`→`tenant_id: UUID`. **Chỉ sau khi sửa** thì "mọi khoá khớp `TraceEvent`" mới đúng — và giờ
+thì đúng: 3 field còn lại (`inputs_hash`/`outputs`/`citations`) là THIẾU thật (điền nốt), không mâu thuẫn.
 
 ### ⚠️ "Hoãn" KHÔNG có nghĩa là bỏ trống — sink đã tồn tại và bắt buộc
 
@@ -286,4 +294,5 @@ từ đó. Đây cũng chính là cơ chế đỡ cho invariant cost-lineage ở
 |---|---|---|
 | v0 | 2026-07-21 (D2) | Bản nháp đầu — cắt 9/12 field cho tuần 1, chốt 3 invariant, mở seam `ctx'` với AIE-1 |
 | v0.1 | 2026-07-24 (D5) | Thêm **§4.2a — "0-gap" nghĩa là gì**, chốt bằng chữ trước khi code. Không đổi schema, không đổi invariant; chỉ **nói rõ một câu vốn đọc được hai kiểu**: chọn *"không sót node"*, bác *"thời gian liên tục"*. Kèm 3 hệ quả ràng buộc reader (so theo `node_type`; chuỗi kỳ vọng là **4** node theo `_WALK_ORDER` chứ không phải 6; trùng cũng là sai) và bẫy `ts` là cột `TEXT` (so chuỗi → phải parse rồi mới sắp, raise khi hỏng; nhưng **không** assert tăng nghiêm ngặt vì trùng `ts` là hợp lệ). Sinh ra cùng lúc với bản hiện thực `studio_kb.trace_reader` (#21) |
-| **freeze-ready** | 2026-08-03 (D11, #80) | **Đưa về trạng thái freeze-ready** cho workshop #84. **Không thêm/đổi field** — khoá câu chữ: §4.2a `ts` (ties hợp lệ, không tăng-nghiêm-ngặt), §4.1 `cost` một-nguồn (sink-từ-`tokens`, mặc định DE), §5 `node_type` một-nguồn `studio_contracts.nodes.NodeType` (walk 4≠6), §7 carrier `inputs_hash`/`outputs` bắt buộc. Thêm §0.1 (đã-khoá vs chờ-người) + §0.2 (bảng chữ ký để trống). Đóng/hoãn câu mở: **Q-A→Q-1 (CHẶN, hỏi mentor nơi freeze)**, Q-C→Q-5 (chốt với AIE-2), **Q-D→hoãn-có-ghi cross-lane** (vào decision-log). `FROZEN` + 4/4 chữ ký **chưa đóng** — chờ ceremony + Q-1 |
+| **freeze-ready** | 2026-08-03 (D11, #80) | **Đưa về trạng thái freeze-ready** cho workshop #84. Khoá câu chữ: §4.2a `ts` (ties hợp lệ, không tăng-nghiêm-ngặt), §4.1 `cost` một-nguồn (sink-từ-`tokens`, mặc định DE), §5 `node_type` một-nguồn `studio_contracts.nodes.NodeType` (walk 4≠6), §7 carrier `inputs_hash`/`outputs` bắt buộc. Thêm §0.1 (đã-khoá vs chờ-người) + §0.2 (bảng chữ ký để trống). Đóng/hoãn câu mở: **Q-A→Q-1 (CHẶN, hỏi mentor nơi freeze)**, Q-C→Q-5 (chốt với AIE-2), **Q-D→hoãn-có-ghi cross-lane**. `FROZEN` + 4/4 chữ ký **chưa đóng**. *(Lưu ý: bản này còn sót `tenant: str` — sửa ở bản kế.)* |
+| **d13-align** | 2026-08-03 (D11, review AIE-2) | **Sửa drift D-13 mà freeze-ready bỏ sót.** Đổi `tenant: str` → **`tenant_id: UUID`** ở §2 (schema), §3 (bảng field), §4.3 (tên mục + thân) cho khớp `studio_contracts.trace.TraceEvent` (`trace.py:30`). §7: bỏ câu *"v0 chỉ THIẾU, không MÂU THUẪN"* (đúng D2, sai sau D-13) — thêm đính chính + hàng delta `tenant→tenant_id`. §0.1 sửa claim "mọi khoá khớp" cho đúng (chỉ đúng SAU khi align). Không đổi field khác. Đây là drift **doc-đi-sau-runtime**, cùng loại với `wb.recipes` (workbench PR#13) nhưng ở lane DE — bắt bởi review AIE-2 trên PR#10. |

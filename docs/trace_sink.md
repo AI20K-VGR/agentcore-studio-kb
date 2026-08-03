@@ -97,9 +97,10 @@ sequenceDiagram
 - **Đầu vào:** thông số người dùng nhập trên Workbench UI.
 - **Đầu ra:** một `Recipe` đã hợp lệ — **đây mới là điểm khởi đầu thật của đường đi**, engine chỉ
   nhận lại thành phẩm.
-- **Dạng dữ liệu đầu vào:** tham số form của `create_recipe_d4(agent_id, tenant, tenant_id,
-  instructions, model, kb_id, scope, tool_whitelist, query)` — lưu ý `tenant: str` (slug) và
-  `tenant_id: UUID | str` là **hai thứ khác nhau**, cùng đi vào một recipe.
+- **Dạng dữ liệu đầu vào:** tham số form của `create_recipe_d4(agent_id, tenant_id: UUID,
+  instructions, model, tool_whitelist, kb_id, scope, query)` — tenant chỉ còn **`tenant_id: UUID`**
+  (D-13). *(Sửa 03/08, cùng review AIE-2: bản cũ ghi thừa param `tenant: str` slug — signature thật
+  không có param đó, xem `builder.py:121`; truyền `tenant="ankor"` sẽ `TypeError`.)*
 - **Dạng dữ liệu đầu ra:** `Recipe` (frozen) — gồm `agent_id`, `tenant_id: UUID`, `agent_config`,
   `dag: Dag(nodes=[n1..n4], edges=[n1→n2→n3→n4])`, `kb_binding`, `golden_set_ref`,
   `scorecard_threshold`. Trước khi tới engine phải qua `graph_lint(recipe) -> None`, kiểm 4 luật
