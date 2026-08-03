@@ -1,20 +1,55 @@
 ---
 id: studio.contract.trace-event.v0
 type: interface-draft
-status: v0-draft
-freeze: NOT-FROZEN
+status: freeze-ready
+freeze: FREEZE-READY   # chờ Q-1 (nơi freeze) + 4/4 chữ ký — workshop #84, D11
 freeze_target: D11
 contract_ref: umbrella-contract §3.2
 pen: DE — Nguyễn Đông Anh
 date: 2026-07-21
+updated: 2026-08-03
 ---
 
-# 🖊️ trace-event — INTERFACE v0 (NHÁP)
+# 🖊️ trace-event — INTERFACE (FREEZE-READY D11)
 
-> ## ⚠️ v0 — CHƯA FREEZE. Dự kiến freeze **D11**.
-> Đây là **bản nháp để xâu-kim tuần 1**, không phải bản chốt. Ai code theo file này xin đọc §7
-> (delta) trước — có field cố ý để trống tới S2. Đổi bản đã freeze = mini-RFC + 4/4 chữ ký;
-> đổi bản v0 này = nhắn DE.
+> ## 🧊 FREEZE-READY (03/08, D11) — nội dung câu-chữ đã khoá; còn chờ **người**.
+> Tên + nghĩa mọi khoá đã khớp `studio_contracts.trace.TraceEvent` (delta §7: *"v0 chỉ THIẾU, không
+> MÂU THUẪN"*). Ngày freeze này **không** thêm field — chỉ **chốt câu chữ đang đọc-hai-kiểu** và đóng/
+> hoãn-có-ghi các câu mở. **Hai cổng còn lại là việc người, không phải câu chữ** (xem §0.1):
+> **Q-1** (bản `FROZEN` nằm ở draft kb hay PR bump `SCHEMA_VERSION` ở `contracts`) + **4/4 chữ ký**.
+> Đổi sau khi freeze = mini-RFC + 4/4 chữ ký + decision-log; đổi bản freeze-ready này = nhắn DE.
+
+## 0.1 Trạng thái freeze — đã khoá vs còn chờ người
+
+**✅ Đã khoá bằng câu chữ (D11, DE):**
+- **§4.2a `ts`** — ties hợp lệ; sắp ổn định `(ts, event_id)`; `ts` là cột `TEXT` → parse rồi mới sắp,
+  raise khi hỏng; **KHÔNG** assert tăng-nghiêm-ngặt. Reader-test `test_trace_reader.py`
+  (`test_ts_trung_nhau...`, `test_ts_sai_dinh_dang...`) đã khớp đúng câu này.
+- **§4.1 `cost` một-nguồn** — mặc định DE: **sink tính từ `tokens` + bảng đơn giá**, executor chỉ cấp
+  `tokens`. Cấm hai chỗ tính (kể cả ra cùng số). *(chờ AIE-1 xác nhận — Q-3)*
+- **§5 `node_type`** — enum đóng 6 giá trị, **nguồn duy nhất** `studio_contracts.nodes.NodeType`, cấm
+  khai lại phía kb; chuỗi walk hiện là **4** (`_WALK_ORDER`), không phải 6. *(phải trùng tập node
+  `recipe.dag` của SWE — Q-4)*
+- **§7 carrier** — `inputs_hash` (không DB default) + `outputs` **bắt buộc AIE-1 truyền** từ tuần 1.
+  Đây là **thông báo ràng buộc bảng đã tồn tại**, không phải đàm phán.
+
+**⏳ Còn chờ người (không đóng được trong lằn DE một mình):**
+- **Q-1** — nơi chứa bản `FROZEN` (draft kb vs PR `contracts`/mentor CODEOWNERS) → hỏi mentor/leader.
+- **Q-3 / Q-4 / Q-5** — cost-source (AIE-1) · node_type-set (SWE) · field-eval-đọc + `chunk_id` (AIE-2).
+- **4/4 chữ ký** — bảng §10 (để trống, chờ ceremony #84).
+
+## 0.2 Chữ ký freeze (D11) — chờ workshop #84
+
+| Vai | Người | Ký | Ngày |
+|---|---|---|---|
+| DE (bút) | Nguyễn Đông Anh | ⬜ | |
+| SWE | Thiệu Quang Minh | ⬜ | |
+| AIE-1 | Trần Bá Đạt | ⬜ | |
+| AIE-2 | Lưu Tiến Duy | ⬜ | |
+
+*Không ký khống: ký sau khi đọc delta §7 + chốt Q-3/Q-4/Q-5.*
+
+---
 
 **Bút:** DE · **Neo:** umbrella §3.2 · **Người dùng:** AIE-1 (emit), AIE-2 (đọc `cost`/`citations`), SWE (hiển thị trace ở playground).
 
@@ -238,10 +273,10 @@ từ đó. Đây cũng chính là cơ chế đỡ cho invariant cost-lineage ở
 
 | # | Hỏi ai | Nội dung | Trạng thái |
 |---|---|---|---|
-| Q-A | mentor | `packages/contracts/trace.py` đã có bản đầy đủ — "bút v0 của DE" nghĩa là file nháp này, hay là đề xuất delta lên bản reference? | mở |
+| **Q-A** | mentor | `packages/contracts/trace.py` đã có bản đầy đủ — "bút v0 của DE" nghĩa là file nháp này, hay là đề xuất delta lên bản reference? | 🔴 **CHẶN FREEZE (D11 = Q-1)** — quyết nơi bản `FROZEN` đổ vào (draft kb vs PR `contracts`/mentor CODEOWNERS). Đến 03/08 chưa có câu trả lời → hỏi mentor/leader đầu giờ workshop #84 |
 | ~~Q-B~~ | ~~mentor~~ | ~~SQLite hay Postgres?~~ → **đã tự trả lời: Postgres**, bảng `obs.trace_events` + `PgTraceWriter` đã có trong kit. "SQLite" ở week-1 §6 chỉ là cách nói giản lược | ✅ đóng |
-| Q-C | AIE-2 | Ngoài `cost` + `citations`, eval harness còn cần đọc field nào từ trace? | mở |
-| **Q-D** | mentor | `obs.costs` + `obs.golden_sets` đang là **bảng rỗng chờ DE điền**, nhưng chúng nằm trong `apps/studio/` — **không phải fence-lane của DE**. DE điền bằng cách nào? | mở — chặn O7 |
+| Q-C | AIE-2 | Ngoài `cost` + `citations`, eval harness còn cần đọc field nào từ trace? | 🟠 **chặn chữ ký AIE-2** — chốt danh sách field eval đọc trước khi ký (D11 Q-5) |
+| **Q-D** | mentor | `obs.costs` + `obs.golden_sets` đang là **bảng rỗng chờ DE điền**, nhưng chúng nằm trong `apps/studio/` — **không phải fence-lane của DE**. DE điền bằng cách nào? | 🟡 **hoãn-có-ghi (D11)** — bảng ở `apps/studio`, **ngoài fence-lane DE**; ai/điền-sao = coordinate leader. **KHÔNG chặn freeze schema** — đã vào decision-log |
 
 ---
 
@@ -251,3 +286,4 @@ từ đó. Đây cũng chính là cơ chế đỡ cho invariant cost-lineage ở
 |---|---|---|
 | v0 | 2026-07-21 (D2) | Bản nháp đầu — cắt 9/12 field cho tuần 1, chốt 3 invariant, mở seam `ctx'` với AIE-1 |
 | v0.1 | 2026-07-24 (D5) | Thêm **§4.2a — "0-gap" nghĩa là gì**, chốt bằng chữ trước khi code. Không đổi schema, không đổi invariant; chỉ **nói rõ một câu vốn đọc được hai kiểu**: chọn *"không sót node"*, bác *"thời gian liên tục"*. Kèm 3 hệ quả ràng buộc reader (so theo `node_type`; chuỗi kỳ vọng là **4** node theo `_WALK_ORDER` chứ không phải 6; trùng cũng là sai) và bẫy `ts` là cột `TEXT` (so chuỗi → phải parse rồi mới sắp, raise khi hỏng; nhưng **không** assert tăng nghiêm ngặt vì trùng `ts` là hợp lệ). Sinh ra cùng lúc với bản hiện thực `studio_kb.trace_reader` (#21) |
+| **freeze-ready** | 2026-08-03 (D11, #80) | **Đưa về trạng thái freeze-ready** cho workshop #84. **Không thêm/đổi field** — khoá câu chữ: §4.2a `ts` (ties hợp lệ, không tăng-nghiêm-ngặt), §4.1 `cost` một-nguồn (sink-từ-`tokens`, mặc định DE), §5 `node_type` một-nguồn `studio_contracts.nodes.NodeType` (walk 4≠6), §7 carrier `inputs_hash`/`outputs` bắt buộc. Thêm §0.1 (đã-khoá vs chờ-người) + §0.2 (bảng chữ ký để trống). Đóng/hoãn câu mở: **Q-A→Q-1 (CHẶN, hỏi mentor nơi freeze)**, Q-C→Q-5 (chốt với AIE-2), **Q-D→hoãn-có-ghi cross-lane** (vào decision-log). `FROZEN` + 4/4 chữ ký **chưa đóng** — chờ ceremony + Q-1 |
