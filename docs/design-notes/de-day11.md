@@ -84,5 +84,7 @@ fence, fail-closed).
   đường một chỗ fence phải lặp; cần một điểm chặn dùng chung, không rải rác.
 - **INV-1 mới chặn `tenant`, chưa chặn `roles`.** `session_context.roles` chưa được đọc để lọc ở đâu
   (việc AIE-1/SWE) — hiện `section_roles` "nhận rồi bỏ qua" đúng như v0.
-- **`obs.costs` / `obs.golden_sets`** là bảng ở `apps/studio`, **ngoài fence-lane DE** — ai điền/bằng
-  cách nào là coordinate leader (Q-D trace-event, đã vào decision-log).
+- **`obs.costs`** là bảng ở `apps/studio`, **ngoài fence-lane DE** — DE điền ở D19 (cost-lineage),
+  coordinate leader (Q-D trace-event; DL-11.7). **`obs.golden_sets`** thì **nghi bảng chết trùng lặp**
+  (golden-set thật = `eval.golden_sets`) → đề xuất DROP, xác nhận mentor (DL-11.9 · mini-RFC schema-drift).
+  Chi tiết chuẩn tenant + RLS từng bảng: `docs/mini-rfc-tenant-schema-unify.md`.
