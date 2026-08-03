@@ -129,9 +129,10 @@ sequenceDiagram
 
 - **Đầu vào:** loại node đang tới lượt, tra ngược ra node thật trong recipe.
 - **Đầu ra:** một bản sao của node, `params` đã được bổ sung thứ nó không tự biết.
-- **Dạng dữ liệu đầu vào:** `node_type: NodeType` lấy tuần tự từ `_WALK_ORDER` (**4 giá trị**
-  `kb-retrieve → llm-step → tool-call → end`, hardcode — *không* đọc `dag.edges`); tra trong
-  `nodes_by_type: dict[NodeType, Node]`.
+- **Dạng dữ liệu đầu vào:** `node_type: NodeType` lấy tuần tự khi đi `recipe.dag.edges` (với recipe
+  D4/D6 của SWE là chuỗi thẳng **4 giá trị** `kb-retrieve → llm-step → tool-call → end`); tra trong
+  `nodes_by_type: dict[NodeType, Node]`. *(Hằng số `interpreter._WALK_ORDER` đã bỏ ở D6/#27 — walk giờ
+  đi động theo edge, không còn hardcode.)*
 - **Dạng dữ liệu đầu ra:** `Node` mới qua `model_copy(update={"params": …})` —
   `kb-retrieve` được thêm `tenant_id: UUID` (lấy `recipe.tenant_id`, vì recipe của workbench chỉ
   đặt **slug** vào params, thiếu bước này executor rơi về nil-UUID và tìm được 0 chunk);
@@ -405,7 +406,7 @@ VỊ TRÍ     │ node_id · node_type · ts                       → "node nà
 
 1. **Parse `ts` → `datetime` rồi mới sắp** (không `ORDER BY ts` kiểu chuỗi — cột là `TEXT`, so chuỗi
    sai lặng lẽ khi định dạng lệch). Parse hỏng thì **raise**, không đoán bừa.
-2. **"0-gap" = không sót node**: đủ các node theo thứ tự đi (`_WALK_ORDER`), thiếu node nào thì
+2. **"0-gap" = không sót node**: đủ các node theo thứ tự đi (`recipe.dag.edges`), thiếu node nào thì
    **reader kêu**, không im lặng (test cố ý bỏ 1 node để chứng minh reader có răng).
 
 → Đây là cách DE **chứng minh spine trace chạy thật**: emit (engine) → sink (`obs.trace_events`) →

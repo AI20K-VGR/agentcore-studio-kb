@@ -27,16 +27,18 @@ updated: 2026-08-03
   raise khi hỏng; **KHÔNG** assert tăng-nghiêm-ngặt. Reader-test `test_trace_reader.py`
   (`test_ts_trung_nhau...`, `test_ts_sai_dinh_dang...`) đã khớp đúng câu này.
 - **§4.1 `cost` một-nguồn** — mặc định DE: **sink tính từ `tokens` + bảng đơn giá**, executor chỉ cấp
-  `tokens`. Cấm hai chỗ tính (kể cả ra cùng số). *(chờ AIE-1 xác nhận — Q-3)*
+  `tokens`. Cấm hai chỗ tính (kể cả ra cùng số). *(AIE-1 đã xác nhận — Q-3 ✅, engine#15: executor
+  chỉ trả `tokens` `executors.py:262`, interpreter để `cost=_NO_COST` `interpreter.py:300`)*
 - **§5 `node_type`** — enum đóng 6 giá trị, **nguồn duy nhất** `studio_contracts.nodes.NodeType`, cấm
-  khai lại phía kb; chuỗi walk hiện là **4** (`_WALK_ORDER`), không phải 6. *(phải trùng tập node
+  khai lại phía kb; chuỗi walk hiện là **4**, không phải 6. *(phải trùng tập node
   `recipe.dag` của SWE — Q-4)*
 - **§7 carrier** — `inputs_hash` (không DB default) + `outputs` **bắt buộc AIE-1 truyền** từ tuần 1.
   Đây là **thông báo ràng buộc bảng đã tồn tại**, không phải đàm phán.
 
 **⏳ Còn chờ người (không đóng được trong lằn DE một mình):**
 - **Q-1** — nơi chứa bản `FROZEN` (draft kb vs PR `contracts`/mentor CODEOWNERS) → hỏi mentor/leader.
-- **Q-3 / Q-4 / Q-5** — cost-source (AIE-1) · node_type-set (SWE) · field-eval-đọc + `chunk_id` (AIE-2).
+- **Q-4 / Q-5** — node_type-set (SWE) · field-eval-đọc + `chunk_id` (AIE-2). *(Q-3 cost-source: AIE-1
+  đã xác nhận ✅ — engine#15)*
 - **4/4 chữ ký** — bảng §10 (để trống, chờ ceremony #84).
 
 ## 0.2 Chữ ký freeze (D11) — chờ workshop #84
@@ -48,7 +50,7 @@ updated: 2026-08-03
 | AIE-1 | Trần Bá Đạt | ⬜ | |
 | AIE-2 | Lưu Tiến Duy | ⬜ | |
 
-*Không ký khống: ký sau khi đọc delta §7 + chốt Q-3/Q-4/Q-5.*
+*Không ký khống: ký sau khi đọc delta §7 + chốt Q-4/Q-5 (Q-3 đã chốt: AIE-1 xác nhận cost một-nguồn, engine#15).*
 
 ---
 
@@ -154,10 +156,13 @@ Ba hệ quả ràng buộc reader, không phải gợi ý:
 
 1. **So theo `node_type`, không theo `node_id`.** `node_id` do người viết recipe đặt (`"n1"`, `"n2"`…),
    không đoán trước được; `node_type` thuộc tập đóng 6 giá trị và là thứ "chuỗi kỳ vọng" nói tới.
-2. **Chuỗi kỳ vọng hiện tại là 4 node, không phải 6.** `studio_engine.interpreter._WALK_ORDER`
-   hardcode `kb-retrieve → llm-step → tool-call → end`; `condition` và `hitl-pause` **không bao giờ
-   được dispatch** ở phase này (đọc `recipe.dag.edges` để đi động là Day-6 scope). So với 6 là báo
-   thiếu oan. Khi vòng đi thành động, truyền chuỗi thật của recipe vào thay vì sửa hằng số.
+2. **Chuỗi kỳ vọng hiện tại là 4 node, không phải 6.** Recipe D4/D6 của SWE
+   (`create_recipe_d4`/`create_recipe_d6`) đều dựng chuỗi thẳng `kb-retrieve → llm-step → tool-call
+   → end`, nên `condition` và `hitl-pause` **không bao giờ được dispatch** với các recipe đang chạy
+   hôm nay. So với 6 là báo thiếu oan. Lưu ý **nguồn sự thật là `recipe.dag.edges`**, không phải một
+   hằng số ở engine: `interpreter._WALK_ORDER` đã bị bỏ từ D6 (#27) và walk đi động theo edge — đúng
+   như `trace_reader.py:44-49` đã ghi. Recipe có hình khác thì truyền chuỗi thật của recipe vào
+   (`walk_from_dag(recipe.dag)`), không sửa hằng số.
 3. **Trùng cũng là sai, không chỉ thiếu.** Luật viết là *"mọi node emit event"* — số ít. Hai event
    cho cùng một node nghĩa là emit-hook chạy hai lần; reader phải kêu, không được im.
 
@@ -210,8 +215,9 @@ AIE-1 đang phác node-executor dạng `execute(node, ctx) -> ctx'`.
 | `node_id`, `node_type` | AIE-1, từ node đang chạy | ngay tuần 1 |
 
 > **Mặc định của DE:** `cost` do **sink tính** từ `tokens` + bảng đơn giá, executor chỉ cấp `tokens`
-> — đơn giá đổi thì sửa một chỗ. §4.1 cấm tính hai lần nên phải có đúng một nơi tính; chốt lại với
-> AIE-1 khi vào việc thật (Day 3–5).
+> — đơn giá đổi thì sửa một chỗ. §4.1 cấm tính hai lần nên phải có đúng một nơi tính. **AIE-1 đã xác
+> nhận (engine#15):** executor chỉ trả `tokens` (`executors.py:262`), interpreter để `cost=_NO_COST`
+> (`interpreter.py:300`) — sink là nơi tính duy nhất. Code engine đã đúng sẵn.
 
 ---
 
