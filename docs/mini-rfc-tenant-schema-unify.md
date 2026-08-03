@@ -41,8 +41,13 @@ addresses: "Still open #5 — schema drift (Anh, needs a mini-RFC)"
   > **không** phải "chờ ai sửa tenant" mà là **bảng chưa được xây** → chưa quyết được tenant-scope.
   > Mốc gỡ hoãn = ngày chủ lane xây thật (`obs.costs`→D19 DE · `eval.*`→D16 AIE-2), cộng invariant C
   > ép RLS khi có dữ liệu. Không mở vô hạn.
-- **D — `obs.golden_sets`:** **nghi bảng chết trùng lặp** (0 reference; harness đọc `eval.golden_sets`
-  tại `harness.py:187`). **Xác nhận với mentor rồi DROP** — "chưa dùng" chưa chắc "không định dùng".
+- **D — `obs.golden_sets`:** **nghi bảng chết trùng lặp** — cả `obs.golden_sets` lẫn `eval.golden_sets`
+  đều **0 runtime reader** (mọi ref tới `eval.golden_sets` là docstring/DDL; `EvalHarness.run()` vẫn
+  `NotImplementedError`). Chọn `eval.golden_sets` làm nguồn sự thật vì **quyền ghi**, không phải "đang
+  được đọc": `obs.golden_sets` nằm `apps/studio/` — ngoài fence-lane DE nên bên giữ nhãn không điền
+  được; `eval.golden_sets` ở evalhub, bút AIE-2 — có người ghi được. Chốt cùng AIE-2: DEC-Q5
+  (`evalhub:docs/decisions/scorecard.md`). **Xác nhận với mentor rồi DROP** — "chưa dùng" chưa chắc
+  "không định dùng".
 - **C — invariant từ nay:** bảng tenant-scoped **có đường user đọc** ⇒ `tenant_id UUID` + RLS theo mẫu
   + 1 leak-test có răng (T1/T6: inclusion dương trước, rồi loại trừ). Chống tái drift khi S2 thêm bảng.
 
@@ -96,6 +101,7 @@ Bật RLS / DROP bảng **đổi runtime lane khác** + là quyết định INV-
 | `core.tenants` | apps/studio | — (registry) | n/a | n/a |
 
 RLS duy nhất: `kb_chunks_tenant_isolation`. Reader `obs.trace_events`: `read_run` lọc `WHERE run_id AND tenant_id`
-(trace_reader.py:70). wb tables write-free (`publish()`/`rollback()` stub). `obs.golden_sets` 0 reference;
-golden-set thật = `eval.golden_sets` (`harness.py:187`).
+(trace_reader.py:70). wb tables write-free (`publish()`/`rollback()` stub). `obs.golden_sets` **và**
+`eval.golden_sets` đều 0 runtime reader; chọn `eval.golden_sets` làm nguồn sự thật theo **quyền ghi**
+(evalhub/AIE-2 ghi được; `obs.golden_sets` ở `apps/studio` không ai điền) — DEC-Q5.
 </details>
