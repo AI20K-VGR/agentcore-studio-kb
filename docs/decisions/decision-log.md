@@ -28,6 +28,7 @@ canonical_location: PENDING (Q-2)
 | **DL-11.5** | **Q-G (slug→UUID thật) ĐÓNG theo D-13:** producer/middleware resolve header slug→UUID qua `core.tenants`; kb khoá theo UUID. | Đường resolve **ngoài lằn kb**; kb chỉ nhận UUID. Không chặn freeze kb.search. | ✅ đóng theo D-13 |
 | **DL-11.6** | **Q-D stub (`kb.search`) hoãn-có-ghi:** mặc định AIE-1 tự dựng double; bản chung nếu cần đặt `src/studio_kb/stubs.py` class riêng, **không đụng** `KbSearchService`. | `day-03.md:38` + tiền lệ `FakeEmbedding`. Không chặn freeze. | ⏳ chốt với AIE-1 (Q-3) |
 | **DL-11.7** | **`obs.costs` / `obs.golden_sets` hoãn-có-ghi (cross-lane):** bảng ở `apps/studio`, **ngoài fence-lane DE**; ai điền/bằng cách nào = coordinate leader. | Không phải WRITE-lane của DE (kb). Không chặn freeze schema. trace-event §8 Q-D. | ⏳ coordinate leader |
+| **DL-11.8** | **`core.jobs` / `core.outbox`: KHÔNG read-RLS** (loại trừ có chủ đích trong mini-RFC schema-drift). Cùng lắm enforce phía ghi. | Hàng đợi infra **drain cross-tenant**: `core/queue.py:68` claim job `FOR UPDATE SKIP LOCKED` không predicate tenant; `core/schema.py` docstring dùng `FORCE ROW LEVEL SECURITY` bite cả owner → read-RLS theo `app.tenant_id` làm **worker/dispatcher tắc hàng đợi**, mà không có đường user đọc nên security ≈ 0. RLS đáng: `wb.*` + `obs.trace_events`; hoãn: `obs.costs`/`golden_sets` + `eval.*`; registry `core.tenants` n/a. | ✅ chốt (advisor xác nhận) — xem `docs/mini-rfc-tenant-schema-unify.md` |
 
 ## Câu CHẶN chưa đóng (không đóng được trong lằn kb — cần người)
 
