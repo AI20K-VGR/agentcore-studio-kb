@@ -32,8 +32,9 @@ updated: 2026-08-03
 - **§5 `node_type`** — enum đóng 6 giá trị, **nguồn duy nhất** `studio_contracts.nodes.NodeType`, cấm
   khai lại phía kb; chuỗi walk hiện là **4**, không phải 6. *(phải trùng tập node
   `recipe.dag` của SWE — Q-4)*
-- **§7 carrier** — `inputs_hash` (không DB default) + `outputs` **bắt buộc AIE-1 truyền** từ tuần 1.
-  Đây là **thông báo ràng buộc bảng đã tồn tại**, không phải đàm phán.
+- **§7 carrier** — `inputs_hash` (không DB default) + `outputs` **bắt buộc AIE-1 truyền** — và **đã
+  truyền thật** từ D11 (`interpreter.py:297/298`, mọi event). Đây là **ràng buộc bảng đã tồn tại**,
+  không phải đàm phán.
 
 **⏳ Còn chờ người (không đóng được trong lằn DE một mình):**
 - **Q-1** — nơi chứa bản `FROZEN` (draft kb vs PR `contracts`/mentor CODEOWNERS) → hỏi mentor/leader.
@@ -111,12 +112,14 @@ Tiêu chí cắt: **"Day 5 (trace sink + reader timeline) có cần field này �
 | `ts` | ✅ bắt buộc | thứ tự timeline |
 | `tokens` | ✅ bắt buộc | nguồn tính `cost` |
 | `cost` | ✅ bắt buộc | invariant chính của tuần |
-| `inputs_hash` | ⏸ hoãn S2 | dùng để replay/dedupe — tuần 1 chưa có nhu cầu replay |
-| `outputs` | ⏸ hoãn S2 | tuần 1 chỉ cần biết node **đã chạy**, chưa cần nội dung |
-| `citations` | ⏸ hoãn **Day 4** | chỉ có nghĩa khi `kb-retrieve` chạy thật; hôm nay KB còn là stub |
+| `inputs_hash` | ✅ **điền thật** (D11) | `interpreter.py:297` sha256(`node.params`) mọi event — NOT NULL, không DB default nên **không thể** hoãn |
+| `outputs` | ✅ **điền thật** (D11) | `interpreter.py:298` truyền `outputs` thật mọi event |
+| `citations` | ✅ **điền từ D6** | `executors.py:259` — marker model *nhắc* ∩ `retrieved_chunks` (grounded); `None` chỉ khi không có căn cứ |
 
-> **Hoãn ≠ bỏ.** 3 field cuối vẫn nằm nguyên trong schema và trong `studio_contracts.trace.TraceEvent`.
-> v0 chỉ **chưa điền**, không đề xuất xoá.
+> **Đính chính (03/08, review AIE-1):** 3 field cuối từng ghi "hoãn" theo kế hoạch tuần-1 (D2), nhưng
+> tới **D11 interpreter đã emit cả ba thật** — `inputs_hash`/`outputs` mọi event (`interpreter.py:297/298`),
+> `citations` grounded từ D6 (`executors.py:259`). Đóng băng "chưa điền" ở đây là đúng vết `_WALK_ORDER`.
+> Cả ba vẫn nằm nguyên trong schema + `studio_contracts.trace.TraceEvent`; không đề xuất xoá.
 
 ---
 
@@ -211,13 +214,21 @@ AIE-1 đang phác node-executor dạng `execute(node, ctx) -> ctx'`.
 |---|---|---|
 | `tokens {prompt, completion}` | AIE-1, sau khi gọi EmbeddingService / gateway | ngay tuần 1 |
 | `cost` | AIE-1 (hoặc thống nhất DE tính từ `tokens`) — **chốt một chỗ duy nhất** | ngay tuần 1 |
-| `citations: [chunk_id]` | AIE-1, lấy từ kết quả `kb.search` | từ Day 4 |
+| `citations: [chunk_id]` | AIE-1 — marker `[chunk_id]` model **thật sự nhắc** trong câu trả lời, lọc lấy phần có trong `retrieved_chunks` (`executors.py:259`). KHÔNG phải toàn bộ kết quả `kb.search` — "đã truy xuất" và "đã trích dẫn" là hai sự thật khác nhau. | từ Day 6 |
 | `node_id`, `node_type` | AIE-1, từ node đang chạy | ngay tuần 1 |
 
 > **Mặc định của DE:** `cost` do **sink tính** từ `tokens` + bảng đơn giá, executor chỉ cấp `tokens`
 > — đơn giá đổi thì sửa một chỗ. §4.1 cấm tính hai lần nên phải có đúng một nơi tính. **AIE-1 đã xác
 > nhận (engine#15):** executor chỉ trả `tokens` (`executors.py:262`), interpreter để `cost=_NO_COST`
 > (`interpreter.py:300`) — sink là nơi tính duy nhất. Code engine đã đúng sẵn.
+
+> **`citations` — node nào phát (chốt bút, 03/08, review AIE-1):** field điền theo **return-type** của
+> output, KHÔNG gác theo `node_type` (`interpreter.py:265`: `output` là `list` → `None`; là `dict` →
+> `outputs.get("citations")`). Hôm nay chỉ `llm-step` trả dict có `citations` nên thực tế chỉ nó mang
+> — nhưng **về cấu trúc bất kỳ node trả dict nào cũng có thể mang**; "llm-step only" là tình cờ đúng,
+> không được engine ép (mutation M1, `kit#131`: 0 lớp bắt). ⇒ `contracts#2` ghi đúng câu này thay cho
+> *"kb-retrieve luôn None / set bởi llm-step only"*. Muốn "llm-step only" thành bảo đảm thật thì gác
+> `node_type` ở interpreter + test (việc engine), không chốt bằng câu chữ.
 
 ---
 
@@ -227,9 +238,9 @@ AIE-1 đang phác node-executor dạng `execute(node, ctx) -> ctx'`.
 |---|---|---|---|
 | 8 field lõi khác | ✅ có, dùng thật | ✅ có | khớp hoàn toàn |
 | **`tenant` → `tenant_id`** | trước 03/08: `tenant: str` ❌ | `tenant_id: UUID` | **🔴 D-13 breaking rename+retype.** Doc này **đã drift sau D-13** (contract runtime đổi, doc quên đổi); **sửa 03/08** cho khớp `trace.py:30`. Trước bản sửa đây LÀ mâu thuẫn thật. |
-| `inputs_hash` | có trong schema, **chưa điền** | bắt buộc | hoãn S2 |
-| `outputs` | có trong schema, **chưa điền** | bắt buộc | hoãn S2 |
-| `citations` | có trong schema, **chưa điền** | optional (`list[str] \| None`) | hoãn Day 4 |
+| `inputs_hash` | ✅ **điền thật** `interpreter.py:297` | bắt buộc | sha256(`node.params`) mọi event |
+| `outputs` | ✅ **điền thật** `interpreter.py:298` | bắt buộc | truyền `outputs` thật mọi event |
+| `citations` | ✅ **điền từ D6** `executors.py:259` | optional (`list[str] \| None`) | grounded; `None` khi không có căn cứ |
 | Kiểu `node_type` | `str` mô tả trong tài liệu | `NodeType` (StrEnum) | code phải dùng enum, không dùng `str` trần |
 
 **Đính chính (03/08, review AIE-2):** câu cũ *"v0 chỉ THIẾU, không MÂU THUẪN"* **đúng ở D2, sai sau D-13.**
@@ -264,9 +275,9 @@ Cộng với `TraceEvent` (pydantic) cũng bắt buộc `inputs_hash` + `outputs
 
 | Field | Thực tế phải làm gì |
 |---|---|
-| `inputs_hash` | **AIE-1 BẮT BUỘC truyền**, kể cả giá trị tạm (`""` hoặc hash rỗng). Không có default để dựa. |
-| `outputs` | phải truyền, dùng `{}` khi chưa có nội dung |
-| `citations` | **thật sự** bỏ trống được (`None`) tới Day 4 |
+| `inputs_hash` | **AIE-1 truyền** — đã truyền thật (`interpreter.py:297`, sha256). Không có default để dựa. |
+| `outputs` | truyền thật (`interpreter.py:298`); `{}` khi chưa có nội dung |
+| `citations` | nullable — `None` **chỉ khi không có căn cứ**, không phải "hoãn tới Day 4"; điền grounded từ D6 (`executors.py:259`) |
 
 → Phải báo AIE-1 **trước Day 3**. Đây không phải lựa chọn, là ràng buộc của bảng đã tồn tại.
 

@@ -31,6 +31,12 @@ addresses: "Still open #5 — schema drift (Anh, needs a mini-RFC)"
   - `wb.recipes`, `wb.recipe_versions` — **chờ PR #13 merge trước** (policy cần cột `tenant_id UUID`).
   - `obs.trace_events` — reader `PgTraceReader.read_run` đã lọc `tenant_id` (an toàn ngay);
     **cost aggregator D19 (#120, việc DE) phải tenant-aware** hoặc đi đường admin có chủ đích.
+    > ⏳ **Điều kiện ký AIE-1 (03/08):** KHÔNG ký B cho `obs.trace_events` tới khi đường **ghi** bind
+    > `app.tenant_id` trên chính connection của nó. Nay `PgTraceWriter.write()` mở connection riêng từ
+    > pool (`trace_writer.py:26`) rồi INSERT thẳng, **không** `set_config('app.tenant_id')` (đã kiểm phía
+    > writer); middleware chỉ `SET LOCAL` — phạm vi giao dịch khác. Với `FORCE` + `WITH CHECK` mặc định
+    > theo `USING`, INSERT của writer bị từ chối ⇒ mọi `interpreter.run()` gãy ở emit. **Phần A
+    > (`tenant_id UUID`) AIE-1 ký được ngay.**
 - **B-excl — `core.jobs`/`core.outbox`: KHÔNG read-RLS** (xem "Loại trừ"). Cùng lắm enforce phía ghi.
 - **B2 — 3 bảng chưa có cột tenant:** quyết *"có cần tenant-scope không?"* → nếu có, thêm `tenant_id UUID`
   rồi mới RLS. `obs.costs` gắn D19 (DE); `eval.*` gắn D16 (#108, AIE-2). Không RLS mù khi chưa có cột.
