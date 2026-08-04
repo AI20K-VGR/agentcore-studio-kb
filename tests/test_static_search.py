@@ -122,11 +122,22 @@ async def test_sc04_cheo_tenant_khong_ro_ri_chunk_cua_tenant_kia(kb: StaticKbSea
 
 async def test_sc05_cheo_vai_khong_ro_ri_chunk_ngoai_vai(kb: StaticKbSearch) -> None:
     """Mầm leak-test T6 — cạnh yếu nhất: RLS trong `schema.py` CHỈ khoá `tenant_id`, `section_role`
-    không có RLS đứng sau. Hỏi từ vai `engineering` về thang lương (`hr`) phải không thấy gì."""
-    hits = await kb.search("Thang lương của công ty gồm những bậc nào?", ANKOR_ID, ["engineering"], 5)
-    assert hits == []
+    không có RLS đứng sau. Hỏi từ vai `engineering` về thang lương (`hr`): tuyệt đối không được rò
+    chunk `hr`.
 
-    # cùng câu hỏi, đúng vai `hr` thì thấy — chứng minh case trên rỗng vì LỌC VAI,
+    Assert theo hướng LOẠI TRỪ như SC-04, KHÔNG `== []`: từ D12 (Callisto Handbook) `ankor` đã có
+    nội dung `engineering` thật, nên câu hỏi có thể token-khớp vài chunk engineering hợp lệ (đúng
+    vai, không rò gì). Điều PHẢI đúng: mọi chunk trả về mang đúng vai `engineering`, và KHÔNG chunk
+    `hr`/thang-lương nào lọt. Siết `== []` sẽ khoá cứng giả định "engineering rỗng" mà corpus thật
+    đã phá — đúng lý do SC-04 tránh `== []`.
+    """
+    hits = await kb.search("Thang lương của công ty gồm những bậc nào?", ANKOR_ID, ["engineering"], 5)
+    # Không cầu chì chống-rỗng ở đây (khác SC-01/SC-04): với vai engineering, rỗng VẪN là kết quả
+    # fence hợp lệ. Răng an ninh nằm ở hai phép loại trừ dưới — chúng đúng cả khi hits rỗng.
+    assert all(h.section_role == "engineering" for h in hits)
+    assert not any(h.chunk_id.startswith("ankor-salary-001") for h in hits)
+
+    # cùng câu hỏi, đúng vai `hr` thì thấy — chứng minh case trên chặn vì LỌC VAI,
     # không phải vì câu hỏi không khớp gì trong kho.
     with_role = await kb.search("Thang lương của công ty gồm những bậc nào?", ANKOR_ID, ["hr"], 5)
     assert with_role[0].chunk_id == "ankor-salary-001#c1"

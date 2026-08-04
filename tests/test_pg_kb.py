@@ -194,27 +194,33 @@ async def test_top_k_khong_am_va_cat_dung_so_luong(pool: object, embedding: obje
     assert await search.search("nghỉ phép", ANKOR_ID, ["public"], 0) == []
 
 
-async def test_bo_callisto_that_25_chunk_khong_ro_ri(pool: object, embedding: object) -> None:
-    """Chạy trên **bộ tài liệu thật**, không phải dữ liệu bịa trong test: nạp cả 25 chunk rồi soi
+async def test_bo_callisto_that_khong_ro_ri(pool: object, embedding: object) -> None:
+    """Chạy trên **bộ tài liệu thật**, không phải dữ liệu bịa trong test: nạp cả 140 chunk rồi soi
     hai phạm vi của SC-01 và SC-05.
 
     Đây là phép thử end-to-end gần nhất với thứ golden-set sẽ chạy: doc-factory → ingest →
     truy xuất, cùng dữ liệu mà `golden/smoke-5.yaml` gán nhãn.
+
+    Số 140 neo vào Callisto Handbook D12 (`callisto-doc-schema.md` §8b); `test_doc_factory.py` là
+    chuông chính khi corpus đổi, ở đây chỉ dựa vào để phép loại trừ có dữ liệu thật.
     """
     chunks = load_callisto()
-    assert await KbIngest(pool, embedding).ingest(chunks) == 25  # type: ignore[arg-type]
+    assert await KbIngest(pool, embedding).ingest(chunks) == 140  # type: ignore[arg-type]
 
     search = PgKbSearch(pool, embedding)  # type: ignore[arg-type]
 
-    # phạm vi SC-01: ankor/public — 14 chunk public toàn bộ, nhưng chỉ 9 của ankor
+    # phạm vi SC-01: ankor/public — 44 chunk public toàn bộ, nhưng chỉ 24 của ankor
     sc01 = await search.search("nghỉ phép báo trước", ANKOR_ID, ["public"], 50)
     assert sc01, "truy xuất phải trả về thật thì phép loại trừ mới có nghĩa"
     assert all(h.tenant_id == ANKOR_ID and h.section_role == "public" for h in sc01)
     assert not any(h.chunk_id.startswith("borea-") for h in sc01)
 
-    # phạm vi SC-05: ankor/engineering — không doc nào mang vai này → rỗng, và đó là ĐÚNG
-    assert await search.search("thang lương", ANKOR_ID, ["engineering"], 50) == []
-    # phản chứng: cùng câu hỏi, đúng vai `hr` thì thấy → rỗng ở trên là do LỌC VAI
+    # phạm vi SC-05: ankor/engineering — từ D12 phạm vi này KHÔNG còn rỗng (16 chunk engineering).
+    # Assert loại-trừ như SC-04: mọi hit đúng vai engineering, KHÔNG rò chunk hr/lương.
+    sc05 = await search.search("thang lương", ANKOR_ID, ["engineering"], 50)
+    assert all(h.section_role == "engineering" for h in sc05)
+    assert not any(h.chunk_id.startswith("ankor-salary-001") for h in sc05)
+    # phản chứng: cùng câu hỏi, đúng vai `hr` thì thấy → chặn ở trên là do LỌC VAI
     assert await search.search("thang lương", ANKOR_ID, ["hr"], 50)
 
 
