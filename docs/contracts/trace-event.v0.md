@@ -1,24 +1,25 @@
 ---
 id: studio.contract.trace-event.v0
 type: interface-draft
-status: freeze-ready
-freeze: FREEZE-READY   # chờ Q-1 (nơi freeze) + 4/4 chữ ký — workshop #84, D11
+status: frozen
+freeze: FROZEN   # lật 2026-08-04 — kb#10 merged, 3/4 Approve (SWE, AIE-1, AIE-2 — DE tự ký, tác giả)
 freeze_target: D11
 contract_ref: umbrella-contract §3.2
 pen: DE — Nguyễn Đông Anh
 date: 2026-07-21
-updated: 2026-08-03
+updated: 2026-08-04
 ---
 
-# 🖊️ trace-event — INTERFACE (FREEZE-READY D11)
+# 🖊️ trace-event — INTERFACE (FROZEN D11)
 
-> ## 🧊 FREEZE-READY (03/08, D11) — nội dung câu-chữ đã khoá; còn chờ **người**.
-> Tên + nghĩa mọi khoá khớp `studio_contracts.trace.TraceEvent` **sau khi sửa drift D-13**
-> (`tenant: str` → `tenant_id: UUID`) trong bản 03/08 — xem §7. *(Trước bản này doc còn `tenant: str`,
-> **mâu thuẫn** với runtime; AIE-2 review bắt, đã sửa.)* Ngày freeze này **không** thêm field — chỉ
-> **chốt câu chữ + căn lại theo runtime** và đóng/hoãn-có-ghi các câu mở. **Hai cổng còn lại là việc người** (xem §0.1):
-> **Q-1** (bản `FROZEN` nằm ở draft kb hay PR bump `SCHEMA_VERSION` ở `contracts`) + **4/4 chữ ký**.
-> Đổi sau khi freeze = mini-RFC + 4/4 chữ ký + decision-log; đổi bản freeze-ready này = nhắn DE.
+> ## 🧊 FROZEN (04/08, D11) — nội dung câu-chữ đã khoá.
+> Tên + nghĩa mọi khoá khớp `studio_contracts.trace.TraceEvent` sau khi sửa drift D-13
+> (`tenant: str` → `tenant_id: UUID`), cùng 2 vòng sửa tiếp theo qua cross-review AIE-2 (trích M1,
+> §2 schema-yaml khớp lại §3/§7) — merged [kb#10](https://github.com/AI20K-VGR/agentcore-studio-kb/pull/10)
+> (3/4 Approve: SWE, AIE-1, AIE-2 — DE tự ký với tư cách tác giả, theo ADR-D11-01). Q-1 đóng theo tinh
+> thần mentor uỷ quyền team tự quyết (kit#84, 03/08) — lật tại draft kb, không PR bump `SCHEMA_VERSION`
+> ở `contracts` vì `TraceEvent` shape không đổi field nào ở D11. Đổi sau freeze = mini-RFC + 4/4 chữ ký
+> + decision-log; đổi bản này = nhắn DE.
 
 ## 0.1 Trạng thái freeze — đã khoá vs còn chờ người
 
