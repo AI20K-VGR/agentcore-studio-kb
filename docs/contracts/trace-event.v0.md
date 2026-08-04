@@ -225,10 +225,16 @@ AIE-1 đang phác node-executor dạng `execute(node, ctx) -> ctx'`.
 > **`citations` — node nào phát (chốt bút, 03/08, review AIE-1):** field điền theo **return-type** của
 > output, KHÔNG gác theo `node_type` (`interpreter.py:265`: `output` là `list` → `None`; là `dict` →
 > `outputs.get("citations")`). Hôm nay chỉ `llm-step` trả dict có `citations` nên thực tế chỉ nó mang
-> — nhưng **về cấu trúc bất kỳ node trả dict nào cũng có thể mang**; "llm-step only" là tình cờ đúng,
-> không được engine ép (mutation M1, `kit#131`: 0 lớp bắt). ⇒ `contracts#2` ghi đúng câu này thay cho
+> — nhưng **về cấu trúc bất kỳ node trả dict nào cũng có thể mang** (interpreter gác **return-type**,
+> không gác `node_type`). Mutation **M1** (`evalhub:docs/mutations/into-engine-d11.md`, evalhub#7 —
+> bảng mutation về repo của bút, thay đường `kit#131` cũ; sửa 04/08 theo số AIE-2 đo lại) cho thấy
+> **engine BẮT**: `test_non_llm_events_have_zero_tokens_and_no_citations` **1 failed**, còn `evalhub`
+> **42 passed / 2 xfailed — XANH**. Vậy lớp **0 bảo vệ nằm ở phía BỘ CHẤM, không phải engine**:
+> `citations_from_trace` gom **node-agnostic** (`harness.py:85-89`), nên nếu `kb-retrieve` bắt đầu mang
+> `citations` thì evalhub **đếm gộp mà không bài nào đỏ**. ⇒ `contracts#2` ghi đúng câu này thay cho
 > *"kb-retrieve luôn None / set bởi llm-step only"*. Muốn "llm-step only" thành bảo đảm thật thì gác
-> `node_type` ở interpreter + test (việc engine), không chốt bằng câu chữ.
+> `node_type` ở interpreter + test (engine đã có bài trên) **và siết `citations_from_trace` phía
+> evalhub** (AIE-2 đã tự dựng lưới `node_type is LLM_STEP`), không chốt bằng câu chữ.
 
 ---
 
