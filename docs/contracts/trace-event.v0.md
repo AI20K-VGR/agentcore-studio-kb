@@ -89,10 +89,10 @@ trace_event:
     completion: int
   cost:        float      # MỘT số duy nhất, chảy ra 3 mặt
 
-  # ── để trống tới S2, xem §3 ──
-  inputs_hash: str?
-  outputs:     obj?
-  citations:   [chunk_id]?
+  # ── carrier: bắt buộc từ D11 (§7); citations là field DUY NHẤT nullable ──
+  inputs_hash: str          # NOT NULL, KHÔNG có DB default (interpreter.py:297)
+  outputs:     obj          # NOT NULL, default '{}' khi chưa có (interpreter.py:298)
+  citations:   [chunk_id]?  # nullable — None chỉ khi không có căn cứ (grounded từ D6)
 ```
 
 ---
