@@ -1,23 +1,23 @@
 ---
 id: studio.contract.kb-search.v0
 type: interface-draft
-status: freeze-ready
-freeze: FREEZE-READY   # chờ Q-1 (nơi freeze) + 4/4 chữ ký — workshop #84, D11
+status: frozen
+freeze: FROZEN   # lật 2026-08-04 — kb#10 merged, 3/4 Approve (SWE, AIE-1, AIE-2 — DE tự ký, tác giả)
 freeze_target: D11
 contract_ref: umbrella-contract §3.3
 pen: DE — Nguyễn Đông Anh
 date: 2026-07-21
-updated: 2026-08-03
+updated: 2026-08-04
 ---
 
-# 🖊️ kb.search — INTERFACE (FREEZE-READY D11)
+# 🖊️ kb.search — INTERFACE (FROZEN D11)
 
-> ## 🧊 FREEZE-READY (03/08, D11) — chữ ký hàm đã khoá; freeze = khoá **HÀNH VI**.
-> Chữ ký 4 tham số (`query, tenant_id: UUID, section_roles, top_k`) **đã trùng bản freeze** từ D3/D5
-> (D-13) — nâng freeze **không đổi tầng chữ ký** (§4), chỉ **khoá hành vi** §5. Bản v0 tuần 1 **CHƯA CÓ
-> FENCE** là chủ ý; §5 viết sẵn ba luật fence để không ai thiết kế theo hướng phải đập đi.
-> **Hai cổng còn chờ người:** **Q-1** (bản `FROZEN` ở draft kb hay PR `contracts`) + **4/4 chữ ký** (§11).
-> Đổi sau freeze = mini-RFC + 4/4 chữ ký + decision-log.
+> ## 🧊 FROZEN (04/08, D11) — chữ ký hàm + hành vi đã khoá.
+> Chữ ký 4 tham số (`query, tenant_id: UUID, section_roles, top_k`) trùng bản freeze từ D3/D5 (D-13).
+> Bản v0 tuần 1 **CHƯA CÓ FENCE** vẫn là chủ ý; §5 giữ nguyên ba luật fence viết sẵn cho S2/S3. Merged
+> [kb#10](https://github.com/AI20K-VGR/agentcore-studio-kb/pull/10) (3/4 Approve: SWE, AIE-1, AIE-2 —
+> DE tự ký với tư cách tác giả, theo ADR-D11-01). Q-1 đóng theo tinh thần mentor uỷ quyền team tự quyết
+> (kit#84, 03/08) — lật tại draft kb. Đổi sau freeze = mini-RFC + 4/4 chữ ký + decision-log (§11).
 
 ## 0.1 Trạng thái freeze — đã khoá vs còn chờ người
 
