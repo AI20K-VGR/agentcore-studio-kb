@@ -1,20 +1,52 @@
 ---
 id: studio.contract.kb-search.v0
 type: interface-draft
-status: v0-draft
-freeze: NOT-FROZEN
+status: freeze-ready
+freeze: FREEZE-READY   # chờ Q-1 (nơi freeze) + 4/4 chữ ký — workshop #84, D11
 freeze_target: D11
 contract_ref: umbrella-contract §3.3
 pen: DE — Nguyễn Đông Anh
 date: 2026-07-21
-updated: 2026-07-22
+updated: 2026-08-03
 ---
 
-# 🖊️ kb.search — INTERFACE v0 (NHÁP)
+# 🖊️ kb.search — INTERFACE (FREEZE-READY D11)
 
-> ## ⚠️ v0 — CHƯA FREEZE. Dự kiến freeze **D11**.
-> Bản v0 tuần 1 **CHƯA CÓ FENCE** — đây là chủ ý, không phải thiếu sót. Đọc §5 trước khi code:
-> ba luật fence sẽ có hiệu lực từ S2/S3, viết sẵn để không ai thiết kế theo hướng phải đập đi.
+> ## 🧊 FREEZE-READY (03/08, D11) — chữ ký hàm đã khoá; freeze = khoá **HÀNH VI**.
+> Chữ ký 4 tham số (`query, tenant_id: UUID, section_roles, top_k`) **đã trùng bản freeze** từ D3/D5
+> (D-13) — nâng freeze **không đổi tầng chữ ký** (§4), chỉ **khoá hành vi** §5. Bản v0 tuần 1 **CHƯA CÓ
+> FENCE** là chủ ý; §5 viết sẵn ba luật fence để không ai thiết kế theo hướng phải đập đi.
+> **Hai cổng còn chờ người:** **Q-1** (bản `FROZEN` ở draft kb hay PR `contracts`) + **4/4 chữ ký** (§11).
+> Đổi sau freeze = mini-RFC + 4/4 chữ ký + decision-log.
+
+## 0.1 Trạng thái freeze — đã khoá vs còn chờ người
+
+**✅ Đã khoá bằng câu chữ (D11, DE):**
+- **Chữ ký** — `(query, tenant_id: UUID, section_roles: list[str], top_k: int)`; `top_k` không mặc định.
+  Trùng `studio_contracts.kb.KbSearch` (§2, §8).
+- **§5 hành vi** — lọc **TẠI RETRIEVAL, fail-closed** (§5.1); `section_roles` **do SERVER quyết**, client
+  gửi là *yêu cầu* không phải *quyền* (§5.2); **cấm trả hết nhờ LLM lọc** (§5.3).
+- **`chunk_id` bền** — `{doc_id}#c{n}`, `n` đếm từ 1 theo từng doc, **không UUID**
+  (`doc_factory.py:16` + callisto-doc-schema §6); `re_index` idempotent `ON CONFLICT (chunk_id) DO
+  UPDATE` **giữ nguyên `chunk_id`** khi chạy lại (`postgres.py:119-120`). Nên AIE-2 so
+  citation-accuracy **bằng `chunk_id`** được. *(AIE-2 xác nhận `expected_citation` khớp — Q-5)*
+
+**⏳ Còn chờ người:**
+- **Q-1** — nơi chứa bản `FROZEN` → mentor/leader.
+- **Q-D** (stub AIE-1 tự dựng vs DE ship `StubKbSearch`) — chốt với AIE-1 (Q-3).
+- **Q-5** — AIE-2 xác nhận `expected_citation` trong golden-set khớp `chunk_id`.
+- **4/4 chữ ký** — §11 (để trống, chờ ceremony #84).
+
+## 0.2 Chữ ký freeze (D11) — chờ workshop #84
+
+| Vai | Người | Ký | Ngày |
+|---|---|---|---|
+| DE (bút) | Nguyễn Đông Anh | ⬜ | |
+| SWE | Thiệu Quang Minh | ⬜ | |
+| AIE-1 | Trần Bá Đạt | ⬜ | |
+| AIE-2 | Lưu Tiến Duy | ⬜ | |
+
+*Không ký khống: ký sau khi đọc §4 (đường nâng chỉ-siết-hành-vi) + chốt Q-3/Q-5.*
 
 **Bút:** DE · **Neo:** umbrella §3.3 · **Người dùng:** AIE-1 (node `kb-retrieve`), AIE-2 (citation-accuracy).
 
@@ -269,9 +301,10 @@ cứng (leakage = 0) và sẽ land ở S2/S3. v0 nhận tham số chỉ để **
 | # | Hỏi ai | Nội dung | Trạng thái |
 |---|---|---|---|
 | **Q-A** | mentor | Có nên nhận `section_roles` ngay từ v0 (nhận rồi bỏ qua) để khỏi đổi call-site hai lần? | ✅ **ĐÓNG (D3)** — có. Quyết bằng ràng buộc kỹ thuật (§3), không chờ trả lời: 3 tham số gây `TypeError` tại call-site của AIE-1 và fail mypy. |
-| Q-B | mentor | File nháp này là "bút v0", hay phải đề xuất delta lên `contracts` qua PR? | 🔶 còn mở — nghiêng về file nháp trong `packages/kb` |
-| Q-C | AIE-2 | citation-accuracy so khớp bằng `chunk_id` — có cần `expected_citation` trong golden-set không? | 🔶 còn mở — có, xem `../format.md` |
-| **Q-D** | **AIE-1** | Tự dựng double bên engine, hay muốn DE ship `StubKbSearch` dùng chung trong `packages/kb`? | 🔶 **mới (D3)** — mặc định: AIE-1 tự dựng (đúng `day-03.md:38` + tiền lệ `FakeEmbedding`). Nếu cần bản chung: đặt ở `src/studio_kb/stubs.py`, class riêng, **không đụng** `KbSearchService`. |
+| **Q-B** | mentor | File nháp này là "bút v0", hay phải đề xuất delta lên `contracts` qua PR? | 🔴 **CHẶN FREEZE (D11 = Q-1)** — quyết nơi bản `FROZEN` đổ vào (draft kb vs PR `contracts`/mentor CODEOWNERS). Hỏi mentor/leader đầu giờ workshop #84 |
+| Q-C | AIE-2 | citation-accuracy so khớp bằng `chunk_id` — có cần `expected_citation` trong golden-set không? | 🟠 **chặn chữ ký AIE-2 (D11 Q-5)** — có (xem `../format.md`); AIE-2 xác nhận khi ký |
+| **Q-D** | **AIE-1** | Tự dựng double bên engine, hay muốn DE ship `StubKbSearch` dùng chung trong `packages/kb`? | 🟡 **hoãn-có-ghi (D11 Q-3)** — mặc định: AIE-1 tự dựng (`day-03.md:38` + tiền lệ `FakeEmbedding`). Bản chung nếu cần: `src/studio_kb/stubs.py`, class riêng, **không đụng** `KbSearchService`. **KHÔNG chặn freeze** — vào decision-log |
+| **Q-G** | producer/middleware | Đường phân giải slug→UUID **thật** (ngoài fixture S1) là gì? | 🟢 **ĐÓNG theo D-13 (D11)** — producer/middleware resolve header slug→UUID qua `core.tenants`; kb khoá theo UUID. Đường resolve **ngoài lằn kb**. Ghi decision-log |
 
 ---
 
@@ -284,3 +317,4 @@ cứng (leakage = 0) và sẽ land ở S2/S3. v0 nhận tham số chỉ để **
 | v0.1a | 2026-07-22 (D3, cuối ngày) | Thêm **§3.1 bảng đối chiếu brief↔code** — ghi lại đầy đủ chỗ lệch: `day-02.md:36` và `day-04.md:22` đều ghi 3 tham số, còn Protocol + seam đều 4. Không đổi chữ ký; chỉ ghi **vết** để người chấm Day 4 truy được vì sao code khác brief. |
 | v0.1b | 2026-07-23 (D4, cuối ngày) | Thêm **§6.1a — "khác rỗng ≠ có đáp án"**. Không đổi chữ ký, không đổi hành vi; chỉ **nói rõ một điều hợp đồng vốn đã đúng nhưng chưa viết ra**: hàm lọc theo *phạm vi*, không theo *mức liên quan*. Sinh ra từ một hiểu lầm có thật ở tích hợp D4 — `llm-step` (AIE-1) suy `refused = not retrieved_chunks`, lập luận rằng "câu bị fence hiện ra thành `[]`". Đúng với ca **bị chặn**, sai với ca **trong phạm vi mà không có đáp án** (SC-04). Bản v0 luôn trả `[]` nên vô tình khuyến khích cách đọc "rỗng ⟺ phải từ chối"; §6.1a chặn nó lại. |
 | **v0.2** | 2026-07-24 (D5, #25) | **Chữ ký đổi kiểu — `tenant: str` → `tenant_id: UUID`** theo **D-13** (`SCHEMA_VERSION 0.2.0-draft`). Đây là **breaking change đã chốt ở contracts@main** (không phải đề xuất): danh tính tenant = `core.tenants.id` UUID bất biến, slug chỉ còn là nhãn hiển thị. Bản kb adopt trọn: cột `kb.chunks.tenant_id UUID`, RLS cast `NULLIF(...,'')::uuid`, `_bind_tenant` truyền `str(uuid)`, `doc_factory`/`static_search`/`postgres` khoá theo UUID. Slug giữ nguyên trong `chunk_id` + golden-set `expected_tenant`. Ánh xạ slug→UUID lúc ingest dùng **fixture S1** (`TENANT_IDS` trong `doc_factory`) — đường phân giải thật là **Q-G**, chưa chốt. Kiểm chứng: `pytest packages/kb/tests` 48 passed / 2 xfailed trên Postgres thật; T1/T6 + RLS-framework xanh với role `studio_owner` (không phải superuser). |
+| **freeze-ready** | 2026-08-03 (D11, #80) | **Đưa về trạng thái freeze-ready** cho workshop #84. **Không đổi chữ ký** (đã trùng bản freeze từ D3/D5) — freeze = khoá **hành vi** §5 (lọc tại-retrieval fail-closed · `section_roles` server-quyết · cấm trả-hết-nhờ-LLM-lọc) + `chunk_id` bền cho citation-accuracy. Thêm §0.1/§0.2 (đã-khoá vs chờ-người + bảng chữ ký trống). Câu mở: **Q-B→Q-1 (CHẶN, hỏi mentor nơi freeze)**, Q-C→Q-5 (AIE-2), **Q-D→hoãn-có-ghi** (stub, AIE-1), **Q-G→ĐÓNG theo D-13** (slug→UUID = middleware, ngoài lằn kb). `FROZEN` + 4/4 chữ ký **chưa đóng** — chờ ceremony + Q-1 |
