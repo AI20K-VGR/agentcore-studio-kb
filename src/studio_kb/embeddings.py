@@ -124,7 +124,7 @@ def build_fixture() -> dict[str, object]:
         "fixture_ref": FIXTURE_REF,
         "dim": EMBEDDING_DIM,
         "derivation": _DERIVATION,
-        "corpus_ref": "docs/callisto/ — 5 doc × 5 chunk",
+        "corpus_ref": "docs/callisto/ — 42 doc / 140 chunk (Callisto Handbook, D12)",
         "vectors": {chunk.chunk_id: derive_vector(chunk.text) for chunk in chunks},
     }
 

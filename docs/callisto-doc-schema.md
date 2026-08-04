@@ -286,6 +286,35 @@ mà test vẫn xanh.
 
 ---
 
+## 8b. Mở rộng S2 — Callisto Handbook (D12, 2026-08-04)
+
+Bộ 5 doc stub (§8) là **oracle golden**, giữ nguyên từng ký tự. D12 mở corpus lên quy mô S2 (§1:
+40–60 doc) theo hướng **additive** — chỉ thêm file, không sửa 5 doc gốc, không dịch `chunk_id` nào.
+
+| | Trước D12 (§8) | Sau D12 |
+|---|---|---|
+| Doc | 5 | **42** (ankor 21 · borea 21) |
+| Chunk | 25 | **140** (ankor 71 · borea 69) |
+| Vai phủ | rải | **mỗi tenant đủ 4 vai** (`public/hr/finance/engineering`) |
+| Doc override `{section:}` | 1 (`ankor-expense-001`) | **5** (thêm conduct→hr, facilities→engineering cho cả 2 tenant) |
+
+**Neo số:** `tests/test_doc_factory.py::test_corpus_dung_so_chunk_va_giu_nguyen_5_doc_goc` giữ chuông
+ở **140** và khẳng định 5 doc gốc còn nguyên 5 chunk/doc (bảo vệ `golden/smoke-5.yaml`).
+
+**Chủ ý giữ nguyên từ §8/§9:** ankor↔borea cùng chủ đề, **khác số** (mồi leak-test) — Ankor
+linh hoạt/1-cấp-duyệt, Borea chặt/2-cấp-duyệt (vd làm-từ-xa 3 vs 2 ngày; đào tạo 8tr vs 12tr;
+phản-hồi-oncall 15 vs 10 phút). Số bịa, dễ nhận khi rò (§9).
+
+**Nuôi hạ nguồn:**
+- **KB thật D13 (#90):** `ingest→chunk→embed→index` ăn corpus này; `load_callisto()` là đường cắt
+  duy nhất, `chunk_id` bền qua re-index.
+- **Golden-set D16 (#105):** `golden/callisto-handbook-30-draft.yaml` (skeleton 9 case) + harness
+  `scripts/annotate_golden.py` — nhãn `expected_citation` **trích từ retrieval thật**, không gõ tay.
+- **Embeddings fixture:** `golden/embeddings-callisto-v0.json` đã **re-record** phủ đủ 140 chunk
+  (deterministic bag-of-words, `scripts/record_embeddings.py`).
+
+---
+
 ## 9. Ràng buộc NDA
 
 | Luật | Áp dụng |
