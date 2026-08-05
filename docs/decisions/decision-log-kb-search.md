@@ -35,6 +35,12 @@ canonical_location: PENDING (Q-2)
 > chỗ **`kb.chunks` là mẫu RLS tham chiếu** (`kb_chunks_tenant_isolation`) mà DL-11.8 dựa theo để chốt
 > phạm vi bật/loại-trừ; `obs.golden_sets` DROP (DL-11.9) không đụng golden-set thật của kb (`kb/golden/`).
 
+## D13 · 2026-08-05 · Chữ ký ctor `KbSearchService` khi un-ratchet (seam DE×AIE-1, #91/PR-app#3)
+
+| # | Quyết | Lý do | Trạng thái / người ký |
+|---|---|---|---|
+| **DL-13.1** | **`KbSearchService.__init__` khi un-ratchet (D17) = `(pool, embedding)`, KHÔNG giữ `(pool)`.** `pool` = **non-owner `get_pool()`** — đường dữ liệu kích RLS (`_bind_tenant` đặt `app.tenant_id`, policy `kb_chunks_tenant_isolation` cắn). `embedding` = `EmbeddingService` vector-hoá `query` để cosine với `kb.chunks.embedding`, **cùng không gian với vector seed** (`derive_vector`). `search()` **giữ frozen** (`kb-search.v0.md §0.2`) — `embedding` là collaborator lúc-dựng, không phải tham số mỗi-lần-gọi. | (1) **`.importlinter` cấm `studio_kb → studio_app`/engine** → không import được `EmbeddingService` graded của AIE-1; DI qua ctor là đường DUY NHẤT sạch để nhận đúng embedding, tránh hard-code bag-of-words D13 vào service chính thức (S3 đổi embedding không phải sửa `KbSearchService`). (2) **Đồng dạng `PgKbSearch(pool, embedding)`** — un-ratchet là ủy nhiệm/thay bằng `PgKbSearch`, vốn đã cần `embedding`. (3) Tiêm **một** `EmbeddingService` cho cả `KbIngest` (seed) lẫn search ở composition-root → chống drift seed-space ≠ query-space. (4) Đổi stub↔gateway không sửa class. | 🟡 **Quyết DE — chờ AIE-1 ack.** Đổi `__init__` được phép (chỉ `search()` đóng băng). **Việc D17** (`__init__.py`: un-ratchet sang `PgKbSearch` là RIÊNG của D17); hôm nay `KbSearchService` giữ `NotImplementedError` là **đúng lịch**. **Coordinate PR-app#3:** T3 phải đổi `KbSearchService(pool)` → `KbSearchService(pool, embedding)` tại/sau flip — nếu quên, guard `raises=NotImplementedError` biến `KbSearchService(pool)` thành `TypeError` = FAIL thật lúc land. |
+
 ## Câu CHẶN chưa đóng — kb.search (không đóng được trong lằn kb — cần người)
 
 | # | Hỏi ai | Nội dung | Ảnh hưởng |

@@ -1,0 +1,399 @@
+<title>obs.trace_events — mỗi bước để lại một phiếu</title>
+
+<style>
+  :root {
+    --bg: #EAEEF3;
+    --surface: #FFFFFF;
+    --surface-2: #F3F6FA;
+    --ink: #16212C;
+    --muted: #5C6C7B;
+    --faint: #8494A2;
+    --line: #D6DDE5;
+    --accent: #0E7C86;
+    --accent-ink: #0A5B62;
+    --gold: #B87615;
+
+    /* 6 nguồn — mỗi nguồn một màu */
+    --s1: #345FD1;  /* ngữ cảnh run */
+    --s2: #7A45D6;  /* recipe / DAG */
+    --s3: #C93B4A;  /* tường chặn INV-1 */
+    --s4: #0B8F7E;  /* executor AIE-1 */
+    --s5: #B37714;  /* kb.chunks */
+    --s6: #2E8B4E;  /* sink + đơn giá */
+
+    --shadow: 0 1px 2px rgba(20,33,44,.06), 0 8px 24px -12px rgba(20,33,44,.18);
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0C1219;
+      --surface: #151F29;
+      --surface-2: #101922;
+      --ink: #E6EDF4;
+      --muted: #97A6B5;
+      --faint: #6C7C8B;
+      --line: #253340;
+      --accent: #37B9C4;
+      --accent-ink: #6FD6DE;
+      --gold: #E3A63E;
+      --s1: #7B98FF;
+      --s2: #B191F5;
+      --s3: #F0808C;
+      --s4: #3FD1B8;
+      --s5: #E8B24E;
+      --s6: #62C880;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0C1219; --surface: #151F29; --surface-2: #101922; --ink: #E6EDF4;
+    --muted: #97A6B5; --faint: #6C7C8B; --line: #253340; --accent: #37B9C4;
+    --accent-ink: #6FD6DE; --gold: #E3A63E;
+    --s1: #7B98FF; --s2: #B191F5; --s3: #F0808C; --s4: #3FD1B8; --s5: #E8B24E; --s6: #62C880;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.6);
+  }
+  :root[data-theme="light"] {
+    --bg: #EAEEF3; --surface: #FFFFFF; --surface-2: #F3F6FA; --ink: #16212C;
+    --muted: #5C6C7B; --faint: #8494A2; --line: #D6DDE5; --accent: #0E7C86;
+    --accent-ink: #0A5B62; --gold: #B87615;
+    --s1: #345FD1; --s2: #7A45D6; --s3: #C93B4A; --s4: #0B8F7E; --s5: #B37714; --s6: #2E8B4E;
+    --shadow: 0 1px 2px rgba(20,33,44,.06), 0 8px 24px -12px rgba(20,33,44,.18);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 0 22px; }
+
+  /* ---- rhythm ---- */
+  section { padding: 46px 0; }
+  section + section { border-top: 1px solid var(--line); }
+  h2 { font-size: clamp(1.35rem, 3.4vw, 1.9rem); line-height: 1.2; margin: 0 0 6px; text-wrap: balance; letter-spacing: -.01em; }
+  p { margin: 0 0 14px; max-width: 64ch; }
+  .lead { color: var(--muted); font-size: 1.05rem; }
+  .eyebrow {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--accent-ink); font-weight: 600;
+    margin: 0 0 14px; display: flex; align-items: center; gap: 9px;
+  }
+  .eyebrow::before { content: ""; width: 22px; height: 2px; background: var(--accent); border-radius: 2px; }
+  code, .k { font-family: var(--mono); font-size: .88em; }
+  .k { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent-ink);
+       padding: .08em .4em; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent); }
+
+  /* ---- hero ---- */
+  .hero { padding: 60px 0 42px; }
+  .hero .tag {
+    font-family: var(--mono); font-size: .74rem; letter-spacing: .1em; color: var(--muted);
+    display: inline-flex; align-items: center; gap: 8px; margin-bottom: 20px;
+    padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+  }
+  .rec { width: 8px; height: 8px; border-radius: 50%; background: var(--s3); box-shadow: 0 0 0 0 color-mix(in srgb, var(--s3) 60%, transparent); animation: pulse 2.2s ease-out infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--s3) 55%,transparent);} 70%{box-shadow:0 0 0 7px transparent;} 100%{box-shadow:0 0 0 0 transparent;} }
+  .hero h1 {
+    font-size: clamp(2rem, 6vw, 3.3rem); line-height: 1.06; margin: 0 0 18px;
+    letter-spacing: -.025em; text-wrap: balance; font-weight: 800;
+  }
+  .hero h1 .hl { color: var(--accent); }
+  .hero .lead { font-size: 1.18rem; max-width: 60ch; }
+  .bigidea {
+    margin-top: 28px; padding: 20px 22px; background: var(--surface); border: 1px solid var(--line);
+    border-left: 4px solid var(--gold); border-radius: 12px; box-shadow: var(--shadow);
+    font-size: 1.05rem;
+  }
+  .bigidea b { color: var(--ink); }
+
+  /* ---- analogy cards ---- */
+  .analogy { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 26px; }
+  .acard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); }
+  .acard .ico { font-size: 1.5rem; }
+  .acard h3 { margin: 10px 0 4px; font-size: 1rem; }
+  .acard p { font-size: .92rem; color: var(--muted); margin: 0; }
+
+  /* ---- run flow ---- */
+  .flowbox { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; box-shadow: var(--shadow); margin-top: 22px; }
+  .qrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-bottom: 18px; margin-bottom: 20px; border-bottom: 1px dashed var(--line); }
+  .qrow .who { font-family: var(--mono); font-size: .8rem; color: var(--s3); font-weight: 600; white-space: nowrap; }
+  .qrow .q { font-style: italic; color: var(--ink); }
+  .runid { margin-left: auto; font-family: var(--mono); font-size: .76rem; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); padding: 4px 10px; border-radius: 7px; white-space: nowrap; }
+  .runid b { color: var(--s1); }
+
+  .steps { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+  .step { flex: 1 1 0; min-width: 148px; }
+  .node {
+    position: relative; background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 11px; padding: 13px 13px 12px; border-top: 3px solid var(--s2);
+  }
+  .node .n { font-family: var(--mono); font-size: .82rem; font-weight: 700; color: var(--ink); }
+  .node .role { font-size: .74rem; color: var(--muted); margin-top: 2px; }
+  .node .num { position: absolute; top: -11px; right: -8px; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--s2); color: #fff; font-family: var(--mono); font-size: .74rem; font-weight: 700;
+    display: grid; place-items: center; box-shadow: var(--shadow); }
+  :root[data-theme="dark"] .node .num, .node .num { color: #0C1219; }
+  .drop { text-align: center; color: var(--faint); font-size: 1.1rem; margin: 6px 0 5px; }
+  .slip {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px;
+    font-family: var(--mono); font-size: .68rem; color: var(--muted); text-align: center;
+    box-shadow: 0 2px 6px -3px rgba(0,0,0,.25);
+  }
+  .slip b { color: var(--accent-ink); display: block; font-size: .74rem; letter-spacing: .04em; }
+  .slip .sub { color: var(--faint); }
+
+  .collect { text-align: center; margin: 18px 0 4px; color: var(--muted); font-size: .9rem; }
+  .collect .arw { font-size: 1.4rem; color: var(--accent); display: block; line-height: 1; }
+  .tablebox { margin-top: 14px; border: 1.5px solid var(--accent); border-radius: 12px; overflow: hidden; }
+  .tablebox .cap { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); padding: 9px 14px;
+    font-family: var(--mono); font-size: .82rem; font-weight: 600; color: var(--accent-ink); display: flex; justify-content: space-between; }
+  .trow { display: flex; gap: 12px; padding: 8px 14px; font-family: var(--mono); font-size: .74rem; border-top: 1px solid var(--line); background: var(--surface); align-items: center; }
+  .trow:first-of-type { border-top: none; }
+  .trow .rid { color: var(--s1); }
+  .trow .nt { color: var(--s2); min-width: 92px; }
+  .trow .rest { color: var(--faint); }
+
+  /* ---- one slip zoom: 12 boxes ---- */
+  .grid12 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-top: 22px; }
+  .cell {
+    border: 1px solid var(--line); border-left: 4px solid var(--sc); border-radius: 9px;
+    padding: 11px 11px 10px; background: color-mix(in srgb, var(--sc) 8%, var(--surface));
+  }
+  .cell .fn { font-family: var(--mono); font-size: .82rem; font-weight: 700; color: var(--ink); word-break: break-word; }
+  .cell .src { font-size: .68rem; color: var(--sc); font-weight: 600; margin-top: 3px; text-transform: uppercase; letter-spacing: .04em; }
+  .cell .ex { font-family: var(--mono); font-size: .68rem; color: var(--muted); margin-top: 5px; word-break: break-all; }
+  .s1{--sc:var(--s1);} .s2{--sc:var(--s2);} .s3{--sc:var(--s3);} .s4{--sc:var(--s4);} .s5{--sc:var(--s5);} .s6{--sc:var(--s6);}
+
+  /* ---- legend of sources ---- */
+  .legend { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 24px; }
+  .lg { display: flex; gap: 12px; padding: 13px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 11px; box-shadow: var(--shadow); }
+  .lg .dot { width: 13px; height: 13px; border-radius: 4px; background: var(--sc); flex: none; margin-top: 5px; }
+  .lg .body h4 { margin: 0 0 3px; font-size: .95rem; }
+  .lg .body .who2 { font-family: var(--mono); font-size: .72rem; color: var(--sc); font-weight: 600; }
+  .lg .body p { margin: 5px 0 0; font-size: .86rem; color: var(--muted); }
+
+  /* ---- why no join ---- */
+  .why { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 22px; }
+  .wcard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); }
+  .wcard .num2 { font-family: var(--mono); font-size: .78rem; color: var(--accent); font-weight: 700; letter-spacing: .1em; }
+  .wcard h4 { margin: 8px 0 6px; font-size: 1.02rem; }
+  .wcard p { margin: 0; font-size: .9rem; color: var(--muted); }
+
+  /* ---- read-time uses ---- */
+  .uses { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 22px; }
+  .use { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .use .ico { font-size: 1.3rem; }
+  .use h4 { margin: 8px 0 4px; font-size: .98rem; }
+  .use code { display: block; margin-top: 8px; font-size: .74rem; color: var(--accent-ink); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); padding: 6px 9px; border-radius: 7px; border: 1px solid var(--line); }
+  .use p { font-size: .86rem; color: var(--muted); margin: 6px 0 0; }
+
+  figure { margin: 24px 0 0; }
+  figcaption { font-size: .84rem; color: var(--muted); margin-top: 10px; text-align: center; font-style: italic; }
+
+  footer { padding: 30px 0 44px; color: var(--faint); font-size: .82rem; }
+  footer code { color: var(--muted); }
+
+  @media (max-width: 720px) {
+    .analogy, .why, .uses, .legend { grid-template-columns: 1fr; }
+    .grid12 { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (prefers-reduced-motion: reduce) { .rec { animation: none; } }
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <span class="tag"><span class="rec"></span> ĐANG GHI NHẬT KÝ · obs.trace_events</span>
+    <h1>Mỗi bước agent chạy để lại <span class="hl">đúng một dòng</span> nhật ký.</h1>
+    <p class="lead">Trợ lý AI trả lời một câu hỏi bằng cách đi qua vài bước. Mỗi bước xong, nó điền <b>một tấm phiếu 12 ô</b> rồi bỏ vào một cái hộp chung. Cái hộp đó chính là bảng <span class="k">obs.trace_events</span>.</p>
+    <div class="bigidea">
+      Ý lớn nhất của cả trang: <b>1 bước = 1 phiếu = 1 dòng.</b> Phiếu được điền <b>một lần, tại chỗ</b> từ những thứ đang có sẵn trên tay — <b>không phải đi lắp ghép từ nhiều ngăn tủ khác nhau.</b> Vì thế bảng này <b>không cần “nối bảng” (join)</b> lúc ghi.
+    </div>
+  </header>
+
+  <!-- ANALOGY -->
+  <section>
+    <p class="eyebrow">Ví như đời thường</p>
+    <h2>Giống một xấp biên lai của cùng một đơn hàng</h2>
+    <p class="lead">Bạn mua đồ, mỗi quầy bạn ghé in cho bạn <b>một tờ biên lai riêng</b>. Cuối buổi bạn có một xấp. Không ai “dán” các mẩu giấy từ nhiều ngăn kéo lại để tạo ra một biên lai — mỗi tờ được in trọn vẹn ngay lúc đó.</p>
+    <div class="analogy">
+      <div class="acard">
+        <div class="ico">🧾</div>
+        <h3>Một tờ = một bước</h3>
+        <p>Mỗi lần agent chạy xong một bước, in ra đúng một tờ phiếu (một dòng trong bảng).</p>
+      </div>
+      <div class="acard">
+        <div class="ico">🔖</div>
+        <h3>Cùng mã đơn = cùng <span class="k">run_id</span></h3>
+        <p>Mọi tờ của cùng một lần chạy đều dán chung một mã <span class="k">run_id</span> để sau này gom lại.</p>
+      </div>
+      <div class="acard">
+        <div class="ico">📥</div>
+        <h3>Bỏ chung một hộp</h3>
+        <p>Mọi tờ rơi vào cùng cái hộp <span class="k">obs.trace_events</span>, không phân loại, không cộng dồn.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- THE RUN -->
+  <section>
+    <p class="eyebrow">Bước 1 · Một lần chạy đẻ ra mấy tờ</p>
+    <h2>Một câu hỏi → 4 bước → 4 tờ phiếu</h2>
+    <p class="lead">Trợ lý đi lần lượt 4 node theo sơ đồ của recipe. <b>Mỗi node chạy xong, nó xây một tấm phiếu và bỏ ngay vào hộp</b> — rồi mới đi tiếp.</p>
+
+    <div class="flowbox">
+      <div class="qrow">
+        <span class="who">👤 Nhân viên “ankor” hỏi:</span>
+        <span class="q">“Xin nghỉ phép cần báo trước mấy ngày?”</span>
+        <span class="runid">lần chạy này: <b>run_id = R-7f3a</b></span>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div class="node"><span class="num">1</span><div class="n">kb-retrieve</div><div class="role">tìm đoạn tài liệu được phép đọc</div></div>
+          <div class="drop">↓</div>
+          <div class="slip"><b>Phiếu #1</b><span class="sub">node_type = kb-retrieve</span></div>
+        </div>
+        <div class="step">
+          <div class="node"><span class="num">2</span><div class="n">llm-step</div><div class="role">hỏi AI + gắn trích dẫn</div></div>
+          <div class="drop">↓</div>
+          <div class="slip"><b>Phiếu #2</b><span class="sub">node_type = llm-step</span></div>
+        </div>
+        <div class="step">
+          <div class="node"><span class="num">3</span><div class="n">tool-call</div><div class="role">gọi công cụ (nếu cần)</div></div>
+          <div class="drop">↓</div>
+          <div class="slip"><b>Phiếu #3</b><span class="sub">node_type = tool-call</span></div>
+        </div>
+        <div class="step">
+          <div class="node"><span class="num">4</span><div class="n">end</div><div class="role">chốt câu trả lời</div></div>
+          <div class="drop">↓</div>
+          <div class="slip"><b>Phiếu #4</b><span class="sub">node_type = end</span></div>
+        </div>
+      </div>
+
+      <div class="collect"><span class="arw">⇣</span> cả 4 tờ rơi vào cùng một hộp, cùng <b>run_id = R-7f3a</b></div>
+
+      <div class="tablebox">
+        <div class="cap"><span>obs.trace_events</span><span>4 dòng mới</span></div>
+        <div class="trow"><span class="rid">R-7f3a</span><span class="nt">kb-retrieve</span><span class="rest">event_id, tenant_id, ts, tokens, citations, cost …</span></div>
+        <div class="trow"><span class="rid">R-7f3a</span><span class="nt">llm-step</span><span class="rest">event_id, tenant_id, ts, tokens, citations, cost …</span></div>
+        <div class="trow"><span class="rid">R-7f3a</span><span class="nt">tool-call</span><span class="rest">event_id, tenant_id, ts, tokens, citations, cost …</span></div>
+        <div class="trow"><span class="rid">R-7f3a</span><span class="nt">end</span><span class="rest">event_id, tenant_id, ts, tokens, citations, cost …</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ZOOM ONE SLIP -->
+  <section>
+    <p class="eyebrow">Bước 2 · Bên trong một tấm phiếu</p>
+    <h2>12 ô — mỗi ô lấy giá trị từ một “nguồn” trên tay</h2>
+    <p class="lead">Đây là chỗ hay bị hiểu nhầm. 12 ô <b>không</b> đến từ 12 cái bảng phải nối lại. Chúng là những giá trị đang có sẵn trong bộ nhớ lúc chạy — từ <b>6 nguồn</b> — được gộp thành <b>một tấm phiếu duy nhất</b>. Màu viền mỗi ô cho biết nó đến từ nguồn nào.</p>
+
+    <div class="grid12">
+      <div class="cell s1"><div class="fn">event_id</div><div class="src">Nguồn 1</div><div class="ex">ev-9c02…</div></div>
+      <div class="cell s1"><div class="fn">run_id</div><div class="src">Nguồn 1</div><div class="ex">R-7f3a</div></div>
+      <div class="cell s1"><div class="fn">ts</div><div class="src">Nguồn 1</div><div class="ex">2026-08-05T09:14…</div></div>
+      <div class="cell s2"><div class="fn">agent_id</div><div class="src">Nguồn 2</div><div class="ex">leave-bot</div></div>
+
+      <div class="cell s2"><div class="fn">node_id</div><div class="src">Nguồn 2</div><div class="ex">n2</div></div>
+      <div class="cell s2"><div class="fn">node_type</div><div class="src">Nguồn 2</div><div class="ex">llm-step</div></div>
+      <div class="cell s3"><div class="fn">tenant_id</div><div class="src">Nguồn 3</div><div class="ex">UUID của ankor</div></div>
+      <div class="cell s4"><div class="fn">tokens</div><div class="src">Nguồn 4</div><div class="ex">{prompt, completion}</div></div>
+
+      <div class="cell s4"><div class="fn">inputs_hash</div><div class="src">Nguồn 4</div><div class="ex">sha256(params)</div></div>
+      <div class="cell s4"><div class="fn">outputs</div><div class="src">Nguồn 4</div><div class="ex">{ … }</div></div>
+      <div class="cell s5"><div class="fn">citations</div><div class="src">Nguồn 5</div><div class="ex">[ankor-leave-001#c1]</div></div>
+      <div class="cell s6"><div class="fn">cost</div><div class="src">Nguồn 6</div><div class="ex">0.0021</div></div>
+    </div>
+
+    <div class="legend">
+      <div class="lg s1"><span class="dot"></span><div class="body"><h4>Ngữ cảnh lần chạy</h4><div class="who2">interpreter (AIE-1)</div><p>Cấp 3 ô: <b>event_id</b> (mã tờ phiếu, không trùng), <b>run_id</b> (mã lần chạy), <b>ts</b> (thời điểm).</p></div></div>
+      <div class="lg s2"><span class="dot"></span><div class="body"><h4>Công thức / sơ đồ (recipe)</h4><div class="who2">SWE</div><p>Cấp 3 ô: <b>agent_id</b> (trợ lý nào), <b>node_id</b> + <b>node_type</b> (đang ở node nào, loại gì).</p></div></div>
+      <div class="lg s3"><span class="dot"></span><div class="body"><h4>Tường chặn danh tính (INV-1)</h4><div class="who2">server tự tra từ phiên đăng nhập</div><p>Cấp 1 ô: <b>tenant_id</b> (UUID). Lấy từ phiên, <b>không</b> tin lời người dùng tự khai — đây là chốt chống rò rỉ chéo khách hàng.</p></div></div>
+      <div class="lg s4"><span class="dot"></span><div class="body"><h4>Bộ chạy bước (executor)</h4><div class="who2">AIE-1</div><p>Cấp 3 ô: <b>tokens</b> (đếm chữ đã dùng), <b>inputs_hash</b>, <b>outputs</b> (kết quả bước).</p></div></div>
+      <div class="lg s5"><span class="dot"></span><div class="body"><h4>Kho tài liệu (kb.chunks)</h4><div class="who2">DE</div><p>Cấp 1 ô: <b>citations</b> — mã đoạn tài liệu mà câu trả lời <b>thật sự trích dẫn</b>. Ô duy nhất được phép để trống khi không có căn cứ.</p></div></div>
+      <div class="lg s6"><span class="dot"></span><div class="body"><h4>Sink + bảng đơn giá</h4><div class="who2">DE</div><p>Cấp 1 ô: <b>cost</b> = tính từ <b>tokens</b> × đơn giá. Chỉ tính <b>một nơi duy nhất</b>, các chỗ khác chỉ đọc lại.</p></div></div>
+    </div>
+  </section>
+
+  <!-- WHY NO JOIN -->
+  <section>
+    <p class="eyebrow">Bước 3 · Câu hỏi hay gặp</p>
+    <h2>Không nối bảng thì sao biết 12 ô là của cùng một dòng?</h2>
+    <p class="lead">Vì tấm phiếu được <b>xây xong trọn vẹn trong bộ nhớ trước</b>, rồi mới ghi xuống bằng <b>một lệnh INSERT duy nhất</b>. Một tấm phiếu → một lệnh ghi → một dòng. “Cùng một dòng” được bảo đảm bằng cấu trúc, không phải bằng cách dò khoá rồi ghép.</p>
+
+    <figure>
+      <svg viewBox="0 0 720 210" role="img" aria-label="12 giá trị được gộp thành một object TraceEvent trong bộ nhớ, rồi ghi xuống bảng bằng một lệnh INSERT duy nhất — không nối bảng." style="width:100%;height:auto;">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <!-- 6 sources -->
+        <g font-family="ui-monospace, monospace" font-size="11" text-anchor="middle">
+          <g>
+            <rect x="8"  y="14" width="150" height="24" rx="6" fill="none" stroke="var(--s1)" stroke-width="1.5"/>
+            <text x="83" y="30" fill="var(--s1)">ngữ cảnh run</text>
+            <rect x="8"  y="44" width="150" height="24" rx="6" fill="none" stroke="var(--s2)" stroke-width="1.5"/>
+            <text x="83" y="60" fill="var(--s2)">recipe / DAG</text>
+            <rect x="8"  y="74" width="150" height="24" rx="6" fill="none" stroke="var(--s3)" stroke-width="1.5"/>
+            <text x="83" y="90" fill="var(--s3)">tường chặn INV-1</text>
+            <rect x="8"  y="104" width="150" height="24" rx="6" fill="none" stroke="var(--s4)" stroke-width="1.5"/>
+            <text x="83" y="120" fill="var(--s4)">executor</text>
+            <rect x="8"  y="134" width="150" height="24" rx="6" fill="none" stroke="var(--s5)" stroke-width="1.5"/>
+            <text x="83" y="150" fill="var(--s5)">kb.chunks</text>
+            <rect x="8"  y="164" width="150" height="24" rx="6" fill="none" stroke="var(--s6)" stroke-width="1.5"/>
+            <text x="83" y="180" fill="var(--s6)">sink + đơn giá</text>
+          </g>
+        </g>
+        <!-- arrows to object -->
+        <g stroke="currentColor" stroke-width="1.3" fill="none" opacity="0.55" marker-end="url(#ar)">
+          <path d="M158,26 C 220,26 240,90 300,98"/>
+          <path d="M158,56 C 220,56 250,94 300,102"/>
+          <path d="M158,86 C 230,86 260,98 300,105"/>
+          <path d="M158,116 C 230,116 260,108 300,108"/>
+          <path d="M158,146 C 230,146 260,112 300,112"/>
+          <path d="M158,176 C 220,176 250,120 300,116"/>
+        </g>
+        <!-- TraceEvent object -->
+        <rect x="300" y="72" width="150" height="70" rx="10" fill="var(--accent)" opacity="0.14" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="375" y="100" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="currentColor">1 TraceEvent</text>
+        <text x="375" y="118" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="currentColor" opacity="0.7">12 ô, trong bộ nhớ</text>
+        <!-- single insert arrow -->
+        <line x1="450" y1="107" x2="560" y2="107" stroke="currentColor" stroke-width="1.6" marker-end="url(#ar)"/>
+        <text x="505" y="98" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" fill="currentColor" font-weight="700">1 INSERT</text>
+        <!-- table -->
+        <rect x="560" y="80" width="150" height="54" rx="8" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <line x1="560" y1="100" x2="710" y2="100" stroke="currentColor" stroke-width="1"/>
+        <text x="635" y="94" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" font-weight="700" fill="currentColor">obs.trace_events</text>
+        <text x="635" y="120" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--accent)">+ 1 dòng</text>
+      </svg>
+      <figcaption>6 nguồn góp giá trị → gộp thành 1 object trong bộ nhớ → 1 lệnh INSERT → 1 dòng. Không có bước “nối bảng”.</figcaption>
+    </figure>
+
+    <div class="why">
+      <div class="wcard"><div class="num2">01</div><h4>Không có bảng để nối</h4><p>6 “nguồn” là dữ liệu đang chạy trong bộ nhớ, chưa lưu ở đâu cả — không phải 6 bảng trong cơ sở dữ liệu. Không có gì để join.</p></div>
+      <div class="wcard"><div class="num2">02</div><h4>Nhật ký là bằng chứng</h4><p>Đường ghi cố tình “ngu”: chỉ 1 INSERT, không cộng dồn, không tính toán. Một lỗi khi ghép sẽ làm mất bằng chứng gốc, không dựng lại được.</p></div>
+      <div class="wcard"><div class="num2">03</div><h4>Tự chứa đủ thông tin</h4><p>Mỗi tờ ôm sẵn ngữ cảnh (tenant, agent, node…). Nếu sau này ai sửa recipe, log cũ vẫn giữ nguyên sự thật lúc chạy — không bị đổi ngược.</p></div>
+    </div>
+  </section>
+
+  <!-- READ TIME -->
+  <section>
+    <p class="eyebrow">Bước 4 · Vậy run_id để làm gì</p>
+    <h2><span class="k">run_id</span> chỉ “kiếm cơm” khi ĐỌC lại, không phải khi ghi</h2>
+    <p class="lead">Lúc ghi thì mỗi tờ độc lập. Lúc <b>đọc</b> mới cần gom nhiều tờ với nhau — và đó chính là lúc <span class="k">run_id</span> phát huy tác dụng.</p>
+    <div class="uses">
+      <div class="use"><div class="ico">🎞️</div><h4>Dựng lại timeline 1 lần chạy</h4><code>WHERE run_id = ?</code><p>Gom 4 tờ, sắp theo <b>ts</b> → xem lại agent đã đi qua những bước nào.</p></div>
+      <div class="use"><div class="ico">💰</div><h4>Cộng chi phí</h4><code>GROUP BY agent_id</code><p>Cộng ô <b>cost</b> theo trợ lý hoặc theo khách hàng để biết ai tốn bao nhiêu.</p></div>
+      <div class="use"><div class="ico">⚖️</div><h4>Chấm điểm (eval)</h4><code>đọc citations</code><p>Giám khảo lấy ô <b>citations</b> để kiểm câu trả lời có trích dẫn đúng không.</p></div>
+    </div>
+  </section>
+
+  <footer>
+    <p style="margin:0 0 6px"><b>Một câu để nhớ:</b> ghi = một tờ phiếu phẳng, một INSERT (không nối bảng); đọc = mới gom các tờ theo <code>run_id</code>.</p>
+    <p style="margin:0">Đối chiếu code thật: 12 cột ở <code>apps/studio/.../obs/schema.py</code> · hợp đồng <code>packages/kb/docs/contracts/trace-event.v0.md</code> · đường ghi 1-INSERT <code>PgTraceWriter.write()</code> (luật F15).</p>
+  </footer>
+
+</div>
