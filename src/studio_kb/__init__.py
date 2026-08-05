@@ -10,21 +10,32 @@ Sprint 1 (D4) thêm **bản tĩnh** để xâu kim end-to-end trước khi tần
 `EmptyKbSearch` — KHÔNG phải `KbSearchService` (bản fenced + Postgres, vẫn là spec-DE cho S2–S3).
 Xem docstring `static_search.py` để biết đường nâng cấp giữa hai bản.
 
-Sprint 1 (D7) thêm `load_callisto_embeddings` — **đường đọc duy nhất** cho vector của 25 chunk
-Callisto (`golden/embeddings-callisto-v0.json`). Ai cần vector thì gọi nó, cấm tự tính sha256 tại
-chỗ: hai chỗ tự tính là hai nguồn sự thật. Xem docstring `embeddings.py`.
+Sprint 1 (D7) thêm `load_callisto_embeddings` — **đường đọc duy nhất** cho vector của 140 chunk
+Callisto (`golden/embeddings-callisto-v0.json`, corpus phình 25→140 ở D12). Ai cần vector thì gọi
+nó, cấm tự tính sha256 tại chỗ: hai chỗ tự tính là hai nguồn sự thật. Xem docstring `embeddings.py`.
+
+Sprint 2 (D13) thêm tầng Postgres thật (`postgres.py`) vào seam công khai: `KbIngest` (ghi:
+`Chunk` → embed → `kb.chunks` per-tenant, idempotent, non-owner pool để `WITH CHECK` cắn) và
+`PgKbSearch` (đọc: cosine trên pgvector, lọc fail-closed `tenant_id`+`section_role`). Cả hai thoả
+`studio_contracts.KbSearch`/nhận `EmbeddingService` tiêm vào — đây là thứ AIE-1 tiêm vào
+`KbRetrieveExecutor` thay `StaticKbSearch`/`EmptyKbSearch` (ghép thật DE×AIE-1, #91). `KbSearchService`
+(`search.py`) vẫn giữ `NotImplementedError` có chủ đích — un-ratchet seam đó sang `PgKbSearch` là việc
+RIÊNG của D17 (fence qua seam chính thức), xem `test_leak.py`/`test_search_contract.py`.
 """
 
 from __future__ import annotations
 
 from studio_kb.doc_factory import Chunk, load_callisto
 from studio_kb.embeddings import load_callisto_embeddings
+from studio_kb.postgres import KbIngest, PgKbSearch
 from studio_kb.search import KbSearchService
 from studio_kb.static_search import StaticKbSearch
 
 __all__ = [
     "Chunk",
+    "KbIngest",
     "KbSearchService",
+    "PgKbSearch",
     "StaticKbSearch",
     "load_callisto",
     "load_callisto_embeddings",
