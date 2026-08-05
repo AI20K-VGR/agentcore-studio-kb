@@ -27,15 +27,15 @@ _spec.loader.exec_module(ingest_callisto)
 async def test_ingest_all_nap_tron_corpus(pool: object) -> None:
     """`ingest_all` phải nạp đúng 140 chunk (Callisto Handbook D12) qua pool non-owner. Số 140 neo
     vào `callisto-doc-schema.md` §8b; `test_doc_factory.py` là chuông chính khi corpus đổi."""
-    written = await ingest_callisto.ingest_all(pool)  # type: ignore[arg-type]
+    written = await ingest_callisto.ingest_all(pool)
     assert written == 140
 
 
 async def test_ingest_all_idempotent_chay_lai_van_140(pool: object) -> None:
     """Chạy lại trên bảng đã có dữ liệu vẫn ra 140 (upsert `ON CONFLICT`), không vỡ, không nhân đôi
     số ghi — đây là tính chất demo dựa vào để lặp lệnh mà không phải dọn bảng."""
-    assert await ingest_callisto.ingest_all(pool) == 140  # type: ignore[arg-type]
-    assert await ingest_callisto.ingest_all(pool) == 140  # type: ignore[arg-type]
+    assert await ingest_callisto.ingest_all(pool) == 140
+    assert await ingest_callisto.ingest_all(pool) == 140
 
 
 def test_main_thieu_dsn_bao_loi_to(monkeypatch: pytest.MonkeyPatch) -> None:
