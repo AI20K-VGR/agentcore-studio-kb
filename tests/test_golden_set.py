@@ -1,0 +1,151 @@
+r"""Guard cho golden-set `callisto-golden-30-v1` — canh nhãn không trôi khi corpus đổi (D14, DE).
+
+**Vì sao có test này:** corpus phình 5→42 doc (D12) từng làm vỡ tính DUY NHẤT của nhãn `expected` mà
+không phép kiểm nào bắt — một câu trả lời **sai chủ đề** vẫn chứa cụm chung ("3 ngày", "20 triệu") nên
+`_contains_phrase` chấm **PASS oan** (phát hiện QA D14). Bộ này theo AIE-2 lâu dài, nên biến phép kiểm
+tay thành CI gate: mỗi lần đổi corpus hoặc golden, chạy lại là bắt được collision mới.
+
+Bốn trục, mỗi cái một kiểu trôi:
+- **citation truy-xuất-được**: `expected_citation` phải lấy được khi search đúng scope (không id chết).
+- **grounded**: `expected` phải nằm trong chunk được trích (nếu không → FAIL oan mọi lúc).
+- **DUY NHẤT**: `expected` KHÔNG được khớp chunk nào khác trong (tenant, roles) người hỏi (nếu không →
+  PASS oan khi agent trả lời sai chủ đề mà trúng cụm chung).
+- **fence**: case âm phải để rỗng citation VÀ scope cấm không lọt.
+
+Cố ý **KHÔNG import `studio_evalhub`** (`.importlinter`: `studio_kb` < `studio_evalhub`) và **KHÔNG kéo
+`pyyaml`** (kb chưa từng khai) — `_contains_phrase`/parser tái hiện tại chỗ, mirror có chủ đích đúng thuật
+toán `harness._tokenize` (`re.findall(r"\w+", lower)`, so token liên tiếp) + shape 8-field DE tự sinh.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+import pytest
+from studio_kb.doc_factory import Chunk, load_callisto, resolve_tenant_id
+from studio_kb.static_search import StaticKbSearch
+
+_GOLDEN = Path(__file__).resolve().parents[1] / "golden" / "callisto-handbook-30-draft.yaml"
+_EXPECTED_REF = "callisto-golden-30-v1"
+
+
+def _tokenize(text: str) -> list[str]:
+    """Mirror `studio_evalhub.harness._tokenize` — giữ đồng bộ luật chấm success mà không import chéo tầng."""
+    return re.findall(r"\w+", text.lower())
+
+
+def _contains_phrase(text: str, phrase: str) -> bool:
+    """True khi token `phrase` xuất hiện LIÊN TIẾP trong token `text` (mirror harness._contains_phrase)."""
+    pt = _tokenize(phrase)
+    if not pt:
+        return False
+    tt = _tokenize(text)
+    n = len(pt)
+    return any(tt[i : i + n] == pt for i in range(len(tt) - n + 1))
+
+
+class _Case:
+    __slots__ = ("case_id", "query", "tenant", "roles", "exp_tenant", "exp_role", "expected", "citation")
+
+    def __init__(self, d: dict[str, str]) -> None:
+        self.case_id = d["case_id"]
+        self.query = d["query"]
+        self.tenant = d["tenant"]
+        self.roles = _parse_list(d["section_roles"])
+        self.exp_tenant = d["expected_tenant"]
+        self.exp_role = d["expected_section_role"]
+        self.expected = d["expected"]
+        self.citation = _parse_list(d["expected_citation"])
+
+    @property
+    def is_refusal(self) -> bool:
+        return not self.citation
+
+
+def _unquote(v: str) -> str:
+    v = v.strip()
+    return v[1:-1] if len(v) >= 2 and v[0] == '"' and v[-1] == '"' else v
+
+
+def _parse_list(v: str) -> list[str]:
+    inner = v.strip()[1:-1].strip()  # bỏ [ ]
+    if not inner:
+        return []
+    return [_unquote(x) for x in inner.split(",")]
+
+
+def _parse_golden() -> tuple[str, list[_Case]]:
+    """Parser tối giản cho ĐÚNG shape DE sinh (8-field, mỗi field một dòng). Bỏ dòng comment `#`."""
+    ref = ""
+    cases: list[dict[str, str]] = []
+    cur: dict[str, str] | None = None
+    for raw in _GOLDEN.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("golden_set_ref:"):
+            ref = line.split(":", 1)[1].strip()
+            continue
+        if line.startswith("- case_id:"):
+            cur = {"case_id": line.split(":", 1)[1].strip()}
+            cases.append(cur)
+            continue
+        if cur is not None and ":" in line:
+            key, _, val = line.partition(":")
+            cur[key.strip()] = val.strip()
+    return ref, [_Case(c) for c in cases]
+
+
+_REF, _CASES = _parse_golden()
+_POS = [c for c in _CASES if not c.is_refusal]
+_NEG = [c for c in _CASES if c.is_refusal]
+
+
+@pytest.fixture(scope="module")
+def kb() -> StaticKbSearch:
+    return StaticKbSearch()
+
+
+@pytest.fixture(scope="module")
+def by_id() -> dict[str, Chunk]:
+    return {c.chunk_id: c for c in load_callisto()}
+
+
+def test_dung_ref_va_du_30_case() -> None:
+    """Đúng tên bộ AIE-2 chờ + đủ 30 (14+ dương, có âm) — chặn parser hỏng lặng hoặc bộ bị cắt."""
+    assert _REF == _EXPECTED_REF
+    assert len(_CASES) == 30
+    assert len(_POS) >= 15 and len(_NEG) >= 4
+
+
+@pytest.mark.parametrize("case", _POS, ids=[c.case_id for c in _POS])
+async def test_case_duong_citation_grounded_va_duy_nhat(case: _Case, kb: StaticKbSearch, by_id: dict[str, Chunk]) -> None:
+    hits = await kb.search(case.query, resolve_tenant_id(case.tenant), case.roles, 50)
+    ids = {h.chunk_id for h in hits}
+    for c in case.citation:
+        assert c in by_id, f"{case.case_id}: {c} không có trong corpus"
+        assert c in ids, f"{case.case_id}: {c} KHÔNG truy xuất được trong scope"
+        assert _contains_phrase(by_id[c].text, case.expected), (
+            f"{case.case_id}: expected {case.expected!r} không nằm trong chunk trích {c} → FAIL oan"
+        )
+    tid = resolve_tenant_id(case.tenant)
+    rset = set(case.roles)
+    collide = [
+        ch.chunk_id
+        for ch in by_id.values()
+        if ch.tenant_id == tid and ch.section_role in rset and ch.chunk_id not in case.citation
+        and _contains_phrase(ch.text, case.expected)
+    ]
+    assert not collide, f"{case.case_id}: expected {case.expected!r} KHÔNG duy nhất — cũng khớp {collide} → PASS oan"
+    same_scope = [h for h in hits if h.section_role == case.exp_role]
+    assert len(same_scope) >= 2, f"{case.case_id}: chỉ {len(same_scope)} ứng viên cùng vai (teeth < 2)"
+
+
+@pytest.mark.parametrize("case", _NEG, ids=[c.case_id for c in _NEG])
+async def test_case_am_fence_kin(case: _Case, kb: StaticKbSearch) -> None:
+    assert case.citation == [], f"{case.case_id}: case âm phải rỗng citation"
+    hits = await kb.search(case.query, resolve_tenant_id(case.tenant), case.roles, 50)
+    forbidden = resolve_tenant_id(case.exp_tenant)
+    leaked = [h.chunk_id for h in hits if h.tenant_id == forbidden and h.section_role == case.exp_role]
+    assert not leaked, f"{case.case_id}: RÒ RỈ scope cấm {case.exp_tenant}/{case.exp_role}: {leaked}"
