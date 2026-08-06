@@ -153,3 +153,33 @@ async def test_case_am_fence_kin(case: _Case, kb: StaticKbSearch) -> None:
     forbidden = resolve_tenant_id(case.exp_tenant)
     leaked = [h.chunk_id for h in hits if h.tenant_id == forbidden and h.section_role == case.exp_role]
     assert not leaked, f"{case.case_id}: RÒ RỈ scope cấm {case.exp_tenant}/{case.exp_role}: {leaked}"
+
+
+@pytest.mark.parametrize("case", _CASES, ids=[c.case_id for c in _CASES])
+def test_refusal_semantics_khop_scope(case: _Case) -> None:
+    """Invariant refusal (`GoldenCase.expects_refusal`, golden_case.py:88,109): case rỗng citation
+    ⟺ người hỏi NGOÀI scope đáp án — `(expected_tenant != tenant) OR (expected_section_role ∉
+    section_roles)`. Bắt hai lỗi nhãn: (a) case answerable mà lỡ để rỗng citation, (b) case gán
+    citation nhưng scope hỏi thực ra không với tới — cả hai làm harness chấm sai nhánh."""
+    out_of_scope = (case.exp_tenant != case.tenant) or (case.exp_role not in case.roles)
+    assert case.is_refusal == out_of_scope, (
+        f"{case.case_id}: rỗng-citation={case.is_refusal} nhưng ngoài-scope={out_of_scope} — "
+        f"nhãn refusal lệch với (tenant/roles người hỏi vs expected_tenant/section_role)"
+    )
+
+
+@pytest.mark.parametrize("case", _POS, ids=[c.case_id for c in _POS])
+def test_citation_khop_expected_tenant_role(case: _Case, by_id: dict[str, Chunk]) -> None:
+    """Case dương: mọi chunk trong `expected_citation` PHẢI thuộc đúng `(expected_tenant,
+    expected_section_role)` đã khai. Chặn nhãn `expected_tenant`/`expected_section_role` mô tả một
+    scope khác với chunk thật sự được trích — thứ `chunk_id` không tự tố (`chunk_id` mã hoá tenant ở
+    tiền tố nhưng KHÔNG mã hoá vai, golden_case.py:69)."""
+    want_tenant = resolve_tenant_id(case.exp_tenant)
+    for c in case.citation:
+        assert c in by_id, f"{case.case_id}: {c} không có trong corpus"
+        assert by_id[c].tenant_id == want_tenant, (
+            f"{case.case_id}: {c} thuộc tenant khác expected_tenant={case.exp_tenant!r}"
+        )
+        assert by_id[c].section_role == case.exp_role, (
+            f"{case.case_id}: {c} vai {by_id[c].section_role!r} ≠ expected_section_role={case.exp_role!r}"
+        )

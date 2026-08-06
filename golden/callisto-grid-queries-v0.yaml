@@ -30,7 +30,7 @@ cases:
     expected: "2 ngày"
     expected_citation: ["borea-remote-001#c1"]
 
-  # GQ-03: teeth: training #c1(0.50)/#c2(0.4375) cạnh tranh cùng hr
+  # GQ-03: teeth: training#c1 top-hit hr, ≥2 ứng viên hr khác cạnh tranh (điểm phụ trôi theo corpus)
   - case_id: GQ-03
     query: "Ngân sách đào tạo mỗi năm là bao nhiêu?"
     tenant: ankor
@@ -50,7 +50,7 @@ cases:
     expected: "12 triệu"
     expected_citation: ["borea-training-001#c1"]
 
-  # GQ-05: teeth biên rộng: oncall #c2(0.69)/#c1(0.31) cùng engineering — đối chứng với ca biên hẹp GQ-01
+  # GQ-05: teeth biên rộng: oncall#c2 ≫ cụm ứng viên engineering còn lại — đối chứng ca biên hẹp GQ-01
   - case_id: GQ-05
     query: "Cảnh báo nghiêm trọng cần phản hồi trong bao lâu?"
     tenant: ankor

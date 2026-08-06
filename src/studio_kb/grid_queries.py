@@ -102,7 +102,7 @@ GRID_CASES: tuple[GridCase, ...] = (
         expected_section_role="hr",
         expected="8 triệu",
         expected_citation=("ankor-training-001#c1",),
-        note="teeth: training #c1(0.50)/#c2(0.4375) cạnh tranh cùng hr",
+        note="teeth: training#c1 top-hit hr, ≥2 ứng viên hr khác cạnh tranh (điểm phụ trôi theo corpus)",
     ),
     GridCase(
         case_id="GQ-04",
@@ -124,7 +124,7 @@ GRID_CASES: tuple[GridCase, ...] = (
         expected_section_role="engineering",
         expected="15 phút",
         expected_citation=("ankor-oncall-001#c2",),
-        note="teeth biên rộng: oncall #c2(0.69)/#c1(0.31) cùng engineering — đối chứng với ca biên hẹp GQ-01",
+        note="teeth biên rộng: oncall#c2 ≫ cụm ứng viên engineering còn lại — đối chứng ca biên hẹp GQ-01",
     ),
     GridCase(
         case_id="GQ-06",
