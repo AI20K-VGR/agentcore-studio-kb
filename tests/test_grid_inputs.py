@@ -80,9 +80,7 @@ async def test_case_am_fence_kin_khong_ro_ri(case: GridCase, kb: StaticKbSearch)
     hits = await kb.search(case.query, resolve_tenant_id(case.tenant), list(case.section_roles), _COUNT_K)
     forbidden_tenant = resolve_tenant_id(case.expected_tenant)
     leaked = [
-        h.chunk_id
-        for h in hits
-        if h.tenant_id == forbidden_tenant and h.section_role == case.expected_section_role
+        h.chunk_id for h in hits if h.tenant_id == forbidden_tenant and h.section_role == case.expected_section_role
     ]
     forbidden = f"{case.expected_tenant}/{case.expected_section_role}"
     assert not leaked, f"{case.case_id}: RÒ RỈ scope cấm {forbidden}: {leaked}"

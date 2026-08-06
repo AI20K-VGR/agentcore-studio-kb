@@ -136,7 +136,9 @@ async def test_case_duong_citation_grounded_va_duy_nhat(
     collide = [
         ch.chunk_id
         for ch in by_id.values()
-        if ch.tenant_id == tid and ch.section_role in rset and ch.chunk_id not in case.citation
+        if ch.tenant_id == tid
+        and ch.section_role in rset
+        and ch.chunk_id not in case.citation
         and _contains_phrase(ch.text, case.expected)
     ]
     assert not collide, f"{case.case_id}: expected {case.expected!r} KHÔNG duy nhất — cũng khớp {collide} → PASS oan"
