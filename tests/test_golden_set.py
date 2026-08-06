@@ -120,7 +120,9 @@ def test_dung_ref_va_du_30_case() -> None:
 
 
 @pytest.mark.parametrize("case", _POS, ids=[c.case_id for c in _POS])
-async def test_case_duong_citation_grounded_va_duy_nhat(case: _Case, kb: StaticKbSearch, by_id: dict[str, Chunk]) -> None:
+async def test_case_duong_citation_grounded_va_duy_nhat(
+    case: _Case, kb: StaticKbSearch, by_id: dict[str, Chunk]
+) -> None:
     hits = await kb.search(case.query, resolve_tenant_id(case.tenant), case.roles, 50)
     ids = {h.chunk_id for h in hits}
     for c in case.citation:
