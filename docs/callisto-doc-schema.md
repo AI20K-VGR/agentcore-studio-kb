@@ -308,8 +308,10 @@ phản-hồi-oncall 15 vs 10 phút). Số bịa, dễ nhận khi rò (§9).
 **Nuôi hạ nguồn:**
 - **KB thật D13 (#90):** `ingest→chunk→embed→index` ăn corpus này; `load_callisto()` là đường cắt
   duy nhất, `chunk_id` bền qua re-index.
-- **Golden-set D16 (#105):** `golden/callisto-handbook-30-draft.yaml` (skeleton 9 case) + harness
-  `scripts/annotate_golden.py` — nhãn `expected_citation` **trích từ retrieval thật**, không gõ tay.
+- **Golden-set D16 (#105):** `golden/callisto-handbook-30-draft.yaml` — **đã điền đủ 30 case** (22 dương
+  + 8 âm T1/T6), `golden_set_ref: callisto-golden-30-v1`, giao sớm ở D14 để gỡ chặn AIE-2. Nhãn
+  `expected_citation` **trích từ retrieval thật** (`scripts/annotate_golden.py`), không gõ tay; load được
+  qua `studio_evalhub.GoldenCase`. Tên file giữ `-draft` cho tới khi AIE-2 nghiệm thu (DL-12.5).
 - **Embeddings fixture:** `golden/embeddings-callisto-v0.json` đã **re-record** phủ đủ 140 chunk
   (deterministic bag-of-words, `scripts/record_embeddings.py`).
 

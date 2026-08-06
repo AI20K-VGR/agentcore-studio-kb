@@ -1,0 +1,211 @@
+# Golden query + expected chunks cho grid chunking×embedding (D14, DE) — issue #95 → #96.
+#
+# ⚠️ FILE SINH RA — nguồn là src/studio_kb/grid_queries.py. Sửa ở đây sẽ bị
+#    tests/test_grid_inputs.py bắt (byte-identical). Sửa case → sửa module → chạy
+#    scripts/emit_grid_queries.py.
+#
+# Shape: docs/format.md §2 (8 field). Nhãn annotate-verified trên corpus 140-chunk; mọi case
+# dương để lại ≥2 ứng viên cùng tenant+section_role (teeth, finding D11). Xem module để biết ý đồ.
+
+golden_set_ref: callisto-grid-queries-v0
+
+cases:
+  # GQ-01: teeth NẶNG: #c1(0.846) chỉ hơn #c2(0.769) 0.077 ở dim=8 — ứng viên cùng scope: remote #c1/#c2 + leave
+  - case_id: GQ-01
+    query: "Nhân viên được làm việc từ xa tối đa mấy ngày một tuần?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: public
+    expected: "3 ngày"
+    expected_citation: ["ankor-remote-001#c1"]
+
+  # GQ-02: CẶP với GQ-01, khác tenant → 2 ngày (không phải 3); #c1/#c2 borea cách 0.000 ở dim=8 (hoà điểm)
+  - case_id: GQ-02
+    query: "Nhân viên được làm việc từ xa tối đa mấy ngày một tuần?"
+    tenant: borea
+    section_roles: [public]
+    expected_tenant: borea
+    expected_section_role: public
+    expected: "2 ngày"
+    expected_citation: ["borea-remote-001#c1"]
+
+  # GQ-03: teeth: training#c1 top-hit hr, ≥2 ứng viên hr khác cạnh tranh (điểm phụ trôi theo corpus)
+  - case_id: GQ-03
+    query: "Ngân sách đào tạo mỗi năm là bao nhiêu?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "8 triệu"
+    expected_citation: ["ankor-training-001#c1"]
+
+  # GQ-04: CẶP với GQ-03, khác tenant → 12 triệu; ứng viên cùng hr: training/benefits/conduct/performance
+  - case_id: GQ-04
+    query: "Ngân sách đào tạo mỗi năm là bao nhiêu?"
+    tenant: borea
+    section_roles: [hr]
+    expected_tenant: borea
+    expected_section_role: hr
+    expected: "12 triệu"
+    expected_citation: ["borea-training-001#c1"]
+
+  # GQ-05: teeth biên rộng: oncall#c2 ≫ cụm ứng viên engineering còn lại — đối chứng ca biên hẹp GQ-01
+  - case_id: GQ-05
+    query: "Cảnh báo nghiêm trọng cần phản hồi trong bao lâu?"
+    tenant: ankor
+    section_roles: [engineering]
+    expected_tenant: ankor
+    expected_section_role: engineering
+    expected: "15 phút"
+    expected_citation: ["ankor-oncall-001#c2"]
+
+  # GQ-06: CẶP với GQ-05, khác tenant → 10 phút; oncall #c2/#c1 + access cùng engineering
+  - case_id: GQ-06
+    query: "Cảnh báo nghiêm trọng cần phản hồi trong bao lâu?"
+    tenant: borea
+    section_roles: [engineering]
+    expected_tenant: borea
+    expected_section_role: engineering
+    expected: "10 phút"
+    expected_citation: ["borea-oncall-001#c2"]
+
+  # GQ-07: teeth: procurement #c2 + invoicing/budget/procurement #c1 cùng finance
+  - case_id: GQ-07
+    query: "Khoản mua từ bao nhiêu thì cần hai báo giá?"
+    tenant: ankor
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "50 triệu"
+    expected_citation: ["ankor-procurement-001#c2"]
+
+  # GQ-08: teeth NẶNG: salary #c1(0.444) HOÀ điểm #c3(0.444) cùng hr — embedding phải tự phá hoà
+  - case_id: GQ-08
+    query: "Thang lương của công ty gồm những bậc nào?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "6 bậc"
+    expected_citation: ["ankor-salary-001#c1"]
+
+  # GQ-09: salary borea trùng đáp án '6 bậc' với ankor (KHÔNG là cặp tương phản); #c1 sau #c3 — nhiều ứng viên hr
+  - case_id: GQ-09
+    query: "Thang lương của công ty gồm những bậc nào?"
+    tenant: borea
+    section_roles: [hr]
+    expected_tenant: borea
+    expected_section_role: hr
+    expected: "6 bậc"
+    expected_citation: ["borea-salary-001#c1"]
+
+  # GQ-10: teeth: benefits #c1(0.50) + conduct/recruitment/salary cùng hr
+  - case_id: GQ-10
+    query: "Gói bảo hiểm sức khoẻ gồm những quyền lợi gì?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "30 triệu"
+    expected_citation: ["ankor-benefits-001#c1"]
+
+  # GQ-11: teeth CỰC NẶNG: holidays #c1/#c2/#c3 HOÀ 0.50 ba chiều + leave cùng public [cặp GQ-12]
+  - case_id: GQ-11
+    query: "Một năm có bao nhiêu ngày nghỉ lễ?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: public
+    expected: "11 ngày"
+    expected_citation: ["ankor-holidays-001#c1"]
+
+  # GQ-12: CẶP với GQ-11, khác tenant → 14 ngày (không phải 11); #c1/#c2 + leave hoà 0.50
+  - case_id: GQ-12
+    query: "Một năm có bao nhiêu ngày nghỉ lễ?"
+    tenant: borea
+    section_roles: [public]
+    expected_tenant: borea
+    expected_section_role: public
+    expected: "14 ngày"
+    expected_citation: ["borea-holidays-001#c1"]
+
+  # GQ-13: teeth biên vừa: reimbursement #c1(0.667)/#c2(0.333) + invoicing cùng finance
+  - case_id: GQ-13
+    query: "Mức công tác phí mỗi ngày là bao nhiêu?"
+    tenant: ankor
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "500 nghìn"
+    expected_citation: ["ankor-reimbursement-001#c1"]
+
+  # GQ-14: teeth chéo-doc: incident #c1(0.444) HOÀ oncall#c2(0.444) cùng engineering
+  - case_id: GQ-14
+    query: "Sự cố được phân thành mấy mức nghiêm trọng?"
+    tenant: ankor
+    section_roles: [engineering]
+    expected_tenant: ankor
+    expected_section_role: engineering
+    expected: "ba mức"
+    expected_citation: ["ankor-incident-001#c1"]
+
+  # GQ-15: T1 chéo tenant: người ankor/hr hỏi số borea → scope ankor KHÔNG với tới chunk borea nào
+  - case_id: GQ-15
+    query: "Ngân sách đào tạo của Borea là bao nhiêu?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: borea
+    expected_section_role: hr
+    expected: "refusal"
+    expected_citation: []
+
+  # GQ-16: T6 chéo vai: người engineering hỏi phúc lợi (vai hr) → scope engineering KHÔNG với tới chunk hr
+  - case_id: GQ-16
+    query: "Gói bảo hiểm sức khoẻ bổ sung hạn mức bao nhiêu?"
+    tenant: ankor
+    section_roles: [engineering]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "refusal"
+    expected_citation: []
+
+  # GQ-17: T1 chéo tenant: ankor/engineering hỏi oncall borea → scope ankor không với tới
+  - case_id: GQ-17
+    query: "Cảnh báo nghiêm trọng của Borea phản hồi trong bao lâu?"
+    tenant: ankor
+    section_roles: [engineering]
+    expected_tenant: borea
+    expected_section_role: engineering
+    expected: "refusal"
+    expected_citation: []
+
+  # GQ-18: T6 chéo vai: CÙNG query GQ-08 nhưng người hỏi vai public → salary(hr) ngoài tầm → refusal
+  - case_id: GQ-18
+    query: "Thang lương của công ty gồm những bậc nào?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "refusal"
+    expected_citation: []
+
+  # GQ-19: T6 chéo vai: public hỏi ngân sách (vai finance) → refusal
+  - case_id: GQ-19
+    query: "Hạn mức ngân sách phòng ban trong năm là bao nhiêu?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "refusal"
+    expected_citation: []
+
+  # GQ-20: T1 ngược chiều borea→ankor: borea/finance hỏi procurement ankor → refusal
+  - case_id: GQ-20
+    query: "Khoản mua của Ankor từ bao nhiêu thì cần hai báo giá?"
+    tenant: borea
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "refusal"
+    expected_citation: []

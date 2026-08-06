@@ -1,34 +1,19 @@
-# Golden-set DRAFT — Callisto Handbook (skeleton D12, tiến tới 30 case D16)
+# Golden-set Callisto — 30 case có nhãn (D14 build, giao AIE-2 cho eval harness D16 / #105 / #108).
 #
-# Bút DE (Nguyễn Đông Anh), 2026-08-04 (D12). Shape: `docs/format.md` §2 (8 field, mọi field bắt
-# buộc) — CÙNG định dạng smoke-5/smoke-10, KHÔNG thêm field mới.
+# Bút DE (Nguyễn Đông Anh). Nối tiếp skeleton 9 case (D12) → ĐỦ 30. Shape: docs/format.md §2 (8 field).
+# Nhãn TRÍCH từ retrieval thật qua scripts/annotate_golden.py — KHÔNG gõ tay (kỷ luật D6). Đã kiểm:
+#   (1) mọi expected_citation truy-xuất-được trong scope; (2) expected GROUNDED trong chunk trích +
+#   DUY NHẤT trong (tenant, roles) theo đúng _contains_phrase của harness (chống PASS oan khi câu trả
+#   lời sai chủ đề vẫn chứa cụm chung); (3) case âm fence chặn (skip ≠ pass).
 #
-# ── ĐÂY LÀ SKELETON, KHÔNG PHẢI BỘ ĐỦ ────────────────────────────────────────────────────────
-# 9 case mẫu dưới đây dựng trên corpus Handbook mới (42 doc / 140 chunk, `callisto-doc-schema.md`
-# §8b), để CHỨNG MINH khung chạy. Bộ 30 case đầy đủ là DoD **D16 (#105)** — điền tiếp theo đúng
-# khung này. `golden_set_ref` để dạng `-draft` cho tới khi đủ 30 và AIE-2 nghiệm thu.
-#
-# ── NHÃN TRÍCH TỪ DOC-FACTORY, KHÔNG GÕ TAY ──────────────────────────────────────────────────
-# Mọi `expected_citation` dưới đây được kiểm bằng `scripts/annotate_golden.py` chạy StaticKbSearch
-# THẬT trên corpus (kỷ luật D6 / smoke-10 header). Gõ tay lệch một ký tự thì case ra 0 điểm mà
-# không lỗi nào nổi lên (`format.md` §2). Kiểm lại:
-#     uv run --package agentcore-studio-kb python packages/kb/scripts/annotate_golden.py \
-#         --tenant ankor --roles hr --query "Ngân sách đào tạo mỗi năm là bao nhiêu?" \
-#         --expect ankor-training-001#c1
-#
-# ── KHÔNG ĐỤNG smoke-5/smoke-10 ──────────────────────────────────────────────────────────────
-# Bộ này TÁCH khỏi smoke-5/10 (đang được `builder_d4/d6` + evalhub tham chiếu). Additive: case_id
-# tiền tố `HB-` để không đụng SC-01..SC-10.
-#
-# ── CẶP CHÉO-TENANT (mồi leak-test, `callisto-doc-schema.md` §9) ──────────────────────────────
-# HB-01↔HB-02, HB-03↔HB-04, HB-06↔HB-07: cùng câu hỏi, khác tenant → đáp án PHẢI khác số. Hai case
-# âm HB-08 (chéo tenant, T1) + HB-09 (chéo vai, T6) là mầm leak-test, kiểm đã chạy: scope người hỏi
-# KHÔNG truy xuất được chunk mục tiêu.
+# Cặp chéo-tenant (cùng query/chủ đề, KHÁC SỐ — leak-mimic): HB-01/02·03/04·05/06·10/22·11/12·15/16.
+# HB-08/09 (salary) CỐ Ý KHÔNG ghép cặp vì cả hai tenant đều '6 bậc' → vô hiệu làm phép thử fence.
+# Gồm 22 dương + 8 âm. Phủ 4 vai × 2 tenant; T1 cả hai chiều; T6 cả ankor lẫn borea.
 
-golden_set_ref: callisto-handbook-30-draft
+golden_set_ref: callisto-golden-30-v1
 
 cases:
-  # ── Dương: hỏi đúng kho, đúng vai ──────────────────────────────────────────────
+  # HB-01: cặp HB-02 (remote)
   - case_id: HB-01
     query: "Nhân viên được làm việc từ xa tối đa mấy ngày một tuần?"
     tenant: ankor
@@ -38,8 +23,8 @@ cases:
     expected: "3 ngày mỗi tuần"
     expected_citation: ["ankor-remote-001#c1"]
 
+  # HB-02: cặp HB-01 khác tenant
   - case_id: HB-02
-    # CẶP với HB-01: khác tenant → đáp án PHẢI khác (2 ngày, không phải 3)
     query: "Nhân viên được làm việc từ xa tối đa mấy ngày một tuần?"
     tenant: borea
     section_roles: [public]
@@ -48,35 +33,28 @@ cases:
     expected: "2 ngày mỗi tuần"
     expected_citation: ["borea-remote-001#c1"]
 
+  # HB-03: cặp HB-04 (training)
   - case_id: HB-03
     query: "Ngân sách đào tạo mỗi năm là bao nhiêu?"
     tenant: ankor
     section_roles: [hr]
     expected_tenant: ankor
     expected_section_role: hr
-    expected: "8 triệu đồng"
+    expected: "8 triệu"
     expected_citation: ["ankor-training-001#c1"]
 
+  # HB-04: cặp HB-03 khác tenant
   - case_id: HB-04
-    # CẶP với HB-03: Borea có ngân sách khác (12 triệu)
     query: "Ngân sách đào tạo mỗi năm là bao nhiêu?"
     tenant: borea
     section_roles: [hr]
     expected_tenant: borea
     expected_section_role: hr
-    expected: "12 triệu đồng"
+    expected: "12 triệu"
     expected_citation: ["borea-training-001#c1"]
 
+  # HB-05: cặp HB-06 (oncall)
   - case_id: HB-05
-    query: "Khoản mua từ bao nhiêu thì cần hai báo giá?"
-    tenant: ankor
-    section_roles: [finance]
-    expected_tenant: ankor
-    expected_section_role: finance
-    expected: "50 triệu đồng"
-    expected_citation: ["ankor-procurement-001#c2"]
-
-  - case_id: HB-06
     query: "Cảnh báo nghiêm trọng cần phản hồi trong bao lâu?"
     tenant: ankor
     section_roles: [engineering]
@@ -85,20 +63,178 @@ cases:
     expected: "15 phút"
     expected_citation: ["ankor-oncall-001#c2"]
 
-  - case_id: HB-07
-    # CẶP với HB-06: Borea phản hồi nhanh hơn (10 phút)
+  # HB-06: cặp HB-05; '10 phút' trần va #c1 nên qualify
+  - case_id: HB-06
     query: "Cảnh báo nghiêm trọng cần phản hồi trong bao lâu?"
     tenant: borea
     section_roles: [engineering]
     expected_tenant: borea
     expected_section_role: engineering
-    expected: "10 phút"
+    expected: "phản hồi trong vòng 10 phút"
     expected_citation: ["borea-oncall-001#c2"]
 
-  # ── Âm: mầm leak-test T1/T6 ────────────────────────────────────────────────────
+  # HB-07: finance ankor
+  - case_id: HB-07
+    query: "Khoản mua từ bao nhiêu thì cần hai báo giá?"
+    tenant: ankor
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "50 triệu"
+    expected_citation: ["ankor-procurement-001#c2"]
+
+  # HB-08: độc lập (KHÔNG ghép cặp: cả 2 tenant đều 6 bậc); teeth: #c1 hoà #c3
   - case_id: HB-08
-    # CHÉO TENANT (T1): người ankor hỏi ngân sách đào tạo của Borea.
-    # Kiểm: scope ankor/hr KHÔNG truy xuất được chunk borea nào → phải từ chối.
+    query: "Thang lương của công ty gồm những bậc nào?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "6 bậc"
+    expected_citation: ["ankor-salary-001#c1"]
+
+  # HB-09: độc lập (đáp án trùng '6 bậc' với ankor nên KHÔNG dùng làm leak-mimic)
+  - case_id: HB-09
+    query: "Thang lương của công ty gồm những bậc nào?"
+    tenant: borea
+    section_roles: [hr]
+    expected_tenant: borea
+    expected_section_role: hr
+    expected: "6 bậc"
+    expected_citation: ["borea-salary-001#c1"]
+
+  # HB-10: cặp HB-22 (benefits 30 vs 50)
+  - case_id: HB-10
+    query: "Gói bảo hiểm sức khoẻ gồm những quyền lợi gì?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "30 triệu"
+    expected_citation: ["ankor-benefits-001#c1"]
+
+  # HB-11: cặp HB-12; teeth: c1/c2/c3 hoà
+  - case_id: HB-11
+    query: "Một năm có bao nhiêu ngày nghỉ lễ?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: public
+    expected: "11 ngày"
+    expected_citation: ["ankor-holidays-001#c1"]
+
+  # HB-12: cặp HB-11 khác tenant
+  - case_id: HB-12
+    query: "Một năm có bao nhiêu ngày nghỉ lễ?"
+    tenant: borea
+    section_roles: [public]
+    expected_tenant: borea
+    expected_section_role: public
+    expected: "14 ngày"
+    expected_citation: ["borea-holidays-001#c1"]
+
+  # HB-13: finance ankor
+  - case_id: HB-13
+    query: "Mức công tác phí mỗi ngày là bao nhiêu?"
+    tenant: ankor
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "500 nghìn"
+    expected_citation: ["ankor-reimbursement-001#c1"]
+
+  # HB-14: teeth: hoà oncall#c2
+  - case_id: HB-14
+    query: "Sự cố được phân thành mấy mức nghiêm trọng?"
+    tenant: ankor
+    section_roles: [engineering]
+    expected_tenant: ankor
+    expected_section_role: engineering
+    expected: "ba mức"
+    expected_citation: ["ankor-incident-001#c1"]
+
+  # HB-15: cặp HB-16; '3 ngày làm việc' trần va onboarding nên qualify
+  - case_id: HB-15
+    query: "Nhân viên xin nghỉ phép cần báo trước bao lâu?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: public
+    expected: "báo trước tối thiểu 3 ngày làm việc"
+    expected_citation: ["ankor-leave-001#c1"]
+
+  # HB-16: cặp HB-15 khác số
+  - case_id: HB-16
+    query: "Nhân viên xin nghỉ phép cần báo trước bao lâu?"
+    tenant: borea
+    section_roles: [public]
+    expected_tenant: borea
+    expected_section_role: public
+    expected: "báo trước tối thiểu 7 ngày làm việc"
+    expected_citation: ["borea-leave-001#c1"]
+
+  # HB-17: override section (#c2=finance); '20 triệu' trần va procurement#c1 nên qualify
+  - case_id: HB-17
+    query: "Trưởng nhóm được duyệt chi tối đa bao nhiêu?"
+    tenant: ankor
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "duyệt tối đa 20 triệu"
+    expected_citation: ["ankor-expense-001#c2"]
+
+  # HB-18: 'mỗi năm một lần' trần va salary#c2 nên qualify
+  - case_id: HB-18
+    query: "Đánh giá hiệu suất diễn ra mấy lần một năm?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "hiệu suất mỗi năm một lần"
+    expected_citation: ["ankor-performance-001#c1"]
+
+  # HB-19: REBALANCE: dương finance BOREA (đối chứng ankor HB-07 50 triệu)
+  - case_id: HB-19
+    query: "Khoản mua từ bao nhiêu thì cần nhiều báo giá độc lập?"
+    tenant: borea
+    section_roles: [finance]
+    expected_tenant: borea
+    expected_section_role: finance
+    expected: "30 triệu đồng trở lên"
+    expected_citation: ["borea-procurement-001#c2"]
+
+  # HB-20: đáp án ở #c3 (Thời hạn), không phải #c1
+  - case_id: HB-20
+    query: "Hoá đơn được thanh toán trong bao nhiêu ngày?"
+    tenant: ankor
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "30 ngày"
+    expected_citation: ["ankor-invoicing-001#c3"]
+
+  # HB-21: đáp án ở #c3 (Quy trình phỏng vấn)
+  - case_id: HB-21
+    query: "Quy trình tuyển dụng gồm những vòng nào?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "hai vòng"
+    expected_citation: ["ankor-recruitment-001#c3"]
+
+  # HB-22: cặp HB-10 khác tenant (50 vs 30)
+  - case_id: HB-22
+    query: "Gói bảo hiểm sức khoẻ gồm những quyền lợi gì?"
+    tenant: borea
+    section_roles: [hr]
+    expected_tenant: borea
+    expected_section_role: hr
+    expected: "50 triệu"
+    expected_citation: ["borea-benefits-001#c1"]
+
+  # HB-23: T1 chéo tenant
+  - case_id: HB-23
     query: "Ngân sách đào tạo của Borea là bao nhiêu?"
     tenant: ankor
     section_roles: [hr]
@@ -107,13 +243,72 @@ cases:
     expected: "refusal"
     expected_citation: []
 
-  - case_id: HB-09
-    # CHÉO VAI (T6): người vai engineering hỏi phúc lợi bảo hiểm (nằm ở vai hr).
-    # Kiểm: scope ankor/engineering KHÔNG truy xuất được chunk hr nào → phải từ chối.
+  # HB-24: T6 chéo vai (eng hỏi hr)
+  - case_id: HB-24
     query: "Gói bảo hiểm sức khoẻ bổ sung hạn mức bao nhiêu?"
     tenant: ankor
     section_roles: [engineering]
     expected_tenant: ankor
+    expected_section_role: hr
+    expected: "refusal"
+    expected_citation: []
+
+  # HB-25: T1 chéo tenant (eng)
+  - case_id: HB-25
+    query: "Cảnh báo nghiêm trọng của Borea phản hồi trong bao lâu?"
+    tenant: ankor
+    section_roles: [engineering]
+    expected_tenant: borea
+    expected_section_role: engineering
+    expected: "refusal"
+    expected_citation: []
+
+  # HB-26: T6: cùng query HB-08 nhưng vai public
+  - case_id: HB-26
+    query: "Thang lương của công ty gồm những bậc nào?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "refusal"
+    expected_citation: []
+
+  # HB-27: T6 chéo vai (public hỏi finance)
+  - case_id: HB-27
+    query: "Hạn mức ngân sách phòng ban trong năm là bao nhiêu?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "refusal"
+    expected_citation: []
+
+  # HB-28: T1 ngược chiều borea→ankor
+  - case_id: HB-28
+    query: "Khoản mua của Ankor từ bao nhiêu thì cần hai báo giá?"
+    tenant: borea
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "refusal"
+    expected_citation: []
+
+  # HB-29: T1 ngược chiều borea→ankor
+  - case_id: HB-29
+    query: "Nhân viên Ankor xin nghỉ phép cần báo trước bao lâu?"
+    tenant: borea
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: public
+    expected: "refusal"
+    expected_citation: []
+
+  # HB-30: REBALANCE: T6 chéo-vai phía BOREA (public hỏi lương=hr)
+  - case_id: HB-30
+    query: "Thang lương của công ty gồm những bậc nào?"
+    tenant: borea
+    section_roles: [public]
+    expected_tenant: borea
     expected_section_role: hr
     expected: "refusal"
     expected_citation: []
