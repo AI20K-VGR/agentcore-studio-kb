@@ -13,6 +13,8 @@ Lưu ý: đây là văn bản do DongAnh2704 tự thiết kế và không có tr
 
 ## 🗓️ Nhật ký cập nhật
 - **2026-08-05 (D13):** tạo lần đầu — tổng hợp D1→D12 + trạng thái D13 (pg pipeline live).
+- **2026-08-06 (D14):** +D14 — golden query grid (`grid_queries.py` + `emit_grid_queries.py` → `callisto-grid-queries-v0.yaml`, 20 case) cho AIE-1 đo chunking×embedding. PR kb#15 merged.
+- **2026-08-07 (D15):** +D15 — trace viewer bổ `tokens` + `check_ts_monotonic` trong `render_timeline`; vá drift docstring `postgres.py` (PgKbSearch wired D13 vs seam `KbSearchService` để D17). PR kb#16 mở. **Không đổi cơ chế ghi trace** (sink D5 giữ nguyên).
 
 ---
 
@@ -143,6 +145,9 @@ CLI: `load_callisto()` → `KbIngest(pool, _FixtureEmbedding()).ingest()`. Pool 
 **S2 · Tuần 3**
 - **D11 (08-03, #80–84):** **freeze 4 hợp đồng** (trace-event DE #80 · recipe SWE #82 · scorecard AIE-2 #83 · EmbeddingService AIE-1 #81) + design-note/người. Vá drift schema (tenant_id UUID).
 - **D12 (08-04, #85–89):** DE doc-factory **5→42 doc / 25→140 chunk** (additive, giữ 5 doc gốc, mỗi tenant đủ 4 vai, 5 override), re-record embeddings 140, annotation skeleton + golden Handbook 30 draft; SWE bắt đầu canvas React Flow 6-node (#87); AIE-1 refactor interpreter đọc recipe (#86).
+- **D13 (08-05, #90):** DE lật KB tĩnh → **pgvector thật** — `scripts/ingest_callisto.py` (ankor 71·borea 69=140, idempotent), export `KbIngest`/`PgKbSearch` trong `__init__`; AIE-1 tiêm thẳng `PgKbSearch` vào `KbRetrieveExecutor` (ghép thật DE×AIE-1). `KbSearchService` giữ `NotImplementedError` (un-ratchet=D17). PR kb#13/#14 merged.
+- **D14 (08-06, #95):** DE cấp **golden query grid + expected chunks** — `grid_queries.py` (typed) → `emit_grid_queries.py` → `callisto-grid-queries-v0.yaml` (20 case: 14 dương **teeth ≥2 ứng viên cùng scope** + 6 âm T1/T6), `test_grid_inputs.py` annotate-verified. Ground-truth cho AIE-1 (#96) đo recall/precision qua ES 2-impl. Không đổi `EMBEDDING_DIM=8`. PR kb#15 merged.
+- **D15 (08-07, #100):** DE hoàn thiện **trace viewer** — `render_timeline` bổ `tokens{prompt/completion}` (số đã thu, trước chưa in) + thêm `check_ts_monotonic` (đo thứ tự phát đơn điệu trên `ts` gốc, `<` nên trùng ts không tính đảo) → viewer báo `✅ monotonic`/`⚠ đảo`. Vá drift docstring `postgres.py`. tenant-filter tại retrieve: **verify** `PgKbSearch` 0-leak (16 passed, 2 xfailed) + scaffold D17, **KHÔNG lật `KbSearchService`**. 4 test mới; kb 190 passed/2 xfailed. PR kb#16 mở.
 
 ---
 
@@ -158,7 +163,9 @@ CLI: `load_callisto()` → `KbIngest(pool, _FixtureEmbedding()).ingest()`. Pool 
 
 **Embedding hiện tại:** cosine `<=>` trên **vector bag-of-words** (chưa ngữ nghĩa). Đổi sang model thật = S3/Phase-2, có điều kiện hạ tầng — không nằm trong D11–20 hay Day 30 (#67 là test-acceptance-set).
 
-**Roadmap D14→D20:** #95 golden query+expected chunks · #100 trace viewer · #105 golden-set 30 · #110/#112/#114 fence T1/T6 + INV-1 server-side (nơi lật KbSearchService) · #115 nhãn tay · #120 cost-lineage · **#125/#129 GATE-2** spine 4 mảng chạy thật lần đầu.
+**Roadmap D14→D20:** ✅ #95 golden query grid (D14, merged) · ✅ #100 trace viewer tokens+monotonic (D15, PR#16) · **tiếp:** #105 golden-set 30 (D16) · **#110+#112+#114 fence T1/T6 + INV-1 server-side = nơi lật `KbSearchService` (D17)** · #115 nhãn tay (D18) · #120 cost-lineage (D19) · **#125/#129 GATE-2 (D20)** spine 4 mảng chạy thật lần đầu.
+
+> **Ghi chú lật `KbSearchService` (D17, #110):** un-ratchet CẦN 3 bước (delegate `PgKbSearch` + xoá `test_search_contract.py` + gỡ xfail `test_leak` T1/T6) và **phụ thuộc SWE #112** (resolve `section_role` server-side — không có #112 thì **chỉ đóng được T1, T6 vẫn rò**). Ctor đổi `(pool)`→`(pool, embedding)` (DL-13.1) + đồng bộ T3 bên apps lockstep. Các dependency đều là issue **D17 same-day** — phải chốt interface #112 TRƯỚC D17.
 
 ---
 
@@ -195,6 +202,8 @@ Pin **3.14** (`.venv/bin/python` hoặc `uv run --python 3.14`), cấm `python3`
 - Luồng runtime: `packages/kb/flow.md`
 - Hợp đồng: `packages/kb/docs/contracts/` (`kb-search.v0.md`, `trace-event.v0.md`)
 - Schema/pipeline: `packages/kb/src/studio_kb/{schema,postgres,doc_factory,embeddings,static_search,search}.py`
+- Trace viewer (đọc): `packages/kb/src/studio_kb/trace_reader.py` (`render_timeline` · `check_walk` · `check_ts_monotonic` · `PgTraceReader`)
+- Golden grid (D14): `packages/kb/src/studio_kb/grid_queries.py` + `scripts/emit_grid_queries.py` → `golden/callisto-grid-queries-v0.yaml`
 - Đề bài gốc: `docs/requirements/00-orientation/{brief-overview,pre-reading,decisions-locked}.md`
 - Kế hoạch/nhật ký DE: `packages/kb/plans/`, `docs/reports/daily-notes/`
 - Bản non-tech: `packages/kb/overview.md`
