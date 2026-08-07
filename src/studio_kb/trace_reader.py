@@ -185,6 +185,29 @@ def sort_events(events: list[TraceEvent]) -> list[TraceEvent]:
     return sorted(events, key=lambda e: _parse_ts(e.ts))
 
 
+def check_ts_monotonic(events: list[TraceEvent]) -> int | None:
+    """Kiểm `ts` có **đơn điệu không-giảm theo đúng thứ tự PHÁT** (thứ tự `events` được truyền vào,
+    TRƯỚC khi `sort_events` xếp lại) không. Trả `None` nếu đơn điệu; nếu không, trả **index 1-based**
+    của event đầu tiên có `ts` **nhỏ hơn** event ngay trước nó.
+
+    Vì sao đo trên thứ tự gốc chứ không phải sau khi sort: sau `sort_events` mọi chuỗi đều đơn điệu —
+    kiểm lúc đó luôn xanh, vô nghĩa. Câu hỏi thật là *"đường ghi có phát event đúng thứ tự thời gian
+    không"* (bất biến D9 "0-gap ordering"); một `ts` giảm giữa dòng nghĩa là emit-hook ghi lệch hoặc
+    đồng hồ nhảy lùi — reader phải **kêu** thay vì lặng lẽ sort đi rồi trông như mọi thứ vẫn ổn.
+
+    **Trùng `ts` KHÔNG phải đảo** (dùng `<` chứ không `<=`): hai node chạy trong cùng mili-giây là
+    chuyện bình thường (xem `sort_events`/`test_ts_trung_nhau`), không phải sự cố.
+
+    **Đo trên `ts` (cột TEXT ISO-8601), không phải cột `seq/ordering`.** Reader hiện chỉ đọc `ts`
+    (`_READ_RUN`); nếu sau này hợp đồng `trace-event.v0.md` chốt đo monotonic trên `seq` thì đổi ở
+    đây + select thêm cột — honest-TODO, chưa mở rộng khi chưa cần (chốt với #104).
+    """
+    for i in range(1, len(events)):
+        if _parse_ts(events[i].ts) < _parse_ts(events[i - 1].ts):
+            return i + 1
+    return None
+
+
 @dataclass(frozen=True, slots=True)
 class WalkCheck:
     """Kết quả đối chiếu **tập node đã emit** với **chuỗi node kỳ vọng**."""
@@ -258,9 +281,10 @@ def render_timeline(
     lines = [f"run {run_id} — {len(ordered)} event"]
     for i, event in enumerate(ordered, start=1):
         citations = ", ".join(event.citations) if event.citations else "—"
+        tokens = f"{event.tokens.prompt}/{event.tokens.completion}"
         lines.append(
             f"  {i}. {event.ts}  {event.node_type.value:<12} "
-            f"node={event.node_id:<6} cost={event.cost:<8} citations=[{citations}]"
+            f"node={event.node_id:<6} tok={tokens:<9} cost={event.cost:<8} citations=[{citations}]"
         )
 
     check = check_walk(ordered, expected)
@@ -271,6 +295,16 @@ def render_timeline(
             lines.append("  ❌ THIẾU node: " + ", ".join(nt.value for nt in check.missing))
         if check.duplicated:
             lines.append("  ❌ TRÙNG node: " + ", ".join(nt.value for nt in check.duplicated))
+
+    # Monotonic đo trên thứ tự PHÁT gốc (`events`), không phải `ordered` — sau sort luôn đơn điệu.
+    inversion = check_ts_monotonic(events)
+    if inversion is None:
+        lines.append("  ✅ ordering monotonic — ts không giảm theo thứ tự phát")
+    else:
+        lines.append(
+            f"  ⚠ ordering KHÔNG monotonic — ts giảm tại event {inversion} "
+            "(đã sort lại để hiển thị, nhưng đường ghi phát lệch thứ tự)"
+        )
     return "\n".join(lines)
 
 

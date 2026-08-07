@@ -28,6 +28,7 @@ from studio_kb.trace_reader import (
     EXPECTED_WALK,
     PgTraceReader,
     TraceTimestampError,
+    check_ts_monotonic,
     check_walk,
     render_timeline,
     sort_events,
@@ -48,6 +49,7 @@ def _event(
     run_id: str = "run-1",
     tenant_id: UUID = ANKOR_ID,
     citations: list[str] | None = None,
+    tokens: Tokens | None = None,
 ) -> TraceEvent:
     """Dựng một `TraceEvent` hợp lệ; chỉ khai những field bài test thực sự quan tâm."""
     return TraceEvent(
@@ -60,7 +62,7 @@ def _event(
         ts=ts,
         inputs_hash="sha256:stub",
         outputs={},
-        tokens=Tokens(prompt=0, completion=0),
+        tokens=tokens or Tokens(prompt=0, completion=0),
         cost=0.0,
         citations=citations,
     )
@@ -190,6 +192,57 @@ def test_run_rong_khong_raise() -> None:
     """Rỗng là câu trả lời hợp lệ, không phải lỗi."""
     assert sort_events([]) == []
     assert "rỗng" in render_timeline([])
+
+
+def test_render_timeline_hien_tokens() -> None:
+    """DoD D15 ô 1 (*"…+tokens+…"*): mỗi dòng phải phơi `tokens{prompt,completion}` từ event, không
+    phải chỉ cost+citations như trước. Số lấy thẳng từ `event.tokens`, không tính lại."""
+    walk = [
+        _event(NodeType.KB_RETRIEVE, "2026-07-24T09:00:00.000000+00:00"),
+        _event(
+            NodeType.LLM_STEP,
+            "2026-07-24T09:00:01.000000+00:00",
+            tokens=Tokens(prompt=137, completion=42),  # khác nhau VÀ khác 0 để bắt hardcode
+        ),
+    ]
+
+    out = render_timeline(walk)
+
+    llm_line = next(ln for ln in out.splitlines() if "llm-step" in ln)
+    assert "137" in llm_line and "42" in llm_line
+
+
+def test_check_ts_monotonic_thu_tu_dung_tra_none() -> None:
+    """Chuỗi `ts` không-giảm (kể cả trùng nhau) là đơn điệu → không có đảo, trả `None`."""
+    same = "2026-07-24T09:00:00.000000+00:00"
+    walk = [
+        _event(NodeType.KB_RETRIEVE, "2026-07-24T09:00:00.000000+00:00", event_id="a"),
+        _event(NodeType.LLM_STEP, same, event_id="b"),  # trùng ts — hợp lệ, không phải đảo
+        _event(NodeType.TOOL_CALL, "2026-07-24T09:00:02.000000+00:00", event_id="c"),
+    ]
+
+    assert check_ts_monotonic(walk) is None
+
+
+def test_check_ts_monotonic_ts_dao_tra_vi_tri_dau_tien() -> None:
+    """`ts` GIẢM so với event ngay trước (theo thứ tự GỐC) → trả index 1-based của lần đầu đảo."""
+    walk = [
+        _event(NodeType.KB_RETRIEVE, "2026-07-24T09:00:02.000000+00:00", event_id="a"),
+        _event(NodeType.LLM_STEP, "2026-07-24T09:00:01.000000+00:00", event_id="b"),  # đảo tại đây
+    ]
+
+    assert check_ts_monotonic(walk) == 2
+
+
+def test_render_timeline_noi_ro_monotonic_hay_dao() -> None:
+    """DoD D15 ô 1 (*"ordering monotonic"*): viewer phải NÓI RA thứ tự phát có đơn điệu không —
+    không được lặng lẽ sort rồi trông như luôn ổn. Đo trên thứ tự GỐC trước khi sort."""
+    walk = _full_walk()
+    dung = render_timeline(walk)
+    assert "monotonic" in dung
+
+    dao = render_timeline([walk[0], walk[2], walk[1], walk[3]])  # gốc đảo ts ở giữa
+    assert "monotonic" in dao and ("⚠" in dao or "KHÔNG" in dao)
 
 
 # ─────────────────────────── nhóm DB — cần Postgres sống ───────────────────────────
