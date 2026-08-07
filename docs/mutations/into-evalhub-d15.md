@@ -87,9 +87,109 @@ trả-lời). Ghim đúng dòng default. Không phải sửa code — code đang
 
 ## Phản hồi của chủ quadrant
 
-<!-- @dholmes0207 — append bằng commit của CHÍNH BẠN (artifact 2 tác giả, 2 chữ ký). Gợi ý nội dung:
-     - B2: đồng ý là lỗ? Đã thêm bài ghim default `refused=False` chưa? (hoặc lý do không cần)
-     - M1–M5: có bất ngờ nào ở việc bắt rộng hơn khai (M2/M3/M5) không, hay đúng như thiết kế?
-     - Có mutant nào bạn thấy DE khai/đọc sai không. -->
+**AIE-2 (dholmes0207) · 2026-08-07 · chữ ký thứ hai của artifact này.**
 
-_(để trống — chờ chủ quadrant AIE-2)_
+**Không nhận nguyên văn — kiểm lại trước rồi mới trả lời.** Mọi số dưới đây đo trên
+`aie-2/d15-t3-run-cases` @ `7745bd5`, không phải trên nền `c9af832` mà DE gieo (lý do ở §4).
+
+---
+
+### 1 · B2 — đồng ý là lỗ. Không đồng ý câu *"code đang đúng; chỉ là răng còn thiếu"*
+
+Vế *"đây là lỗ"*: **đúng, và đã xác minh chứ không tin theo.** Gieo lại B2 trên head `7745bd5` →
+`76 passed`, exit 0. Sống thật, không phải hiện vật của SHA cũ.
+
+Vế *"code đang đúng"*: **không đồng ý.** `answer_from_trace` **raise** ở 4 nhánh không chứng minh
+được — `events` rỗng · không có `llm-step` · thiếu key `answer` · nhiều `llm-step`. Riêng `refused`
+thì **đoán im lặng**. Đó không phải một nhánh thiếu test, đó là một nhánh **lệch với doctrine của
+chính hàm**, và B2 chạm đúng vào chỗ lệch.
+
+Và mặc định `False` không phải lựa chọn an toàn — nó là lựa chọn **ĐO SAI**:
+
+> một ca đáng là *từ-chối* nhưng thiếu key sẽ bị đẩy sang nhánh trả-lời rồi báo **FAIL** ⇒ bảng điểm
+> nói *"agent trả lời sai"*, trong khi sự thật là *"trace không đọc được"*.
+
+Ghim `refused is False` bằng test — như đề nghị — sẽ **ghim cứng đúng phép đo sai đó**, và biến một
+lỗ thành một bất biến được bảo vệ. Nên vá theo hướng **raise**, cho đối xứng với 4 nhánh kia.
+
+Cơ sở để chọn raise chứ không phải khẩu vị: producer thật **luôn** ghi key này —
+`engine:executors.py:265`, `"refused": not citations`. Thiếu nó nghĩa là trace dị dạng hoặc đến từ
+producer lạ, không phải một ca vận hành bình thường.
+
+**Đã vá:** commit `9505c8d` trên `aie-2/d15-t3-run-cases` (PR
+[evalhub#15](https://github.com/AI20K-VGR/agentcore-studio-evalhub/pull/15)), bài
+`test_answer_from_trace_thieu_key_refused_thi_raise_chu_khong_doan_False`. Viết **đỏ trước** — fail
+bằng `DID NOT RAISE`, không phải `ImportError`. Suite `76 → 77`.
+
+**Gieo lại CẢ HAI chiều sau khi vá**, vì chỉ gieo chiều `True` thì bài mới có thể đang ghim *"phải
+bằng `False`"* thay vì *"phải raise"*, và lỗ còn nguyên dưới một cái tên khác:
+
+| gieo lại | exit | |
+|---|---|---|
+| hoàn nguyên bản cũ `get("refused", False)` | 1 | **BẮT** |
+| B2 nguyên bản của DE `get("refused", True)` | 1 | **BẮT** |
+
+### 2 · M1–M5 bắt rộng hơn khai — không bất ngờ, và lý do nên ghi
+
+Đúng như thiết kế, nhưng cơ chế khác nhau ở hai nhóm:
+
+- **M2/M3** (`score_case`) rộng vì `score_case` là **tim** — `run_smoke` và bài over-set đều đi qua
+  nó, nên đổi một vị từ là vỡ dây chuyền. Số `5 failed` đo **độ tập trung của kiến trúc**, không đo
+  độ mạnh của suite. Cùng lớp với `M8` ở sweep tự gieo của tôi: khai 1, thực 11, nhưng cơ chế bắt
+  thật là *"nó raise"* chứ không phải *"suite phát hiện"*.
+- **M5** rộng vì bài `toan_refusal` hoá ra là bài **đa mục đích** — nó khoá cả nhánh `n = 0` lẫn tính
+  đúng của hai mẫu số. Tôi đã gặp đúng hiện tượng này (`self-render-d15.md` §2.3) và ghi rằng đó là
+  chỗ mạnh nhất của suite, không phải bài phụ như tên gọi gợi ý.
+
+⇒ Một dòng *"bắt rộng hơn khai"* nên đọc là **câu hỏi**, không phải điểm cộng: rộng vì suite khoẻ,
+hay rộng vì một hàm đứng ở chỗ ai cũng phải đi qua? Hai lượt này là vế thứ hai.
+
+### 3 · Hai mutant TRÙNG với sweep tự gieo — và lỗi thuộc về tôi
+
+| DE | ≡ của tôi | mutation | kết quả hai lượt |
+|---|---|---|---|
+| **M4** | `M6` (`self-render-d15.md` §1) | `answer_from_trace` bỏ guard `>1 llm-step` | y hệt, 1 bài đỏ |
+| **M5** | `M3` (§1) | `render_run_cases` `n_citation = len(results)` | y hệt, 3 bài đỏ |
+
+Hai lượt gieo độc lập cách nhau 5 tiếng, cùng mutation, cùng tập bài đỏ. **Nguyên nhân là bảng gợi ý
+T7 của tôi.** Nó liệt kê `run_report.answer_from_trace` và `render.render_run_cases` là *"mới hôm
+nay"* mà **không nói** rằng M1–M8 đã gieo vào đúng hai chỗ đó vài giờ trước. DE không có cách nào
+biết, nên 2/8 lượt gieo rơi vào đất đã cày.
+
+Tệ hơn: đúng lúc DE nhận việc, chỗ **thật sự** chưa có lưới là `_row_to_event` — cả tầng đọc DB của
+`run_report.py`, **0 test** — và nó **không** nằm trong bảng gợi ý. Tôi vá nó lúc `08:20`, ba phút
+trước comment nhận việc của DE.
+
+⇒ **Bài học cho lần xin gieo sau, và nó ngược với trực giác:** một bảng *"gợi ý bề mặt"* do chủ
+quadrant viết sẽ **lái người gieo về chỗ chủ quadrant đã nghĩ tới** — tức đúng chỗ ít điểm mù nhất.
+Giá trị của lượt này nằm trọn ở **B2**, là **probe DE tự nghĩ, ngoài danh sách tôi đưa**. Lần sau xin
+gieo thì đưa *"file nào mới"* + *"lần cuối tôi gieo vào đâu và khi nào"*, rồi để người gieo tự chọn.
+
+### 4 · Hai chỗ số lệch giữa hai doc — không ai sai, nhưng phải ghi
+
+| | doc này (DE) | đo ở evalhub |
+|---|---|---|
+| nền gieo | `c9af832` | head đã là `7745bd5` khi DE giao lúc `08:31` |
+| baseline | `72 passed, 2 xfailed` | `71 passed, 1 skipped, 2 xfailed` |
+
+**SHA.** DE nhận việc `08:23`, giữa hai commit của tôi (`08:20` và `08:26`), và cả hai push lên
+origin sau đó — nên lúc DE đọc branch thì origin vẫn ở `c9af832`. **Không kết luận nào bị ảnh hưởng:**
+`git diff c9af832..7745bd5` trên `harness.py` và `render.py` là **rỗng**, `run_report.py` chỉ `+9/-3`
+và **toàn docstring**; `answer_from_trace` byte-identical. Đó là lý do B2 được gieo lại trên head để
+xác nhận thay vì suy luận. Chỉ cần một dòng ghi base SHA trong doc là ai chạy lại cũng khớp.
+
+**Baseline.** Chênh đúng 1 bài: `test_scorecard_roundtrip.py:61` **skip** khi thiếu
+`STUDIO_DATABASE_URL_ADMIN`. DE có DSN nên chạy đủ **72 bài thật** ⇒ sweep của DE **mạnh hơn** baseline
+local của tôi một bài, và mạnh đúng ở nhánh DB. Ghi lại để không ai đọc chênh lệch này thành mâu thuẫn.
+
+### 5 · Chốt
+
+`kit#74` đòi hai chiều: *"you seed bugs in their code, the owner has to show their tests catch them.
+Both of you write down what happened."* Với quadrant **evalhub** thì từ hôm nay đủ cả hai — DE gieo,
+chủ quadrant đã cho thấy bài bắt được (B2 bắt cả hai chiều sau khi vá), và cả hai đã viết lại.
+
+Vế còn thiếu của cơ chế bây giờ nằm ở quadrant **engine**: mục `## Phản hồi của chủ quadrant` trong
+`evalhub/docs/mutations/into-engine-d11.md` vẫn trống sang ngày thứ tư. Đó là việc của
+@TranBaDat2607, không phải của DE — nêu ở đây để bảng theo dõi không trông như đã đủ.
+
+Kết quả lượt này đã chép sang `evalhub/docs/mutations/self-render-d15.md` §6, có trỏ ngược về đây.
