@@ -185,6 +185,29 @@ def sort_events(events: list[TraceEvent]) -> list[TraceEvent]:
     return sorted(events, key=lambda e: _parse_ts(e.ts))
 
 
+def check_ts_monotonic(events: list[TraceEvent]) -> int | None:
+    """Kiểm `ts` có **đơn điệu không-giảm theo đúng thứ tự PHÁT** (thứ tự `events` được truyền vào,
+    TRƯỚC khi `sort_events` xếp lại) không. Trả `None` nếu đơn điệu; nếu không, trả **index 1-based**
+    của event đầu tiên có `ts` **nhỏ hơn** event ngay trước nó.
+
+    Vì sao đo trên thứ tự gốc chứ không phải sau khi sort: sau `sort_events` mọi chuỗi đều đơn điệu —
+    kiểm lúc đó luôn xanh, vô nghĩa. Câu hỏi thật là *"đường ghi có phát event đúng thứ tự thời gian
+    không"* (bất biến D9 "0-gap ordering"); một `ts` giảm giữa dòng nghĩa là emit-hook ghi lệch hoặc
+    đồng hồ nhảy lùi — reader phải **kêu** thay vì lặng lẽ sort đi rồi trông như mọi thứ vẫn ổn.
+
+    **Trùng `ts` KHÔNG phải đảo** (dùng `<` chứ không `<=`): hai node chạy trong cùng mili-giây là
+    chuyện bình thường (xem `sort_events`/`test_ts_trung_nhau`), không phải sự cố.
+
+    **Đo trên `ts` (cột TEXT ISO-8601), không phải cột `seq/ordering`.** Reader hiện chỉ đọc `ts`
+    (`_READ_RUN`); nếu sau này hợp đồng `trace-event.v0.md` chốt đo monotonic trên `seq` thì đổi ở
+    đây + select thêm cột — honest-TODO, chưa mở rộng khi chưa cần (chốt với #104).
+    """
+    for i in range(1, len(events)):
+        if _parse_ts(events[i].ts) < _parse_ts(events[i - 1].ts):
+            return i + 1
+    return None
+
+
 @dataclass(frozen=True, slots=True)
 class WalkCheck:
     """Kết quả đối chiếu **tập node đã emit** với **chuỗi node kỳ vọng**."""
@@ -258,9 +281,10 @@ def render_timeline(
     lines = [f"run {run_id} — {len(ordered)} event"]
     for i, event in enumerate(ordered, start=1):
         citations = ", ".join(event.citations) if event.citations else "—"
+        tokens = f"{event.tokens.prompt}/{event.tokens.completion}"
         lines.append(
             f"  {i}. {event.ts}  {event.node_type.value:<12} "
-            f"node={event.node_id:<6} cost={event.cost:<8} citations=[{citations}]"
+            f"node={event.node_id:<6} tok={tokens:<9} cost={event.cost:<8} citations=[{citations}]"
         )
 
     check = check_walk(ordered, expected)
@@ -271,6 +295,25 @@ def render_timeline(
             lines.append("  ❌ THIẾU node: " + ", ".join(nt.value for nt in check.missing))
         if check.duplicated:
             lines.append("  ❌ TRÙNG node: " + ", ".join(nt.value for nt in check.duplicated))
+
+    # Ordering monotonic — đo trên thứ tự PHÁT gốc (`events`), KHÔNG phải `ordered`.
+    # F1 (review AIE-2 #16): chỉ khẳng định được chiều PHỦ ĐỊNH. `check_ts_monotonic() is None` là
+    # NHẬP NHẰNG — hoặc chuỗi phát đơn điệu thật, hoặc nguồn đã bị sort trước khi tới đây
+    # (`PgTraceReader.read_run` + `ORDER BY ts` LUÔN trả None cho mọi run). `render_timeline` không
+    # phân biệt được hai ca đó từ `ts`, nên **fail-closed**: không in `✅` mình không chứng minh được.
+    # Một dòng nói thẳng "chưa kết luận" tốt hơn một `✅` sai. Đo chắc thứ tự phát cần cột `seq`/
+    # thứ tự chèn (đường thật hôm nay không khôi phục được — xem `check_ts_monotonic`, chốt với #104).
+    inversion = check_ts_monotonic(events)
+    if inversion is not None:
+        lines.append(
+            f"  ⚠ ordering KHÔNG monotonic — ts giảm tại event {inversion} "
+            "(đường ghi phát lệch thứ tự; đã sort lại để hiển thị)"
+        )
+    else:
+        lines.append(
+            "  ◦ ordering: chưa kết luận monotonic từ nguồn này — ts không giảm, nhưng chuỗi có thể "
+            "đã được sort thượng nguồn (read_run/ORDER BY ts); đo chắc cần cột seq"
+        )
     return "\n".join(lines)
 
 

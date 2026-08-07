@@ -16,6 +16,8 @@ Lưu ý: đây là văn bản do DongAnh2704 tự thiết kế và không có tr
 
 ## 🗓️ Nhật ký cập nhật file này
 - **2026-08-05 (D13):** tạo file lần đầu — tổng hợp trọn 12 ngày (D1→D12) + trạng thái D13.
+- **2026-08-06 (D14):** thêm D13→D14 vào nhật ký — kho pgvector thật (D13) + bộ câu mẫu "có răng" cho AIE-1 đo chất lượng tìm kiếm (D14).
+- **2026-08-07 (D15):** chuyển "hôm nay" sang D15 — hoàn thiện màn hình xem nhật ký (thêm token + kiểm thứ tự đơn điệu); dọn mô tả trôi ở kho. **Không đổi cơ chế ghi nhật ký.**
 
 ---
 
@@ -170,7 +172,7 @@ tài liệu borea → agent **từ chối**, không lộ con số của borea. �
 
 ---
 
-## 5. Nhật ký 12 ngày — mỗi ngày team làm được gì (INPUT → OUTPUT)
+## 5. Nhật ký từng ngày (D1→D14) — mỗi ngày team làm được gì (INPUT → OUTPUT)
 
 Đọc theo tuần. Mỗi ô ghi: **mục tiêu ngày**, rồi **ai làm gì** (nhận đầu vào từ đâu → cho ra cái gì).
 
@@ -228,26 +230,40 @@ SWE bắt đầu **canvas kéo-thả 6 loại node**. *Input:* đề bài Sprint
 > **Vì sao phình kho?** 5 doc chỉ đủ demo; Sprint 2 cần đo "chất lượng tìm kiếm" và kiểm hàng rào ở
 > quy mô thật nên cần nhiều tài liệu + đủ 4 vai cho mỗi khách hàng.
 
+**Ngày 13 (05/08) — Kho tài liệu thành "kho thật".** DE biến kho từ **"đọc file tĩnh"** thành **kho
+trong cơ sở dữ liệu** (Postgres + tìm theo độ tương đồng cosine), có hàng rào RLS per khách hàng. Bản
+thật `PgKbSearch` ghép vào bộ chạy của AIE-1 **lần đầu**. *Input:* 140 đoạn ngày 12. *Output:* kho tra
+được bằng cơ sở dữ liệu thật — **ankor 71 · borea 69 = 140**, lặp lại không nhân đôi.
+
+**Ngày 14 (06/08) — Bộ câu mẫu "có răng" để đo chất lượng tìm kiếm.** DE cấp **20 câu hỏi kèm đáp án
+chuẩn**: 14 câu "khó" (mỗi câu có ≥2 đoạn cạnh tranh cùng khách hàng+vai, để phân biệt được vector
+tốt/xấu) + 6 câu **bẫy rò rỉ** (T1/T6). *Input:* kho 140 đoạn. *Output:* bộ câu mẫu cho AIE-1 đo trade-off
+"cắt đoạn × vector" (DE cấp nhãn, không tự đo).
+
 ---
 
-## 6. Hôm nay đang ở đâu? (D13 — 05/08)
+## 6. Hôm nay đang ở đâu? (D15 — 07/08)
 
-**Việc DE hôm nay (#90):** biến kho tài liệu từ **"đọc file tĩnh"** thành **kho thật trong cơ sở dữ liệu**
-(Postgres + tìm kiếm theo độ tương đồng), chạy per khách hàng.
+**Việc DE hôm nay (#100):** hoàn thiện **"màn hình xem nhật ký" (trace viewer)** cho đủ yêu cầu Ngày 15.
 
-- **Trước D13:** `kb.search` chạy bằng cách đọc thẳng file vào bộ nhớ (bản `StaticKbSearch`). Trả đúng
-  trích dẫn, nhưng **chưa hề dùng cơ sở dữ liệu thật**.
-- **D13 làm:** đổ 140 đoạn vào bảng `kb.chunks` (có hàng rào RLS), và `kb.search` bản thật xếp hạng bằng
-  **độ tương đồng cosine**. Đã chạy: **khách ankor 71 đoạn · borea 69 đoạn = 140**, lặp lại không nhân đôi.
-- **Bàn giao AIE-1:** cung cấp "cửa" `PgKbSearch` để bộ chạy của AIE-1 cắm vào (ghép thật DE×AIE-1 lần đầu).
+- **Màn hình xem nhật ký đã có từ Ngày 5** — in được timeline + chi phí + trích dẫn + kết luận "không
+  sót bước". Hôm nay **KHÔNG đổi cơ chế ghi nhật ký**, chỉ **vá 2 lỗ trên phần XEM**:
+  1. **In thêm token** (prompt/completion) trên mỗi dòng — con số vốn đã được thu, trước chỉ chưa hiển thị.
+  2. **Kiểm "thứ tự đơn điệu"** — viewer nói rõ nhật ký có phát ra đúng thứ tự thời gian không (trước
+     chỉ âm thầm sắp lại rồi trông như luôn ổn).
+- **Hàng rào tại chỗ lấy dữ liệu (chuẩn bị Ngày 17):** hôm nay chỉ **kiểm chứng** kho thật `PgKbSearch`
+  đã chặn rò rỉ (0-leak) + dọn mô tả cho khớp; **chưa lật "cửa chính thức" `KbSearchService`** — việc đó
+  để Ngày 17 (cần thêm phần INV-1 của SWE).
+- **Trạng thái:** đã mở **PR (#16 ở repo kb)**, chờ review/CI. Buổi ghép cả nhóm (Integration Friday):
+  phần DE (viewer đọc-lại) đã sẵn, **bản ghi buổi ghép còn treo**.
 
-**Điều cần biết cho người non-tech:** hiện "vector" vẫn tính bằng cách **đếm từ chung** (bag-of-words),
-**chưa phải AI hiểu nghĩa thật**. Việc đổi sang vector-hiểu-nghĩa để **Sprint 3** và chỉ khi hạ tầng bảo
-mật được cấp — đây là lựa chọn có chủ đích (chấm điểm là *quy trình + hàng rào*, không phải *độ thông
-minh của AI*).
+**Điều cần biết cho người non-tech:** "vector" hiện vẫn tính bằng **đếm từ chung** (bag-of-words), **chưa
+phải AI hiểu nghĩa thật** — đổi sang vector-hiểu-nghĩa để **Sprint 3**, khi có hạ tầng bảo mật. Chấm điểm
+là *quy trình + hàng rào*, không phải *độ thông minh của AI*.
 
-**Các ngày tới (D14→D20):** đo chất lượng tìm kiếm → làm "màn hình xem nhật ký" → bộ 30 câu kiểm định →
-siết hàng rào chống rò rỉ (T1/T6) → giá tiền token → **GATE-2 (D20)** ghép tất cả chạy thật lần đầu.
+**Các ngày tới (D16→D20):** bộ 30 câu kiểm định (D16) → siết hàng rào chống rò rỉ T1/T6 + **lật cửa
+chính thức** (D17) → nhãn tay đo đồng thuận (D18) → giá tiền token cùng-1-số (D19) → **GATE-2 (D20)**
+ghép cả 4 mảng chạy thật lần đầu.
 
 ---
 
