@@ -296,14 +296,23 @@ def render_timeline(
         if check.duplicated:
             lines.append("  ❌ TRÙNG node: " + ", ".join(nt.value for nt in check.duplicated))
 
-    # Monotonic đo trên thứ tự PHÁT gốc (`events`), không phải `ordered` — sau sort luôn đơn điệu.
+    # Ordering monotonic — đo trên thứ tự PHÁT gốc (`events`), KHÔNG phải `ordered`.
+    # F1 (review AIE-2 #16): chỉ khẳng định được chiều PHỦ ĐỊNH. `check_ts_monotonic() is None` là
+    # NHẬP NHẰNG — hoặc chuỗi phát đơn điệu thật, hoặc nguồn đã bị sort trước khi tới đây
+    # (`PgTraceReader.read_run` + `ORDER BY ts` LUÔN trả None cho mọi run). `render_timeline` không
+    # phân biệt được hai ca đó từ `ts`, nên **fail-closed**: không in `✅` mình không chứng minh được.
+    # Một dòng nói thẳng "chưa kết luận" tốt hơn một `✅` sai. Đo chắc thứ tự phát cần cột `seq`/
+    # thứ tự chèn (đường thật hôm nay không khôi phục được — xem `check_ts_monotonic`, chốt với #104).
     inversion = check_ts_monotonic(events)
-    if inversion is None:
-        lines.append("  ✅ ordering monotonic — ts không giảm theo thứ tự phát")
-    else:
+    if inversion is not None:
         lines.append(
             f"  ⚠ ordering KHÔNG monotonic — ts giảm tại event {inversion} "
-            "(đã sort lại để hiển thị, nhưng đường ghi phát lệch thứ tự)"
+            "(đường ghi phát lệch thứ tự; đã sort lại để hiển thị)"
+        )
+    else:
+        lines.append(
+            "  ◦ ordering: chưa kết luận monotonic từ nguồn này — ts không giảm, nhưng chuỗi có thể "
+            "đã được sort thượng nguồn (read_run/ORDER BY ts); đo chắc cần cột seq"
         )
     return "\n".join(lines)
 

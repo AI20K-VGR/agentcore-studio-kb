@@ -208,8 +208,10 @@ def test_render_timeline_hien_tokens() -> None:
 
     out = render_timeline(walk)
 
+    # Kiểm ĐÚNG THỨ TỰ, không chỉ "có mặt" — nếu không, hoán prompt/completion (`tok=42/137`) vẫn
+    # lọt (F3, review AIE-2 #16). D19 dựng cost-lineage trên đúng 2 số này, hoán ở đây = sai số về sau.
     llm_line = next(ln for ln in out.splitlines() if "llm-step" in ln)
-    assert "137" in llm_line and "42" in llm_line
+    assert "tok=137/42" in llm_line
 
 
 def test_check_ts_monotonic_thu_tu_dung_tra_none() -> None:
@@ -235,14 +237,24 @@ def test_check_ts_monotonic_ts_dao_tra_vi_tri_dau_tien() -> None:
 
 
 def test_render_timeline_noi_ro_monotonic_hay_dao() -> None:
-    """DoD D15 ô 1 (*"ordering monotonic"*): viewer phải NÓI RA thứ tự phát có đơn điệu không —
-    không được lặng lẽ sort rồi trông như luôn ổn. Đo trên thứ tự GỐC trước khi sort."""
-    walk = _full_walk()
-    dung = render_timeline(walk)
-    assert "monotonic" in dung
+    """DoD D15 ô 1 (*"ordering monotonic"*): viewer NÓI RA thứ tự phát. F1 (review AIE-2 #16):
+    `ts` không giảm là NHẬP NHẰNG (đơn điệu thật vs đã bị sort thượng nguồn) → **fail-closed**
+    "chưa kết luận", KHÔNG in `✅`. Chỉ chiều ĐẢO mới khẳng định được (`⚠`).
 
-    dao = render_timeline([walk[0], walk[2], walk[1], walk[3]])  # gốc đảo ts ở giữa
-    assert "monotonic" in dao and ("⚠" in dao or "KHÔNG" in dao)
+    Hai nhánh phải mang **marker riêng biệt** — nếu chỉ kiểm chung chữ "monotonic" thì mutant
+    "viewer luôn báo ⚠" (nhánh fail-closed không bao giờ chạy) vẫn lọt."""
+    walk = _full_walk()
+
+    # Không đảo (ts tăng) → fail-closed, KHÔNG phải ⚠, KHÔNG khẳng định monotonic.
+    khong_dao = render_timeline(walk)
+    assert "chưa kết luận" in khong_dao
+    assert "⚠" not in khong_dao
+    assert "KHÔNG monotonic" not in khong_dao
+
+    # Gốc có ts đảo ở giữa → khẳng định ⚠, KHÔNG phải fail-closed.
+    dao = render_timeline([walk[0], walk[2], walk[1], walk[3]])
+    assert "⚠" in dao and "KHÔNG monotonic" in dao
+    assert "chưa kết luận" not in dao
 
 
 # ─────────────────────────── nhóm DB — cần Postgres sống ───────────────────────────

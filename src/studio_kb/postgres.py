@@ -5,8 +5,10 @@
   thẳng `PgKbSearch(pool, embedding)` vào `KbRetrieveExecutor` của AIE-1 trên đường ghép thật
   (`apps/studio/tests/test_spine_scored_from_postgres.py`, `apps/studio/scripts/e2e_smoke_eval.py`).
   Trong unit-test thuần engine, executor nhận `EmptyKbSearch` (luôn `[]`); `StaticKbSearch` (v0 S1,
-  D4) giờ **chỉ dùng nội bộ kb** (annotate golden / `test_static_search`), **không** lane nào tiêm
-  vào spine nữa. → Đừng đọc câu dưới là "kb chưa có gì chạy".
+  D4) **vẫn được lane workbench tiêm vào `run(...)`** ở `packages/workbench/tests/test_wiring_d6.py`
+  (đường ghép **không-Postgres**) + dùng nội bộ kb (annotate golden / `test_static_search`) — nó
+  **KHÔNG nằm trên spine Postgres** (đường đó dùng `PgKbSearch`). → Đừng đọc câu dưới là "kb chưa có
+  gì chạy".
 - **Seam CHÍNH THỨC thì vẫn CHƯA lật:** `KbSearchService` (`search.py`) và `KbPipeline`
   (`pipeline.py`) vẫn giữ nguyên `NotImplementedError`, `tests/test_search_contract.py` vẫn xanh.
   Spine hôm nay đi đường **tiêm-thẳng `PgKbSearch`**, chưa qua `KbSearchService` — đường vào chính

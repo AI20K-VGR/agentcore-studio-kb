@@ -85,10 +85,12 @@ rồi in thì luôn trông đẹp; DoD đòi *bằng chứng* thứ tự phát �
   `FORCE` khoá `app.tenant_id` (trục tenant) + `WHERE section_role = ANY(%s)` (trục section) + pool
   **non-owner** để RLS cắn. D15 rà lại `test_pg_kb`/`test_leak_meta`/`test_rls_framework` phủ đủ ca
   "đầu": T1 IDOR (đọc chéo tenant) trả `[]`/0-leak trên đường `PgKbSearch`; unset-tenant thấy 0 dòng.
-- **Dựng scaffold cho D17** (không thực thi fence hôm nay): đánh dấu rõ trong `search.py` docstring +
-  `test_leak.py` chỗ D17 sẽ lật (delegate `KbSearchService`→`PgKbSearch` + gỡ xfail), để D17 là thao
-  tác cơ học có chủ đích, không phải khảo cổ. Nếu cần một test mới cho "đầu", đặt tên tách (không đụng
-  `test_search_contract` XANH đang khẳng định `NotImplementedError`).
+- **Dựng scaffold cho D17** (không thực thi fence hôm nay). **Đã giao ở docstring `postgres.py`** (khối
+  *"Bước nối vào SEAM chính thức khi tới lúc (D17)"* — 3 bước: delegate `KbSearchService`→`PgKbSearch` +
+  xoá `test_search_contract.py` + gỡ xfail `test_leak`), KHÔNG chạm `search.py`/`test_leak.py` (giữ 2
+  file đó đứng yên tới D17 — đúng "khảo cổ tối thiểu"). Bản nháp ban đầu định đánh dấu trong
+  `search.py`/`test_leak.py`; thực tế gom về 1 chỗ `postgres.py` cho gọn. `test_search_contract` XANH
+  giữ nguyên (khẳng định `NotImplementedError`).
 
 ### ④ Tests — test cho glue mới (không đụng test cũ đang XANH)
 - `test_trace_reader.py`: thêm ca **render có `tokens`** (event `tokens=137/42` phải hiện đúng trên
@@ -154,4 +156,5 @@ rồi in thì luôn trông đẹp; DoD đòi *bằng chứng* thứ tự phát �
   khoá; mặc định `ts`, honest-TODO nếu cần select thêm `seq` trong `_READ_RUN`.
 - **Integration Friday recording / daily-note `docs/reports`** nằm **ngoài** submodule kb — chỉ làm
   khi được yêu cầu (chỉ đạo: WRITE trong kb).
-- **Chưa commit/push, chưa mở PR** — chờ review (đúng nhịp D12/D13/D14).
+- **Trạng thái:** đã commit + push + mở **PR kb#16** (nhánh `day15/de-trace-viewer-tokens-tenant-prep`);
+  đang xử review AIE-2 (F1 monotonic fail-closed trên đường DB + F2/F3 teeth test + F4 drift docstring).
