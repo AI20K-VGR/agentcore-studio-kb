@@ -1,4 +1,4 @@
-# Plan D17 (DE) — Fence TẠI RETRIEVAL fail-closed (lật `KbSearchService`→`PgKbSearch`) + T1 IDOR đóng + T6 label-spoof (mức ĐẦU) · B1 chốt (embedding), B2/B4 khoá bởi contract §5.2, B3 gỡ (audit vừa carrier frozen §7); chỉ chờ #112 timing cho T6
+# Plan D17 (DE) — Fence TẠI RETRIEVAL fail-closed (lật `KbSearchService`→`PgKbSearch`) + T1 IDOR đóng + T6 label-spoof (mức ĐẦU) · KHÔNG còn blocker quyết-design (B2 hướng A chốt bởi SWE #112 + verify code); build song song qua mock, giữ xfail T6
 
 > **Ngày:** 2026-08-11 (D17, Thứ Ba · Chặng 2 / Sprint 2 · Tuần 4) · **Bút:** DE (Nguyễn Đông Anh)
 > **Anchor:** issue kit **#110** (con của **#114** "Fence tại retrieval fail-closed + T1 IDOR + T6
@@ -57,10 +57,11 @@ lane AIE-1/SWE), engine executor (#111), workbench, INV-1 (#112). **Không đổ
 
 ## 1. Việc sẽ làm (nhánh `day17/de-fence-at-retrieval`, nền `origin/main` sau D16 · test-first)
 
-> ⚠️ **B1 chốt (embedding); B2/B4 khoá bởi contract §5.2 (session-side); B3 gỡ (audit vừa carrier frozen §7).**
-> Khởi công NGAY sau D16 merge: **①②④⑤** (lật seam + xoá contract test + refusal/audit) + **T1** (②) + rà NOT
-> NULL. Điểm chờ **duy nhất**: **③ test_t6** cần **#112 land INV-1** để viết đúng câu chữ (không phải quyết
-> design — B2-b đã chốt). `outputs.fenced` enrich = coordinate #111, không chặn.
+> ⚠️ **KHÔNG còn blocker quyết-design.** B1 chốt (embedding); **B2 hướng A chốt** (SWE #112 + verify: lỗ ở
+> `executors.py:139`, resolve ở executor, kb trust); B4 theo B2; B3 gỡ (carrier §7). Khởi công NGAY sau D16
+> merge: **①②④⑤ + T1 + no-bypass teeth** — build song song qua **mock** `resolve_section_roles`. **Giữ `test_t6`
+> xfail** (đúng lộ trình un-ratchet, tách khỏi gate D17); chỉ **gỡ xfail T6** mới chờ #112 xong. T6-full assert
+> (mock resolver, tại input `kb.search`) sống ở **executor** — coordinate #111/#112, DE không WRITE engine.
 
 ### ① Lật `KbSearchService.search` → dùng cơ chế `PgKbSearch` (fail-closed tại retrieval) · B1 đã chốt
 Uỷ quyền logic sang `PgKbSearch.search` (RLS tenant + `WHERE section_role` + rỗng→`[]` + lọc-trong-SQL).
@@ -79,19 +80,33 @@ Uỷ quyền logic sang `PgKbSearch.search` (RLS tenant + `WHERE section_role` +
 `test_leak.py::test_t1_idor` (seed tenant-A + tenant-B, search as A, đòi chỉ A trả về). Lật ① xong, RLS +
 `WHERE tenant_id` khoá → T1 xanh THẬT. **Gỡ `@pytest.mark.xfail`** khỏi `test_t1_idor` (un-ratchet). Đây
 là phần DE đóng trọn được **một mình**, không chờ #112.
+> ⚠️ **Wrinkle seed (verify 10/08):** `_seed_chunk` (test_leak.py) INSERT `(chunk_id,tenant_id,section_role,
+> text)` — **không embedding**; mà `PgKbSearch._SEARCH` có `AND embedding IS NOT NULL`. Uỷ quyền thẳng →
+> chunk seed (embedding NULL) bị lọc → khẳng định positive-inclusion `"chunk-a-1" in results` **TRƯỢT**. Nên
+> un-ratchet T1 phải **sửa `_seed_chunk` seed kèm embedding** (dim-8 `derive_vector`) để đường PgKbSearch trả
+> được — đây là **hoàn thiện fixture cho test placeholder**, không phải nới assert (assert loại-trừ giữ nguyên).
 
-### ③ T6 label-spoof — mức ĐẦU (kb-boundary no-bypass) · design chốt bởi contract §5.2 (B2-b)
-`test_leak.py::test_t6_label_spoof` hiện khai `section_roles=["confidential"]` và đòi loại trừ. **Uỷ quyền
-thẳng sẽ TRƯỢT** (PgKbSearch tin roles → trả confidential). **Contract §5.2 (FROZEN) đã chốt hướng:** resolve
-"từ phiên làm việc" = **INV-1 tầng phiên = #112**, KHÔNG vocab-guard trong kb (B2-a bị loại — mâu thuẫn "server
-resolve từ phiên"). → Phần kb:
-- **kb đảm bảo no-bypass trên roles ĐƯỢC GIAO:** rỗng→`[]`, không wildcard, không nhánh "bỏ lọc". Đây là
-  bất biến kb bảo đảm được **một mình** — viết teeth cho nó.
-- **`test_leak.py::test_t6` re-scope thành "no-bypass tại boundary"** (không nới assert — chỉ đúng thứ tầng kb
-  chịu trách nhiệm; câu chữ chốt với #112 để không lệch với INV-1 test bên họ). **Full label-spoof**
-  (public-user-khai-hr) = **integration test joint #112**, không kb đóng một mình.
-- **Viết mới** T6 teeth ăn 8 case âm golden-set (fixture D16) cho đúng #110 "viết T6 label-spoof test".
-- ⚠️ **Chờ #112 land INV-1** để viết đúng câu chữ test_t6 (điểm coordinate duy nhất còn lại — §3).
+### ③ T6 label-spoof — hướng A CHỐT (SWE #112, verified code) · DE GIỮ xfail T6 ở D17
+**SWE #112 trả lời + verify code (10/08):** lỗ T6 nằm ở **`engine/executors.py:139`** (`node.params.get(
+"section_roles", [])` → `:155` truyền vào `kb.search` — TIN thẳng client/recipe khai). `tenant_id` thì
+`interpreter.py:291` bơm server-side, `section_roles` thì **chưa**. `contracts/kb.py:4` + `kb-search.v0.md
+§5.2` + docstring `executors.py:92-102` đều nói section_roles **phải resolve server-side, truyền UNCHANGED**.
+→ **Hướng A CHỐT:** resolve ở **executor / Tenant-Wall** (dùng `resolve_section_roles(ResolvedContext)` — #112
+**tạo mới**, chưa tồn tại; đặt cạnh `resolve_session` ở `tenant_wall.py`, expose qua `packages/contracts`).
+**KbSearchService CHỈ trust list nhận được**, không tự hỏi session. Phần kb DE:
+- **kb đảm bảo no-bypass trên roles ĐƯỢC GIAO:** rỗng→`[]`, không wildcard, không nhánh "bỏ lọc" — viết
+  **teeth kb-lane** cho bất biến này (DE đóng một mình).
+- **GIỮ `test_leak.py::test_t6_label_spoof` xfail — KHÔNG gỡ ở D17** (SWE khuyến nghị + nhất quán: test này
+  gọi `KbSearchService` trực tiếp với roles spoof, mà kb **theo thiết kế trust input** → không bao giờ pass ở
+  tầng kb). Nó là **marker un-ratchet** cho tới khi closure thật (resolver upstream) được verify.
+- **Full label-spoof (assert đúng chỗ)** = test tại **input của `kb.search` ở executor**: mock
+  `resolve_section_roles`→`["public"]`, recipe khai `["finance"]`, assert giá trị THẬT vào `kb.search` là
+  `["public"]`. Đây là **engine lane (executors.py) + #112 resolver** — DE **coordinate #111/#112**, không WRITE
+  engine. (Cảnh báo SWE: assert sai chỗ — kiểu "service không raise" — thì mutation fail-OPEN `executors.py`
+  default-4-role KHÔNG bị bắt, kb vẫn "71 passed". Phải assert tại input kb.search.)
+- **Build song song (không chờ #112 chạy):** DE viết seam + no-bypass teeth dùng **mock** `resolve_section_roles`
+  (theo hành vi kỳ vọng, đúng tinh thần contract-first + `.importlinter`); SWE viết resolver + mapping thật song
+  song; ráp ở composition root `apps/studio`. **Thứ duy nhất chờ #112 xong hẳn = được phép GỠ xfail T6.**
 
 ### ④ Xoá `tests/test_search_contract.py` (scaffold bước ②)
 Nó khẳng định `KbSearchService.search` raise `NotImplementedError` — lật ① xong là mâu thuẫn, phải xoá
@@ -135,14 +150,16 @@ Nó khẳng định `KbSearchService.search` raise `NotImplementedError` — l�
 | # | Trạng thái | Blocker | Vì sao chặn | Ai chốt | Kết / đề xuất |
 |---|---|---|---|---|---|
 | **B1** | ✅ **CHỐT 11/08** | `KbSearchService(pool)` **thiếu embedding** để uỷ quyền `PgKbSearch(pool, embedding)`; QĐ-U1 cấm AIE-1 sửa call-site (T3). | Uỷ quyền cần embedding; bắt buộc thêm tham số `__init__` → `KbSearchService(pool)` vỡ T3. | DE + AIE-1 + mentor. | **Optional + factory, giữ QĐ-U1:** `__init__(self, pool, embedding=None)` — production factory tiêm embedding thật, `KbSearchService(pool)` self-provision stub `derive_vector` (SSOT dim-8) → T3 tự XPASS, AIE-1 không sửa. Xem §1①. |
-| **B2** | ✅ **DESIGN chốt bởi contract** | **T6 "client tự khai bị bỏ qua" ĐẦY ĐỦ không đóng được trong kb** — chữ ký `kb.search` **FROZEN 4 tham số, không mang danh tính**; `PgKbSearch` tin `section_roles`. | `kb-search.v0.md §5.2` (FROZEN): *"Server tự resolve phạm vi thật **từ phiên làm việc**; client tự khai bị bỏ qua."* → resolution ở **tầng phiên = INV-1 = #112**, KHÔNG trong kb. | Contract đã chốt; còn coordinate **#112** timing. | **Chốt B2-b (contract-mandated):** kb lọc fail-closed trên roles-đã-resolve; **KHÔNG** thêm vocab-guard (B2-a mâu thuẫn §5.2). `test_t6` re-scope thành **no-bypass tại boundary**; full label-spoof = integration test joint #112. Còn mở: **timing #112** + câu chữ test_t6. |
+| **B2** | ✅ **CHỐT (SWE #112 + verify code)** | Lỗ T6 nằm ở **`engine/executors.py:139`** (`node.params.get("section_roles",[])`→`:155` truyền vào `kb.search`); kb theo thiết kế **trust input**. | `contracts/kb.py:4` + `kb-search.v0.md §5.2` + `executors.py:92-102`: section_roles resolve server-side, truyền UNCHANGED → **hướng A**: resolve ở executor/Tenant-Wall (#112 tạo `resolve_section_roles`, chưa tồn tại), kb chỉ trust. | SWE #112 (chốt) + AIE-1 #111 (executor). | **kb:** no-bypass teeth (DE, một mình) + **GIỮ `test_t6` xfail ở D17** (kb-by-design không pass được). **Full label-spoof** = assert tại input `kb.search` ở executor (mock resolver → assert `["public"]` không `["finance"]`) = engine lane. **Build song song qua mock**; chỉ GỠ xfail T6 mới chờ #112 xong. |
 | **B3** | ✅ **GỠ (mis-frame ban đầu)** | "Audit" cho câu cross-tenant tưởng cần trace-event mới. | **Không cần node_type thứ 7.** `trace-event.v0.md` schema/§7: mỗi event đã có `tenant_id` NOT NULL + `inputs_hash` + `citations:[]` + `outputs` obj → **carrier frozen chở được audit**. | DE (refusal) + **#111** (event đã emit). | **refusal** = `kb.search []` (DE, đã có); **audit** = `kb-retrieve` event hiện hữu (tenant người-hỏi + `citations:[]`) do #111 phát — **trong schema frozen, không mini-RFC**. Enrich `outputs.fenced` = nicety #111, không chặn. |
 | **B4** | ✅ **chốt (B1+§5.2)** | Design "factory tiêm resolver" (R1b, T3:203) kỳ vọng resolver. | Embedding theo B1; **resolver = session-side per §5.2 = #112**. | — | kb **không dựng resolver**; D17 land seam KHÔNG buộc resolver, #112 cấp sau. Hết là câu hỏi mở riêng. |
 
-**Sau B1 + contract, chỉ còn 1 điểm coordinate thật (không phải quyết design):** **timing với #112** — INV-1
-land kịp D17 không, và câu chữ `test_t6` re-scope. B2/B4 **design đã bị contract khoá** (session-side, không
-vocab-guard trong kb); B3 **đã rõ out-of-scope** (mini-RFC quá tầm). → Không cần huddle-quyết-design; chỉ 1
-tin nhắn hỏi #112 timing. **①②④ + T1** khởi công ngay sau D16 merge; **③ (T6)** chờ #112 để viết đúng câu chữ.
+**Sau B1 + contract + SWE #112 trả lời, KHÔNG còn blocker quyết-design:** hướng A đã chốt (executor resolve,
+kb trust) — verify code khớp 100%. **DE build song song ngay qua mock `resolve_section_roles`** (contract-first
++ `.importlinter` cho phép); `un-ratchet` (detail_overview.md:166-168) **tách khỏi gate D17** nên D17 KHÔNG buộc
+xanh-100% — **giữ `test_t6` xfail là đúng lộ trình**. Thứ duy nhất chờ #112 xong hẳn = **được phép gỡ xfail T6**
+(tuyên bố lỗ đã đóng thật) — không chặn code D17 của DE. **①②④⑤ + T1 + no-bypass teeth** khởi công ngay sau D16
+merge; T6-full assert (executor) coordinate #111/#112 song song.
 
 ---
 
@@ -173,8 +190,9 @@ tin nhắn hỏi #112 timing. **①②④ + T1** khởi công ngay sau D16 merge
 - **Nhãn tay ground-truth (agreement) = D18 (#115)** · **cost-lineage = D19 (#120)** · **gate spine = D20 (#125)**.
 - **`apps/studio` T3/T4** (`test_kb_search_live_readiness`) là lane AIE-1/SWE — DE land sao cho **tự XPASS**
   (QĐ-U1), **không** WRITE vào `apps/studio`.
-- **Trạng thái:** plan viết xong; **chưa** cắt nhánh / chưa code. **Cả 4 blocker đã gỡ về design:** B1
-  chốt (embedding optional+factory, QĐ-U1) · B2/B4 khoá bởi contract §5.2 (session-side, không vocab-guard) ·
-  **B3 gỡ** (audit vừa carrier frozen §7 — `kb-retrieve` event tenant+`citations:[]`, không schema mới). Sau
-  D16 merge: **①②④⑤ + T1 + rà NOT NULL** khởi công ngay; **③ test_t6** chỉ chờ **#112 land INV-1** (timing,
-  không quyết design). Không cần huddle-quyết — 1 tin nhắn hỏi #112 timing + 1 nhắn #111 về `outputs.fenced`.
+- **Trạng thái:** plan viết xong; **chưa** cắt nhánh / chưa code. **KHÔNG còn blocker quyết-design:** B1 chốt
+  (embedding optional+factory) · **B2 chốt hướng A** (SWE #112 + verify code: lỗ ở `executors.py:139`, resolve ở
+  executor, kb trust; #112 tạo `resolve_section_roles`) · B4 theo B2 · B3 gỡ (audit vừa carrier §7). Sau D16
+  merge: **①②④⑤ + T1 + no-bypass teeth** khởi công ngay (build song song qua **mock** `resolve_section_roles`).
+  **Giữ `test_t6` xfail ở D17** (đúng lộ trình un-ratchet, tách khỏi gate). Thứ duy nhất chờ #112 xong = **gỡ
+  xfail T6** — không chặn code DE. Coordinate còn lại: T6-full assert ở executor (#111/#112) + `outputs.fenced` (#111).
