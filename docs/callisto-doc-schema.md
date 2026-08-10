@@ -308,10 +308,12 @@ phản-hồi-oncall 15 vs 10 phút). Số bịa, dễ nhận khi rò (§9).
 **Nuôi hạ nguồn:**
 - **KB thật D13 (#90):** `ingest→chunk→embed→index` ăn corpus này; `load_callisto()` là đường cắt
   duy nhất, `chunk_id` bền qua re-index.
-- **Golden-set D16 (#105):** `golden/callisto-handbook-30-draft.yaml` — **đã điền đủ 30 case** (22 dương
-  + 8 âm T1/T6), `golden_set_ref: callisto-golden-30-v1`, giao sớm ở D14 để gỡ chặn AIE-2. Nhãn
-  `expected_citation` **trích từ retrieval thật** (`scripts/annotate_golden.py`), không gõ tay; load được
-  qua `studio_evalhub.GoldenCase`. Tên file giữ `-draft` cho tới khi AIE-2 nghiệm thu (DL-12.5).
+- **Golden-set D16 (#105):** `golden/callisto-golden-30-v1.yaml` — **30 case** (22 dương + 8 âm T1/T6),
+  `golden_set_ref: callisto-golden-30-v1`. D16 **recorded**: nguồn typed `src/studio_kb/golden_set.py`
+  (`GOLDEN_CASES`), yaml sinh ra byte-identical qua `scripts/emit_golden_set.py`; promote `draft`→`v1`
+  (AIE-2 nghiệm thu — DL-16.1). Nhãn `expected_citation` **trích từ retrieval thật**
+  (`scripts/annotate_golden.py`), không gõ tay; load được qua `studio_evalhub.GoldenCase`. Phát cùng KB
+  bằng "1 lệnh 2 deliverable" `scripts/build_callisto.py`.
 - **Embeddings fixture:** `golden/embeddings-callisto-v0.json` đã **re-record** phủ đủ 140 chunk
   (deterministic bag-of-words, `scripts/record_embeddings.py`).
 
