@@ -24,9 +24,10 @@ from pathlib import Path
 
 import pytest
 from studio_kb.doc_factory import Chunk, load_callisto, resolve_tenant_id
+from studio_kb.golden_set import EDGE_AXES, GOLDEN_CASES, render_yaml
 from studio_kb.static_search import StaticKbSearch
 
-_GOLDEN = Path(__file__).resolve().parents[1] / "golden" / "callisto-handbook-30-draft.yaml"
+_GOLDEN = Path(__file__).resolve().parents[1] / "golden" / "callisto-golden-30-v1.yaml"
 _EXPECTED_REF = "callisto-golden-30-v1"
 
 
@@ -183,3 +184,38 @@ def test_citation_khop_expected_tenant_role(case: _Case, by_id: dict[str, Chunk]
         assert by_id[c].section_role == case.exp_role, (
             f"{case.case_id}: {c} vai {by_id[c].section_role!r} ≠ expected_section_role={case.exp_role!r}"
         )
+
+
+def test_yaml_byte_identical_voi_module_typed() -> None:
+    """`callisto-golden-30-v1.yaml` trên đĩa PHẢI `==` `golden_set.render_yaml()` (D16, recorded).
+
+    Nguồn sự thật là `studio_kb.golden_set.GOLDEN_CASES` (typed); yaml là artifact sinh ra qua
+    `scripts/emit_golden_set.py`. Ca này bắt hai kiểu drift: (a) ai đó sửa tay yaml mà không sửa
+    module → file lệch render; (b) sửa module mà quên re-emit → cũng lệch. Cùng kỷ luật
+    `test_grid_inputs.py` (grid) / `test_embedding_fixture.py` (embeddings)."""
+    assert _GOLDEN.read_text(encoding="utf-8") == render_yaml(), (
+        "yaml trên đĩa lệch render_yaml() — chạy scripts/emit_golden_set.py rồi commit lại"
+    )
+
+
+@pytest.mark.parametrize("axis", sorted(EDGE_AXES), ids=sorted(EDGE_AXES))
+def test_phu_bien_moi_truc_co_case(axis: str) -> None:
+    """ "expected + expected-citations phủ biên" (#105) thành CI gate: mỗi trục biên khai trong
+    `EDGE_AXES` phải có ≥1 case, và mọi `case_id` tham chiếu phải TỒN TẠI trong bộ (chống liệt kê
+    một case_id đã bị xoá/đổi tên mà bảng phủ-biên vẫn khai 'đã phủ')."""
+    referenced = EDGE_AXES[axis]
+    assert referenced, f"trục biên {axis!r} rỗng — không case nào phủ"
+    ids = {c.case_id for c in GOLDEN_CASES}
+    missing = [cid for cid in referenced if cid not in ids]
+    assert not missing, f"trục biên {axis!r} trỏ case_id không tồn tại: {missing}"
+
+
+def test_module_is_refusal_khop_yaml_va_khoa_ti_le() -> None:
+    """Canh CHÍNH `GoldenCase.is_refusal` của module (không phải `_Case.is_refusal` parser riêng ở
+    trên): phân loại refusal của nguồn typed phải khớp file yaml đã parse, và khoá tỉ lệ 22 dương /
+    8 âm. Bịt mutant `is_refusal` bỏ `not` (mutation sweep D16) + bắt drift module↔yaml."""
+    module_ref = {c.case_id for c in GOLDEN_CASES if c.is_refusal}
+    yaml_ref = {c.case_id for c in _CASES if c.is_refusal}
+    assert module_ref == yaml_ref, f"refusal lệch giữa module typed và yaml: {module_ref ^ yaml_ref}"
+    assert sum(not c.is_refusal for c in GOLDEN_CASES) == 22, "số case dương phải là 22"
+    assert sum(c.is_refusal for c in GOLDEN_CASES) == 8, "số case âm phải là 8"
