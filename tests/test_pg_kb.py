@@ -4,8 +4,8 @@ Cần `docker compose -f docker-compose.test.yml up -d` và hai biến `STUDIO_D
 `STUDIO_DATABASE_URL_ADMIN`; thiếu thì fixture ở `conftest.py` gốc **skip** (không fail).
 
 Trọng tâm là **chứng minh hàng rào**, không phải chứng minh truy xuất chạy. Hai test T1/T6 dưới đây
-là bản **XANH THẬT** của hai test đang `xfail` ở `test_leak.py` — khác biệt: chúng chạy qua
-`PgKbSearch` (module mới), còn bản kia chạy qua `KbSearchService` vẫn đang `NotImplementedError`.
+là bản **XANH THẬT** trực tiếp trên `PgKbSearch`; từ D17 `KbSearchService` cũng uỷ quyền sang cùng
+module này, nên `test_leak.py::test_t1_idor` (đường seam chính thức) đã là gate cứng, không còn `xfail`.
 
 Mọi test chạy qua pool **non-owner** (`pool`, role `studio_app`), không phải `admin_pool`. Đây là
 điều kiện để phép thử có ý nghĩa: RLS chỉ áp cho kết nối non-owner theo cách thông thường, và test
@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import psycopg
 import pytest
 from psycopg import sql
 from studio_kb.doc_factory import TENANT_IDS, Chunk, load_callisto
@@ -178,6 +179,21 @@ async def test_section_roles_rong_la_khong_co_quyen_nao(pool: object, embedding:
         [_chunk("ankor-leave-001#c1", ANKOR_ID, "public", "nội dung")]
     )
     assert await PgKbSearch(pool, embedding).search("nội dung", ANKOR_ID, [], 10) == []  # type: ignore[arg-type]
+
+
+async def test_section_role_not_null_bi_db_tu_choi(pool: object) -> None:
+    """Vế 2 của "chunk-level `section_role` NOT NULL, fail-closed" (#110): DDL (`schema.py:41`) khai
+    NOT NULL, nên một chunk **không nhãn vai** không thể tồn tại — bị chặn ngay tại DB, không phải
+    lọc ở tầng trên. Nhờ vậy `WHERE section_role = ANY(...)` không bao giờ phải xử "role NULL" (fence
+    trục vai kín từ gốc). `tenant_id` cũng NOT NULL nhưng đường đó bị RLS `WITH CHECK` chặn TRƯỚC
+    (raise RLS violation, không phải NotNull), đã canh riêng ở `test_khong_dat_tenant_thi_khong_thay_gi`."""
+    async with pool.connection() as conn, conn.transaction():  # type: ignore[attr-defined]
+        await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(ANKOR_ID),))
+        with pytest.raises(psycopg.errors.NotNullViolation):
+            await conn.execute(
+                "INSERT INTO kb.chunks (chunk_id, tenant_id, section_role, text) VALUES (%s, %s, %s, %s)",
+                ("ankor-null-role#c1", ANKOR_ID, None, "chunk không nhãn vai"),
+            )
 
 
 async def test_top_k_khong_am_va_cat_dung_so_luong(pool: object, embedding: object) -> None:

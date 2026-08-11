@@ -6,10 +6,11 @@
    `section_roles` phân giải **server-side**, chạy qua `get_pool()` để RLS có hiệu lực. Brief D4 nói
    ngược lại — *"CHƯA fence, filter tenant naive để xâu kim"* (`day-04.md:22`), fence để **S3**
    (`day-04.md:46`). Nhét hành vi naive vào seam đã ghi rõ là fenced = nói dối bằng code.
-2. **`KbSearchService` phải giữ `NotImplementedError`.** `tests/test_search_contract.py` là test
-   **XANH** khẳng định đúng điều đó; nó là spec-DE cho S2–S3, không tiêu ở D4.
-3. **Không có gì để tìm ở tầng đó.** `KbSearchService` tìm trên bảng `kb.chunks`, mà bảng rỗng vì
-   `KbPipeline.index` chưa chạy được. Điền thân xong nó vẫn trả `[]`.
+2. **`KbSearchService` là đường Postgres fenced** (đã lật D17/#110 → uỷ quyền `PgKbSearch`), không
+   phải bản tĩnh trong bộ nhớ. Nó tìm trên bảng `kb.chunks` qua pool non-owner để RLS cắn; bản này
+   không chạm DB, cắt markdown trong RAM cho đường xâu-kim D4. Hai bản, hai cơ chế, cùng contract.
+3. **D4 chưa có gì để tìm ở tầng Postgres.** `kb.chunks` còn rỗng lúc đó (ingest chạy từ S2), nên
+   bản tĩnh là cách duy nhất cho `llm-step` có `chunk_id` mà trích dẫn ngay từ D4.
 
 Chỗ nối cho AIE-1: `KbRetrieveExecutor.__init__(self, kb_search: KbSearch)` nhận qua **Protocol,
 tiêm vào** — nên một class tĩnh thoả `KbSearch` là đủ để bỏ `EmptyKbSearch` và cho `llm-step` có

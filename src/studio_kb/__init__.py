@@ -1,8 +1,9 @@
 """AgentCore Studio KB — doc-factory, kb.search fence-DATA, trace/cost sink. Owner: DE.
 
 Phase 5 (KB Fence): `kb.chunks` DDL + RLS fence lands in `schema.py`; `KbSearchService`
-(`search.py`) and `KbPipeline` (`pipeline.py`) are spec-DE stubs (`NotImplementedError` bodies)
-exported here as the stable public seam other packages/tests import against.
+(`search.py`) and `KbPipeline` (`pipeline.py`) ship as the stable public seam other packages/tests
+import against. At D17 (#110) `KbSearchService` is un-ratcheted — its body now delegates to the real
+`PgKbSearch` (see below); `KbPipeline` stays a spec-DE stub (`NotImplementedError` bodies).
 
 Sprint 1 (D4) thêm **bản tĩnh** để xâu kim end-to-end trước khi tầng Postgres chạy được:
 `load_callisto` cắt `docs/callisto/*.md` thành chunk, `StaticKbSearch` tìm trên đó và thoả
@@ -18,9 +19,12 @@ Sprint 2 (D13) thêm tầng Postgres thật (`postgres.py`) vào seam công khai
 `Chunk` → embed → `kb.chunks` per-tenant, idempotent, non-owner pool để `WITH CHECK` cắn) và
 `PgKbSearch` (đọc: cosine trên pgvector, lọc fail-closed `tenant_id`+`section_role`). Cả hai thoả
 `studio_contracts.KbSearch`/nhận `EmbeddingService` tiêm vào — đây là thứ AIE-1 tiêm vào
-`KbRetrieveExecutor` thay `StaticKbSearch`/`EmptyKbSearch` (ghép thật DE×AIE-1, #91). `KbSearchService`
-(`search.py`) vẫn giữ `NotImplementedError` có chủ đích — un-ratchet seam đó sang `PgKbSearch` là việc
-RIÊNG của D17 (fence qua seam chính thức), xem `test_leak.py`/`test_search_contract.py`.
+`KbRetrieveExecutor` thay `StaticKbSearch`/`EmptyKbSearch` (ghép thật DE×AIE-1, #91).
+
+Sprint 2 (D17, #110) **lật seam chính thức**: `KbSearchService.search` (`search.py`) nay uỷ quyền một
+dòng sang `PgKbSearch.search` — đường vào chính thức chạy fence fail-closed thật (RLS tenant + `WHERE
+section_role`). T1 IDOR thành gate cứng ở `test_leak.py`; T6 label-spoof (client tự khai) đóng mức đầu,
+override thật nằm upstream (`interpreter.py:291`, engine #111) — xem `test_no_bypass.py`.
 """
 
 from __future__ import annotations

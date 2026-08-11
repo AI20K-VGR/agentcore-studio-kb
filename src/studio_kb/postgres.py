@@ -1,25 +1,20 @@
 """Tầng lưu trữ Postgres thật cho `kb.chunks` — ingest (ghi) + truy xuất vector (đọc).
 
-⚠️ **PHÂN BIỆT HAI TẦNG — chỉ tầng seam-chính-thức là chưa lật.**
+**HAI TẦNG — seam chính thức ĐÃ lật ở D17 (#110).**
 - **Impl cụ thể `PgKbSearch` ĐÃ nằm trên spine thật kể từ D13:** composition-root `apps/studio` tiêm
   thẳng `PgKbSearch(pool, embedding)` vào `KbRetrieveExecutor` của AIE-1 trên đường ghép thật
   (`apps/studio/tests/test_spine_scored_from_postgres.py`, `apps/studio/scripts/e2e_smoke_eval.py`).
   Trong unit-test thuần engine, executor nhận `EmptyKbSearch` (luôn `[]`); `StaticKbSearch` (v0 S1,
   D4) **vẫn được lane workbench tiêm vào `run(...)`** ở `packages/workbench/tests/test_wiring_d6.py`
   (đường ghép **không-Postgres**) + dùng nội bộ kb (annotate golden / `test_static_search`) — nó
-  **KHÔNG nằm trên spine Postgres** (đường đó dùng `PgKbSearch`). → Đừng đọc câu dưới là "kb chưa có
-  gì chạy".
-- **Seam CHÍNH THỨC thì vẫn CHƯA lật:** `KbSearchService` (`search.py`) và `KbPipeline`
-  (`pipeline.py`) vẫn giữ nguyên `NotImplementedError`, `tests/test_search_contract.py` vẫn xanh.
-  Spine hôm nay đi đường **tiêm-thẳng `PgKbSearch`**, chưa qua `KbSearchService` — đường vào chính
-  thức chỉ được lật ở **D17 (#110)**.
+  **KHÔNG nằm trên spine Postgres** (đường đó dùng `PgKbSearch`).
+- **Seam CHÍNH THỨC `KbSearchService` (`search.py`) nay uỷ quyền một dòng sang `PgKbSearch.search`**
+  (D17): đường vào chính thức chạy đúng cơ chế fence dưới đây. `test_leak.py::test_t1_idor` là gate
+  cứng (đã gỡ `xfail`); `test_search_contract.py` đã xoá (nó khẳng định seam kia raise). `KbPipeline`
+  (`pipeline.py`) vẫn `NotImplementedError` (spec DE cho sau).
 
-**Bước "nối vào SEAM chính thức" khi tới lúc (D17)** — quyết định của DE, không phải hệ quả phụ:
-1. `KbSearchService.search` uỷ quyền một dòng sang `PgKbSearch.search` (chữ ký giống hệt).
-2. **Xoá `tests/test_search_contract.py`** — nó là test XANH khẳng định seam kia raise; giữ lại thì
-   nối vào là đỏ ngay.
-3. **Gỡ `xfail` ở `tests/test_leak.py`** (un-ratchet, P5/P9) — hai test T1/T6 ở đó đang
-   `xfail(strict=False)` chờ đúng ngày này.
+`KbSearchService` cấp thêm embedding stub mặc định khi không được tiêm (để `KbSearchService(pool)` ở
+T3 chạy được, QĐ-U1) — xem docstring `search.py`. Đường đọc thật, fence, sống ở `PgKbSearch` dưới đây.
 
 **Đối chiếu với `static_search.py`:** bản tĩnh cắt markdown trong bộ nhớ, lọc bằng vòng `for`,
 xếp hạng bằng trùng token. Bản này lọc **trong câu SQL** (RLS + `WHERE`) và xếp hạng bằng khoảng

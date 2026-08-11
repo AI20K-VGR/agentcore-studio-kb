@@ -1,10 +1,17 @@
-"""Leak-test WITH TEETH (F5) — RED-by-design until `kb.search` (search.py) is implemented as a
-real, non-leaky retrieval (spec DE). Real cross-tenant EXCLUSION assertions through the
-`KbSearchService` APP PATH — a leaky implementation still FAILS these (NEVER
-`pytest.raises(NotImplementedError)`, per plan.md Decision #3 + phase-5 Risks table: "leak-test
-'xanh giả'"). Marked `xfail(strict=False)` so the aggregate suite stays green while these keep
-real teeth. Un-ratchet (F5): the moment DE makes `kb.search` pass these for real, remove the
-`xfail` marker below (README documents who/when to flip — P5/P9) and this becomes a hard gate.
+"""Leak-test WITH TEETH (F5) — real cross-tenant/cross-role EXCLUSION assertions through the
+`KbSearchService` APP PATH (NEVER `pytest.raises(NotImplementedError)`, per plan.md Decision #3 +
+phase-5 Risks table: "leak-test 'xanh giả'").
+
+Un-ratchet (D17/#110): DE flipped `KbSearchService.search` to the real `PgKbSearch` mechanism, so
+**T1 IDOR is now a hard gate** (xfail removed) — a leaky impl returning everyone's chunks fails it.
+
+**T6 stays `xfail`** and CANNOT pass at the kb layer by design: this test calls `KbSearchService`
+directly with a spoofed `section_roles=["confidential"]`, and kb TRUSTS the roles list it is handed
+(frozen 4-arg signature carries no caller identity, `kb-search.v0.md §5.2`). Neutralizing a client-
+declared list is UPSTREAM — the interpreter injects session-resolved roles over recipe-declared ones
+(`interpreter.py:291`, engine #111). The kb-lane acceptance of that override (recipe roles replaced →
+no leak) lives in `test_no_bypass.py`; retire this xfail marker only when the T6-at-interpreter test
+lands green (engine lane, not D17).
 """
 
 from __future__ import annotations
@@ -13,6 +20,8 @@ from uuid import UUID
 
 import pytest
 from psycopg import sql
+from studio_kb.embeddings import derive_vector
+from studio_kb.postgres import _vector_literal
 from studio_kb.search import KbSearchService
 
 # D-13 rename (#25): `tenant_id` là UUID. Đây CHỈ là đổi tên/kiểu cho khớp contract mới —
@@ -24,15 +33,19 @@ TENANT_B = UUID("b0000000-0000-0000-0000-00000000000b")
 
 
 async def _seed_chunk(pool: object, tenant_id: UUID, chunk_id: str, text: str, section_role: str = "public") -> None:
-    async with pool.connection() as conn:  # type: ignore[attr-defined]
+    # Seed WITH an embedding (dim-8 `derive_vector`, same SSOT space as ingest): `PgKbSearch._SEARCH`
+    # filters `AND embedding IS NOT NULL`, so a NULL-embedding row would be dropped and the positive-
+    # inclusion teeth ("chunk-a-1" in results) would false-fail. This completes the placeholder
+    # fixture for the real retrieval path — it does NOT weaken any exclusion assertion.
+    async with pool.connection() as conn, conn.transaction():  # type: ignore[attr-defined]
         await conn.execute(sql.SQL("SET LOCAL app.tenant_id = {}").format(sql.Literal(str(tenant_id))))
         await conn.execute(
-            "INSERT INTO kb.chunks (chunk_id, tenant_id, section_role, text) VALUES (%s, %s, %s, %s)",
-            (chunk_id, tenant_id, section_role, text),
+            "INSERT INTO kb.chunks (chunk_id, tenant_id, section_role, text, embedding) "
+            "VALUES (%s, %s, %s, %s, %s::vector)",
+            (chunk_id, tenant_id, section_role, text, _vector_literal(derive_vector(text))),
         )
 
 
-@pytest.mark.xfail(reason="spec DE fills kb.search; un-ratchet removes this", strict=False)
 async def test_t1_idor(admin_pool: object, pool: object) -> None:
     """T1 IDOR: tenant-a searches; tenant-b owns a chunk that must never surface in tenant-a's
     results. Real assertion — a leaky impl that returns everyone's chunks still fails this."""
@@ -52,7 +65,13 @@ async def test_t1_idor(admin_pool: object, pool: object) -> None:
     assert all(item.tenant_id == TENANT_A for item in results)
 
 
-@pytest.mark.xfail(reason="spec DE fills kb.search; un-ratchet removes this", strict=False)
+@pytest.mark.xfail(
+    reason="T6 enforced by injecting session_roles at interpreter.py:291 (engine #111); kb TRUSTS the "
+    "roles list by design, so this direct KbSearchService call with spoofed roles cannot be closed at "
+    "the kb layer — retire when the T6-at-interpreter test lands green. kb-lane override acceptance: "
+    "test_no_bypass.py.",
+    strict=False,
+)
 async def test_t6_label_spoof(admin_pool: object, pool: object) -> None:
     """T6 label-spoof: tenant-a owns a `section_role="confidential"` chunk. The request itself
     declares `section_roles=["confidential"]` — the server must resolve authorized roles itself
