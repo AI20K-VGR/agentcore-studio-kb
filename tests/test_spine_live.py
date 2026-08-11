@@ -101,7 +101,11 @@ async def _run_spine(
         # chứng chạy được cho DoD D8. Xem `docs/inv1_tenant_wall.md` §5.1.
         # (`ResolvedContext` là `@dataclass(frozen=True, slots=True)` đúng 3 field nên thoả
         # `SessionContext` Protocol về cấu trúc — `studio_engine/session.py:49-63`.)
-        session_context=resolve_session({"tenant_id": tenant_id, "user": "spine-test"}),
+        # `roles=["public"]` server-khai: chunk trích dẫn `ankor-leave-001#c1` là `section: public`.
+        # Vắng `roles` → `resolve_session` mặc định `[]` (least-privilege) → sau khi interpreter
+        # server-resolve `section_roles` từ `session.roles` (engine kit#111/PR21), `[]` = deny-all →
+        # fence lọc hết chunk → mất trích dẫn. Khai đúng role tối thiểu để chuỗi thật vẫn truy được.
+        session_context=resolve_session({"tenant_id": tenant_id, "user": "spine-test", "roles": ["public"]}),
         kb_search=StaticKbSearch(),
         llm=_CitingLLM(answer),
         embedding=_UnusedEmbedding(),
