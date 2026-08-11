@@ -196,6 +196,22 @@ async def test_section_role_not_null_bi_db_tu_choi(pool: object) -> None:
             )
 
 
+async def test_chunk_chua_embed_khong_bao_gio_tra_ve(pool: object, embedding: object) -> None:
+    """Chunk chưa embed (`embedding` NULL) KHÔNG được rời khỏi retrieval — `_SEARCH` có `AND embedding
+    IS NOT NULL`. Bỏ mệnh đề đó thì chunk NULL lọt vào (và `1-(NULL<=>vec)` → `score=float(None)` vỡ).
+    Mutation sweep D17 bắt lỗ này: mọi seed khác đều có embedding nên không test nào chạm mệnh đề — ở
+    đây seed thẳng một dòng embedding NULL để canh riêng. Seed qua INSERT trực tiếp (không `KbIngest`,
+    vốn luôn embed)."""
+    async with pool.connection() as conn, conn.transaction():  # type: ignore[attr-defined]
+        await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(ANKOR_ID),))
+        await conn.execute(
+            "INSERT INTO kb.chunks (chunk_id, tenant_id, section_role, text) VALUES (%s, %s, %s, %s)",
+            ("ankor-unindexed#c1", ANKOR_ID, "public", "chunk chưa embed nhưng đúng tenant và vai"),
+        )
+    # đúng tenant + đúng vai, nhưng embedding NULL → tuyệt đối không trả về
+    assert await PgKbSearch(pool, embedding).search("chunk chưa embed", ANKOR_ID, ["public"], 10) == []  # type: ignore[arg-type]
+
+
 async def test_top_k_khong_am_va_cat_dung_so_luong(pool: object, embedding: object) -> None:
     await KbIngest(pool, embedding).ingest(  # type: ignore[arg-type]
         [_chunk(f"ankor-leave-001#c{n}", ANKOR_ID, "public", f"đoạn số {n} nói về nghỉ phép") for n in (1, 2, 3)]
