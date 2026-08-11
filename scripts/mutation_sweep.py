@@ -34,11 +34,20 @@ Hai lỗ THẬT lần quét này tìm ra, đã vá:
   - `postgres.py` biên `top_k=1` — bản Static đã khoá, bản Postgres thì chưa (`test_pg_kb.py`).
   - `embeddings.py` nhánh vector-0 — docstring chốt hành vi mà không ai kiểm (`test_embedding_fixture.py`).
 
-**Giới hạn phải biết:** 5 loại đột biến — 4 toán tử (so sánh, and/or, `not`, hằng bool/int) + **bỏ
-mệnh đề `AND`/`OR` trong hằng chuỗi SQL** (thêm ở D17 sau khi lỗ mất `AND embedding IS NOT NULL` lọt
-qua 4 toán tử — mệnh đề nằm trong CHUỖI nên không node nào để đổi; xem `_sql_drop_line_indices`). VẪN
-chưa phủ: xoá câu lệnh tuỳ ý, đổi giá trị trả về, hằng chuỗi phi-SQL, biên lát cắt, nhánh bắt ngoại
-lệ. "0 sống sót" nghĩa là sạch **theo các loại này**, không phải sạch tuyệt đối.
+**Giới hạn phải biết:** bộ toán tử (`_points` là nguồn duy nhất — collect và apply cùng đi qua nó):
+  1. so sánh — negation `Eq↔NotEq`, `Lt↔GtE`… (kind `cmp`) VÀ dịch biên `<`↔`<=`, `>`↔`>=`
+     (kind `cmpbound`, bắt off-by-one như lỗ `top_k=1`);
+  2. `and`↔`or` (kind `bool`), bỏ `not` (kind `not`);
+  3. số học `+`↔`-`, `*`↔`/`, `%`↔`//` (kind `arith`);
+  4. hằng bool đảo, hằng int `v→v+1 / v-1 / 0` (kind `const`);
+  5. bỏ mệnh đề `AND`/`OR` trong hằng CHUỖI SQL (kind `sqlline`, thêm ở D17 sau khi lỗ mất
+     `AND embedding IS NOT NULL` lọt qua toán tử node — xem `_sql_drop_line_indices`);
+  6. xoá câu lệnh (kind `delstmt` — bắt lớp "quên gọi `_bind_tenant`"; body rỗng thì chèn `pass`).
+     BỎ QUA thứ xoá-đi-runtime-không-đổi (mutant tương đương, không kill được): import/`pass`/
+     `def`/`class`, chuỗi trần `Expr(str)` ở mọi vị trí, và khối `if TYPE_CHECKING:` — xem
+     `_co_the_xoa`.
+VẪN chưa phủ: đổi giá trị trả về tuỳ ý, hằng chuỗi phi-SQL, biên lát cắt, nhánh bắt ngoại lệ, đảo thứ
+tự câu lệnh. "0 sống sót" nghĩa là sạch **theo các loại này**, không phải sạch tuyệt đối.
 """
 
 from __future__ import annotations
@@ -48,6 +57,7 @@ import os
 import subprocess
 import sys
 import time
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -93,6 +103,25 @@ _CMP_SWAP = {
     ast.IsNot: ast.Is,
 }
 
+# Dịch BIÊN (khác negation ở trên): `<`↔`<=`, `>`↔`>=`. Bắt off-by-one/lẫn biên — đúng lớp lỗi
+# `top_k=1` mà negation không cô lập được (đổi `<` thành `>=` là lật hẳn hướng, không phải xê biên).
+_CMP_BOUND: dict[type[ast.cmpop], type[ast.cmpop]] = {
+    ast.Lt: ast.LtE,
+    ast.LtE: ast.Lt,
+    ast.Gt: ast.GtE,
+    ast.GtE: ast.Gt,
+}
+
+# Số học: `+`↔`-`, `*`↔`/`, `%`↔`//`. Bắt công thức sai dấu/sai phép (paginate, offset, chia lô…).
+_ARITH_SWAP: dict[type[ast.operator], type[ast.operator]] = {
+    ast.Add: ast.Sub,
+    ast.Sub: ast.Add,
+    ast.Mult: ast.Div,
+    ast.Div: ast.Mult,
+    ast.Mod: ast.FloorDiv,
+    ast.FloorDiv: ast.Mod,
+}
+
 
 @dataclass
 class Cand:
@@ -120,82 +149,147 @@ def _sql_drop_line_indices(s: str) -> list[int]:
     return [i for i, ln in enumerate(s.split("\n")) if ln.strip().upper().startswith(_SQL_DROP_PREFIX)]
 
 
-def _thu_thap(tree: ast.AST) -> list[Cand]:
-    """Liệt kê ứng viên theo ĐÚNG thứ tự mà `_dot_bien` sẽ duyệt lại."""
-    out: list[Cand] = []
+# ── apply-factory: mỗi cái trả một closure đổi node IN-PLACE ──
+# Vì sao factory ở tầng module, không def-lồng trong `_points`: định nghĩa nhiều `def ap` cùng tên
+# trong một scope là lỗi redefinition với mypy. Tách ra vừa qua type-check, vừa test được từng cái.
+def _mk_cmp(node: ast.Compare, i: int, new: type[ast.cmpop]) -> Callable[[], None]:
+    def ap() -> None:
+        node.ops[i] = new()
+
+    return ap
+
+
+def _mk_bool(node: ast.BoolOp) -> Callable[[], None]:
+    def ap() -> None:
+        node.op = ast.Or() if isinstance(node.op, ast.And) else ast.And()
+
+    return ap
+
+
+def _mk_binop(node: ast.BinOp, new: type[ast.operator]) -> Callable[[], None]:
+    def ap() -> None:
+        node.op = new()
+
+    return ap
+
+
+def _mk_not(node: ast.UnaryOp) -> Callable[[], None]:
+    def ap() -> None:
+        node.op = ast.UAdd()  # `+X`: với bool/int gần như là chính X
+
+    return ap
+
+
+def _mk_const(node: ast.Constant, val: str | int) -> Callable[[], None]:
+    def ap() -> None:
+        node.value = val
+
+    return ap
+
+
+def _mk_del(body: list[ast.stmt], idx: int) -> Callable[[], None]:
+    def ap() -> None:
+        del body[idx]
+        if not body:  # body rỗng → `ast.unparse` vỡ; chèn `pass` cho hợp lệ cú pháp
+            body.append(ast.Pass())
+
+    return ap
+
+
+def _la_type_checking(test: ast.expr) -> bool:
+    """`test` có phải cờ `TYPE_CHECKING` không — cả `TYPE_CHECKING` trần lẫn `typing.TYPE_CHECKING`."""
+    return (isinstance(test, ast.Name) and test.id == "TYPE_CHECKING") or (
+        isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING"
+    )
+
+
+def _co_the_xoa(stmt: ast.stmt) -> bool:
+    """Câu lệnh có đáng thử xoá không. BỎ QUA cái xoá đi mà **runtime KHÔNG đổi** — chúng không đời
+    nào có test đỏ được (mutant tương đương), chỉ làm loãng danh sách survivor:
+      - `import`/`from`, `pass`, `def`/`class` (xoá cả khối lớn → hàng loạt test đỏ vì NameError,
+        không định vị được lỗ nào);
+      - **chuỗi trần** `Expr(Constant str)` ở BẤT KỲ vị trí — docstring HAY ghi-chú-as-string giữa
+        body: Python tính rồi vứt, xoá là no-op;
+      - **khối `if TYPE_CHECKING:`** — luôn False lúc chạy nên thân khối không bao giờ thực thi.
+    Còn lại — gán, gọi, return, raise, if thường… — mới là chỗ "quên gọi `_bind_tenant`" lớp M7 mà
+    toán tử node không chạm tới."""
+    if isinstance(
+        stmt,
+        (ast.Import, ast.ImportFrom, ast.Pass, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
+    ):
+        return False
+    if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str):
+        return False
+    return not (isinstance(stmt, ast.If) and _la_type_checking(stmt.test))
+
+
+def _tom_tat_stmt(stmt: ast.stmt) -> str:
+    """Dòng đầu của câu lệnh (đã unparse), cắt gọn cho phần mô tả in ra."""
+    return ast.unparse(stmt).strip().split("\n")[0][:44]
+
+
+def _points(tree: ast.AST) -> Iterator[tuple[Cand, Callable[[], None]]]:
+    """Nguồn DUY NHẤT liệt kê điểm đột biến — yield `(Cand, apply)` theo thứ tự ỔN ĐỊNH; `apply()`
+    đổi node IN-PLACE trên CHÍNH `tree` được truyền vào. Cả collect (`_thu_thap`) lẫn apply
+    (`_dot_bien`) đều đi qua đây nên bộ đếm `muc_tieu` không thể lệch khi thêm toán tử — trước kia
+    hai hàm duyệt riêng, mỗi lần thêm kind là một lần suýt lệch counter."""
+    # ── pass 1: điểm toán tử qua ast.walk ──
     for node in ast.walk(tree):
+        line = getattr(node, "lineno", 0)
         if isinstance(node, ast.Compare):
-            for op in node.ops:
-                if type(op) in _CMP_SWAP:
-                    out.append(
-                        Cand(
-                            "cmp", getattr(node, "lineno", 0), f"{type(op).__name__} -> {_CMP_SWAP[type(op)].__name__}"
-                        )
+            for i, op in enumerate(node.ops):
+                t = type(op)
+                if t in _CMP_SWAP:
+                    yield Cand("cmp", line, f"{t.__name__} -> {_CMP_SWAP[t].__name__}"), _mk_cmp(node, i, _CMP_SWAP[t])
+                if t in _CMP_BOUND:
+                    yield (
+                        Cand("cmpbound", line, f"{t.__name__} -> {_CMP_BOUND[t].__name__}"),
+                        _mk_cmp(node, i, _CMP_BOUND[t]),
                     )
         elif isinstance(node, ast.BoolOp):
-            out.append(
-                Cand(
-                    "bool",
-                    getattr(node, "lineno", 0),
-                    f"{type(node.op).__name__} -> {'Or' if isinstance(node.op, ast.And) else 'And'}",
-                )
-            )
+            moi = "Or" if isinstance(node.op, ast.And) else "And"
+            yield Cand("bool", line, f"{type(node.op).__name__} -> {moi}"), _mk_bool(node)
+        elif isinstance(node, ast.BinOp) and type(node.op) in _ARITH_SWAP:
+            new = _ARITH_SWAP[type(node.op)]
+            yield Cand("arith", line, f"{type(node.op).__name__} -> {new.__name__}"), _mk_binop(node, new)
         elif isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
-            out.append(Cand("not", getattr(node, "lineno", 0), "bỏ `not`"))
+            yield Cand("not", line, "bỏ `not`"), _mk_not(node)
         elif isinstance(node, ast.Constant):
             v = node.value
             if isinstance(v, bool):
-                out.append(Cand("const", getattr(node, "lineno", 0), f"{v} -> {not v}"))
-            elif isinstance(v, int) and not isinstance(v, bool):
-                out.append(Cand("const", getattr(node, "lineno", 0), f"{v} -> {v + 1}"))
+                yield Cand("const", line, f"{v} -> {not v}"), _mk_const(node, not v)
+            elif isinstance(v, int):
+                # v+1 (cũ) + v-1 + v→0 (nếu v≠0) — nhiều mutant hơn, bắt off-by và hằng-số-sai.
+                for nv in (v + 1, v - 1, *((0,) if v != 0 else ())):
+                    yield Cand("const", line, f"{v} -> {nv}"), _mk_const(node, nv)
             elif isinstance(v, str):
                 lines = v.split("\n")
                 for i in _sql_drop_line_indices(v):
-                    out.append(Cand("sqlline", getattr(node, "lineno", 0), f"bỏ mệnh đề `{lines[i].strip()[:44]}`"))
-    return out
+                    new_sql = "\n".join(ln for j, ln in enumerate(lines) if j != i)
+                    yield Cand("sqlline", line, f"bỏ mệnh đề `{lines[i].strip()[:44]}`"), _mk_const(node, new_sql)
+    # ── pass 2: điểm xoá câu lệnh — cần parent body nên tự duyệt (ast.walk không cho parent) ──
+    for node in ast.walk(tree):
+        for field in ("body", "orelse", "finalbody"):
+            body = getattr(node, field, None)
+            if not isinstance(body, list):
+                continue
+            for idx, stmt in enumerate(body):
+                if not isinstance(stmt, ast.stmt) or not _co_the_xoa(stmt):
+                    continue
+                yield Cand("delstmt", getattr(stmt, "lineno", 0), f"xoá `{_tom_tat_stmt(stmt)}`"), _mk_del(body, idx)
+
+
+def _thu_thap(tree: ast.AST) -> list[Cand]:
+    """Liệt kê ứng viên theo ĐÚNG thứ tự `_dot_bien` duyệt lại — wrapper mỏng quanh `_points`."""
+    return [c for c, _ in _points(tree)]
 
 
 def _dot_bien(tree: ast.AST, muc_tieu: int) -> ast.AST:
-    """Đi lại đúng thứ tự `ast.walk` và đổi ứng viên thứ `muc_tieu`."""
-    dem = -1
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Compare):
-            for i, op in enumerate(node.ops):
-                if type(op) in _CMP_SWAP:
-                    dem += 1
-                    if dem == muc_tieu:
-                        node.ops[i] = _CMP_SWAP[type(op)]()
-                        return tree
-        elif isinstance(node, ast.BoolOp):
-            dem += 1
-            if dem == muc_tieu:
-                node.op = ast.Or() if isinstance(node.op, ast.And) else ast.And()
-                return tree
-        elif isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
-            dem += 1
-            if dem == muc_tieu:
-                # thay `not X` bằng `X` — NodeTransformer không tiện ở đây nên đánh dấu
-                node.op = ast.UAdd()  # `+X` : với bool/int gần như là chính X
-                return tree
-        elif isinstance(node, ast.Constant):
-            v = node.value
-            if isinstance(v, bool):
-                dem += 1
-                if dem == muc_tieu:
-                    node.value = not v
-                    return tree
-            elif isinstance(v, int):
-                dem += 1
-                if dem == muc_tieu:
-                    node.value = v + 1
-                    return tree
-            elif isinstance(v, str):
-                lines = v.split("\n")
-                for i in _sql_drop_line_indices(v):
-                    dem += 1
-                    if dem == muc_tieu:
-                        node.value = "\n".join(ln for j, ln in enumerate(lines) if j != i)
-                        return tree
+    """Đi lại đúng thứ tự `_points` và áp đúng ứng viên thứ `muc_tieu` (in-place trên `tree`)."""
+    for j, (_c, ap) in enumerate(_points(tree)):
+        if j == muc_tieu:
+            ap()
+            return tree
     return tree
 
 
