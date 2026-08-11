@@ -68,9 +68,13 @@ async def test_t1_idor(admin_pool: object, pool: object) -> None:
 @pytest.mark.xfail(
     reason="T6 enforced by injecting session_roles at interpreter.py:291 (engine #111); kb TRUSTS the "
     "roles list by design, so this direct KbSearchService call with spoofed roles cannot be closed at "
-    "the kb layer — retire when the T6-at-interpreter test lands green. kb-lane override acceptance: "
+    "the kb layer — retire when the T6-at-interpreter test lands green. kb-lane no-bypass teeth: "
     "test_no_bypass.py.",
-    strict=False,
+    # strict=True (review kb#19 F1): a normal run fails the exclusion assertion (kb returns the
+    # spoofed confidential chunk) → xfailed. If it ever XPASSES — e.g. a mutation makes the seam
+    # ignore section_roles so the confidential chunk stops coming back — that is a LOUD failure, not
+    # swallowed. XPASS here means "the fence broke", never "T6 got closed at the kb layer".
+    strict=True,
 )
 async def test_t6_label_spoof(admin_pool: object, pool: object) -> None:
     """T6 label-spoof: tenant-a owns a `section_role="confidential"` chunk. The request itself

@@ -27,12 +27,18 @@ composition, `apps/studio`) constructs with the pool only. So `embedding` is OPT
 this self-provisions a deterministic dim-8 bag-of-words stub over `studio_kb.embeddings.
 derive_vector` — the SAME vector space the corpus is seeded in (`KbIngest`/T3's `_CallistoEmbedding`
 both use `derive_vector`), so `KbSearchService(pool)` retrieves real hits and T3 self-XPASSes with
-AIE-1 changing no call-site (QĐ-U1). Production injects a real `EmbeddingService` via the factory —
-kb does not hardcode a gateway (EmbeddingService owner = AIE-1).
+AIE-1 changing no call-site (QĐ-U1). The `None` path logs a WARNING — it is not silent.
+
+No production factory is wired today: the only call-site outside `packages/kb` is T3
+(`test_kb_search_live_readiness.py`), which calls `KbSearchService(pool)` and therefore always takes
+the stub; every real spine path injects `PgKbSearch(pool, <embedding>)` directly. When a real
+`EmbeddingService` lands (owner = AIE-1) it is passed in here and replaces the stub; kb does not
+hardcode a gateway.
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -45,6 +51,8 @@ from studio_kb.embeddings import derive_vector
 from studio_kb.postgres import PgKbSearch
 
 Pool = AsyncConnectionPool[AsyncConnection[Any]]
+
+_log = logging.getLogger(__name__)
 
 
 class _BagOfWordsEmbedding:
@@ -63,7 +71,17 @@ class KbSearchService:
     `kb.chunks`' RLS policy actually applies. `embedding` is optional — see module docstring."""
 
     def __init__(self, pool: Pool, embedding: EmbeddingService | None = None) -> None:
-        self._pg = PgKbSearch(pool, embedding or _BagOfWordsEmbedding())
+        if embedding is None:
+            # Falling back to the stub is deliberate (QĐ-U1: `KbSearchService(pool)` must work for
+            # T3), but it is NOT silent — a real deployment injecting no EmbeddingService gets
+            # fixture-grade ranking, so say so. The tenant/role FENCE is unaffected either way.
+            _log.warning(
+                "KbSearchService constructed without an EmbeddingService — using the deterministic "
+                "dim-8 bag-of-words stub (derive_vector). Ranking is fixture-grade, not semantic; "
+                "inject a real EmbeddingService for production retrieval quality."
+            )
+            embedding = _BagOfWordsEmbedding()
+        self._pg = PgKbSearch(pool, embedding)
 
     async def search(
         self,
