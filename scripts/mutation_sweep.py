@@ -3,7 +3,7 @@
     docker compose -f docker-compose.test.yml up -d
     export STUDIO_DATABASE_URL_ADMIN=postgresql://studio_owner:changeme@localhost:5433/studio_test
     export STUDIO_DATABASE_URL=postgresql://studio_app:changeme@localhost:5433/studio_test
-    uv run python packages/kb/scripts/mutation_sweep.py     # ~60s, 93 mutant
+    uv run --python 3.14 python packages/kb/scripts/mutation_sweep.py   # ~100s (operator + mệnh đề SQL)
 
 Khác `mutation_check.py` ở chỗ: bài kia là **bộ mutant tuyển chọn** có khai trước tên bài phải đỏ,
 dùng làm bằng chứng nộp kèm. Bài này **quét mù** toàn bộ source để đi TÌM chỗ chưa ai canh.
@@ -34,9 +34,11 @@ Hai lỗ THẬT lần quét này tìm ra, đã vá:
   - `postgres.py` biên `top_k=1` — bản Static đã khoá, bản Postgres thì chưa (`test_pg_kb.py`).
   - `embeddings.py` nhánh vector-0 — docstring chốt hành vi mà không ai kiểm (`test_embedding_fixture.py`).
 
-**Giới hạn phải biết:** chỉ 4 loại toán tử (so sánh, and/or, `not`, hằng bool/int). KHÔNG phủ: xoá
-câu lệnh, đổi giá trị trả về, hằng chuỗi, biên của lát cắt, nhánh bắt ngoại lệ. "0 sống sót" nghĩa là
-sạch **theo bốn loại này**, không phải sạch tuyệt đối.
+**Giới hạn phải biết:** 5 loại đột biến — 4 toán tử (so sánh, and/or, `not`, hằng bool/int) + **bỏ
+mệnh đề `AND`/`OR` trong hằng chuỗi SQL** (thêm ở D17 sau khi lỗ mất `AND embedding IS NOT NULL` lọt
+qua 4 toán tử — mệnh đề nằm trong CHUỖI nên không node nào để đổi; xem `_sql_drop_line_indices`). VẪN
+chưa phủ: xoá câu lệnh tuỳ ý, đổi giá trị trả về, hằng chuỗi phi-SQL, biên lát cắt, nhánh bắt ngoại
+lệ. "0 sống sót" nghĩa là sạch **theo các loại này**, không phải sạch tuyệt đối.
 """
 
 from __future__ import annotations
@@ -99,6 +101,25 @@ class Cand:
     mo_ta: str
 
 
+_SQL_START = ("SELECT", "INSERT", "UPDATE", "DELETE", "WITH")
+_SQL_DROP_PREFIX = ("AND ", "OR ")
+
+
+def _sql_drop_line_indices(s: str) -> list[int]:
+    """Chỉ số các dòng mệnh đề `AND`/`OR` có thể bỏ trong một hằng chuỗi SQL nhiều dòng.
+
+    Bỏ một conjunct = nới lỏng bộ lọc — đúng LỚP lỗ mà 4 toán tử cũ KHÔNG chạm tới: mệnh đề nằm
+    trong hằng CHUỖI, không phải node so sánh/bool/int, nên `ast.walk` không có gì để đổi. Chính là
+    chỗ `_SEARCH` mất `AND embedding IS NOT NULL` (hay `AND section_role = ANY(%s)`) lọt lưới.
+
+    Chỉ nhận chuỗi **bắt đầu bằng lệnh SQL** (SELECT/INSERT/…) để không quét nhầm docstring/prose có
+    chứa chữ "WHERE"/"AND". Bỏ dòng `AND`/`OR` trên câu `WHERE x AND y AND z` luôn còn cú pháp hợp lệ.
+    """
+    if "\n" not in s or not s.strip().upper().startswith(_SQL_START):
+        return []
+    return [i for i, ln in enumerate(s.split("\n")) if ln.strip().upper().startswith(_SQL_DROP_PREFIX)]
+
+
 def _thu_thap(tree: ast.AST) -> list[Cand]:
     """Liệt kê ứng viên theo ĐÚNG thứ tự mà `_dot_bien` sẽ duyệt lại."""
     out: list[Cand] = []
@@ -127,6 +148,10 @@ def _thu_thap(tree: ast.AST) -> list[Cand]:
                 out.append(Cand("const", getattr(node, "lineno", 0), f"{v} -> {not v}"))
             elif isinstance(v, int) and not isinstance(v, bool):
                 out.append(Cand("const", getattr(node, "lineno", 0), f"{v} -> {v + 1}"))
+            elif isinstance(v, str):
+                lines = v.split("\n")
+                for i in _sql_drop_line_indices(v):
+                    out.append(Cand("sqlline", getattr(node, "lineno", 0), f"bỏ mệnh đề `{lines[i].strip()[:44]}`"))
     return out
 
 
@@ -164,6 +189,13 @@ def _dot_bien(tree: ast.AST, muc_tieu: int) -> ast.AST:
                 if dem == muc_tieu:
                     node.value = v + 1
                     return tree
+            elif isinstance(v, str):
+                lines = v.split("\n")
+                for i in _sql_drop_line_indices(v):
+                    dem += 1
+                    if dem == muc_tieu:
+                        node.value = "\n".join(ln for j, ln in enumerate(lines) if j != i)
+                        return tree
     return tree
 
 

@@ -1,14 +1,18 @@
-"""`mutation_sweep._restore_orig_files` — khoá tính nghịch đảo của cặp đường dẫn `.orig`.
+"""`mutation_sweep` self-test — khoá phần logic tinh vi của chính tool sweep (chạy **không cần
+Postgres**).
 
-Chạy **không cần Postgres**: chỉ đụng số học đường dẫn và I/O trên `tmp_path`, đúng chỗ suite
-mutation phủ 0%. Bug đã bắt: `with_suffix("").with_suffix(".py")` cho `<tên>.py.mutation_sweep.orig`
-ra `<tên>.py.py` (không bao giờ tồn tại) → nhánh restore không chạy mà `.orig` vẫn bị xoá ⇒ mutant
-thường trú. `test_orig_va_src_nghich_dao` khoá đúng một dòng số học đó; `test_restore_khoi_phuc_mutant`
-chạy thẳng hàm trên cây giả để chốt hành vi round-trip.
+- `_restore_orig_files` + path-inverse: bug đã bắt `with_suffix("").with_suffix(".py")` cho
+  `<tên>.py.mutation_sweep.orig` ra `<tên>.py.py` (không bao giờ tồn tại) → restore không chạy mà
+  `.orig` vẫn bị xoá ⇒ mutant thường trú.
+- **Toán tử `sqlline` (D17):** bỏ mệnh đề `AND`/`OR` trong hằng chuỗi SQL — thêm vào tool sau khi lỗ
+  mất `AND embedding IS NOT NULL` lọt qua 4 toán tử node. Logic này (`_sql_drop_line_indices` +
+  nhánh `str` trong `_thu_thap`/`_dot_bien`) phải được test như mọi code khác — nếu collect↔apply
+  lệch nhau thì bộ đếm `muc_tieu` trượt và mọi số sweep thành rác.
 """
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import sys
 from pathlib import Path
@@ -56,3 +60,53 @@ def test_restore_ghi_lai_ca_khi_nguon_da_bi_xoa(tmp_path: Path, monkeypatch: pyt
 
     assert (tmp_path / "trace_reader.py").read_text() == "GOC"
     assert not orig.exists()
+
+
+# ── Toán tử sqlline (D17) ───────────────────────────────────────────────────────
+
+
+def test_sqlline_chi_bat_and_or_trong_chuoi_sql() -> None:
+    """Chỉ lấy dòng `AND`/`OR`, và chỉ trên chuỗi bắt đầu bằng lệnh SQL."""
+    sql = "\nSELECT x\nFROM t\nWHERE a = %s\n  AND b = %s\n  AND c IS NOT NULL\n"
+    idx = mutation_sweep._sql_drop_line_indices(sql)
+    lines = sql.split("\n")
+    assert [lines[i].strip() for i in idx] == ["AND b = %s", "AND c IS NOT NULL"]
+
+
+def test_sqlline_bo_qua_prose_va_chuoi_mot_dong() -> None:
+    """Văn xuôi/docstring chứa 'WHERE'/'AND' nhưng KHÔNG bắt đầu bằng lệnh SQL → bỏ qua (chống ngập
+    survivor). Chuỗi một dòng cũng không có ứng viên."""
+    prose = "Ghi chú: lọc theo WHERE tenant.\nAND đây là văn xuôi, không phải SQL"
+    assert mutation_sweep._sql_drop_line_indices(prose) == []
+    assert mutation_sweep._sql_drop_line_indices("SELECT 1 WHERE a AND b") == []
+
+
+def test_sqlline_khop_search_that_cua_postgres() -> None:
+    """Neo vào SQL THẬT: `_SEARCH` phải có đúng 2 mệnh đề `AND` bỏ được (chính là chỗ lỗ M3 từng
+    lọt). Nếu ai đổi shape query, test này kêu."""
+    from studio_kb import postgres
+
+    idx = mutation_sweep._sql_drop_line_indices(postgres._SEARCH)
+    dropped = [postgres._SEARCH.split("\n")[i].strip() for i in idx]
+    assert dropped == ["AND section_role = ANY(%s)", "AND embedding IS NOT NULL"]
+
+
+def test_sqlline_collect_va_apply_dong_bo() -> None:
+    """collect↔apply phải khớp: ứng viên sqlline thứ k, `_dot_bien` bỏ ĐÚNG dòng đó (không lệch bộ
+    đếm). Đây là chỗ dễ vỡ nhất khi thêm toán tử mới."""
+    src = 'Q = """\nSELECT x\nFROM t\nWHERE a = %s\n  AND b = %s\n  AND c = %s\n"""\n'
+    cands = mutation_sweep._thu_thap(ast.parse(src))
+    sql_cands = [i for i, c in enumerate(cands) if c.kind == "sqlline"]
+    assert len(sql_cands) == 2
+
+    out0 = ast.unparse(mutation_sweep._dot_bien(ast.parse(src), sql_cands[0]))
+    assert "AND b = %s" not in out0 and "AND c = %s" in out0  # bỏ đúng dòng đầu, giữ dòng sau
+    out1 = ast.unparse(mutation_sweep._dot_bien(ast.parse(src), sql_cands[1]))
+    assert "AND c = %s" not in out1 and "AND b = %s" in out1
+
+
+def test_sqlline_khong_sinh_tu_docstring() -> None:
+    """`_thu_thap` không được sinh ứng viên `sqlline` từ docstring văn xuôi (chỉ `const` cho số)."""
+    src = 'def f():\n    """WHERE tenant.\n    AND prose."""\n    return 1\n'
+    cands = mutation_sweep._thu_thap(ast.parse(src))
+    assert not any(c.kind == "sqlline" for c in cands)
