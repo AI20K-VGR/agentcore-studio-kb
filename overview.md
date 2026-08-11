@@ -18,6 +18,8 @@ Lưu ý: đây là văn bản do DongAnh2704 tự thiết kế và không có tr
 - **2026-08-05 (D13):** tạo file lần đầu — tổng hợp trọn 12 ngày (D1→D12) + trạng thái D13.
 - **2026-08-06 (D14):** thêm D13→D14 vào nhật ký — kho pgvector thật (D13) + bộ câu mẫu "có răng" cho AIE-1 đo chất lượng tìm kiếm (D14).
 - **2026-08-07 (D15):** chuyển "hôm nay" sang D15 — hoàn thiện màn hình xem nhật ký (thêm token + kiểm thứ tự đơn điệu); dọn mô tả trôi ở kho. **Không đổi cơ chế ghi nhật ký.**
+- **2026-08-10 (D16):** thêm D15→D16 — bộ **30 câu chấm điểm (golden-30)** dựng dạng "khắc đĩa" (nguồn viết bằng code → sinh file khớp **đúng từng byte**); **chưa đụng hàng rào**.
+- **2026-08-11 (D17):** chuyển "hôm nay" sang D17 — **lật "cửa chính thức" của kho + đóng hai lỗ rò rỉ T1/T6 ngay tại chỗ lấy dữ liệu**; nâng cấp công cụ tự kiểm chất lượng test.
 
 ---
 
@@ -172,7 +174,7 @@ tài liệu borea → agent **từ chối**, không lộ con số của borea. �
 
 ---
 
-## 5. Nhật ký từng ngày (D1→D14) — mỗi ngày team làm được gì (INPUT → OUTPUT)
+## 5. Nhật ký từng ngày (D1→D16) — mỗi ngày team làm được gì (INPUT → OUTPUT)
 
 Đọc theo tuần. Mỗi ô ghi: **mục tiêu ngày**, rồi **ai làm gì** (nhận đầu vào từ đâu → cho ra cái gì).
 
@@ -240,30 +242,43 @@ chuẩn**: 14 câu "khó" (mỗi câu có ≥2 đoạn cạnh tranh cùng khách
 tốt/xấu) + 6 câu **bẫy rò rỉ** (T1/T6). *Input:* kho 140 đoạn. *Output:* bộ câu mẫu cho AIE-1 đo trade-off
 "cắt đoạn × vector" (DE cấp nhãn, không tự đo).
 
+**Ngày 15 (07/08) — Hoàn thiện "màn hình xem nhật ký".** DE thêm **số token mỗi dòng** + **kiểm thứ
+tự thời gian** cho màn hình xem nhật ký (cơ chế ghi KHÔNG đổi). *Input:* nhật ký có sẵn. *Output:*
+viewer báo rõ "đúng thứ tự / có đảo".
+
+**Ngày 16 (10/08) — Bộ 30 câu chấm điểm "khắc đĩa".** DE nâng **bộ 30 câu mẫu** (đã gán nhãn tay từ
+D14) thành dạng **"khắc đĩa" (recorded)**: nguồn viết bằng code, sinh ra file khớp **đúng từng byte** —
+sửa một câu mà quên cập nhật là test báo **đỏ** ngay. *Input:* 30 câu D14 + kho 140 đoạn. *Output:* bộ
+chấm điểm ổn định cho cả tuần (hàng rào D17 · nhãn tay D18 · nghiệm thu D20). **Chưa đụng hàng rào.**
+
 ---
 
-## 6. Hôm nay đang ở đâu? (D15 — 07/08)
+## 6. Hôm nay đang ở đâu? (D17 — 11/08)
 
-**Việc DE hôm nay (#100):** hoàn thiện **"màn hình xem nhật ký" (trace viewer)** cho đủ yêu cầu Ngày 15.
+**Việc DE hôm nay (#110) — mốc an ninh lớn nhất tuần:** **lật "cửa chính thức" của kho tài liệu** và
+**đóng hai lỗ rò rỉ ngay tại chỗ lấy dữ liệu**.
 
-- **Màn hình xem nhật ký đã có từ Ngày 5** — in được timeline + chi phí + trích dẫn + kết luận "không
-  sót bước". Hôm nay **KHÔNG đổi cơ chế ghi nhật ký**, chỉ **vá 2 lỗ trên phần XEM**:
-  1. **In thêm token** (prompt/completion) trên mỗi dòng — con số vốn đã được thu, trước chỉ chưa hiển thị.
-  2. **Kiểm "thứ tự đơn điệu"** — viewer nói rõ nhật ký có phát ra đúng thứ tự thời gian không (trước
-     chỉ âm thầm sắp lại rồi trông như luôn ổn).
-- **Hàng rào tại chỗ lấy dữ liệu (chuẩn bị Ngày 17):** hôm nay chỉ **kiểm chứng** kho thật `PgKbSearch`
-  đã chặn rò rỉ (0-leak) + dọn mô tả cho khớp; **chưa lật "cửa chính thức" `KbSearchService`** — việc đó
-  để Ngày 17 (cần thêm phần INV-1 của SWE).
-- **Trạng thái:** đã mở **PR (#16 ở repo kb)**, chờ review/CI. Buổi ghép cả nhóm (Integration Friday):
-  phần DE (viewer đọc-lại) đã sẵn, **bản ghi buổi ghép còn treo**.
+- **Lật "cửa chính thức" (`KbSearchService`):** trước đây cửa chính thức còn **để trống** (mọi luồng
+  thật đi vòng qua bản kho-pgvector). Hôm nay cửa được **nối thẳng vào kho thật có hàng rào** — không
+  còn đường vòng, ai đi cửa chính cũng qua đúng hàng rào.
+- **Đóng T1 (đọc chéo khách hàng):** khách A hỏi thì **tuyệt đối không** lấy được đoạn của khách B —
+  chặn ngay khi truy vấn, không nhờ AI "đừng nói".
+- **Đóng T6 (giả nhãn vai):** kẻ khai gian "tôi thuộc phòng nhân sự" **không qua được** — vai được
+  **server tự tra từ phiên**, không tin lời tự khai. (Khớp nối cuối với "tường" của SWE còn chờ đồng
+  bộ — issue kit#111.)
+- **Nâng công cụ tự kiểm chất lượng test (mutation sweep):** DE mở rộng "máy soi lỗ test" — cố tình
+  **làm hỏng từng dòng code** rồi chạy test xem có bài nào bắt được không; thêm 4 kiểu "làm hỏng" mới,
+  đáng giá nhất là **xoá hẳn một dòng** để bắt lỗi "quên gọi hàm bảo mật".
+
+**Trạng thái:** PR **kb#19 đã gộp** (hàng rào + T1/T6, 211 bài test đạt); PR **kb#20 đang mở** (công cụ
+test + một sửa phòng-xa). Đã trả lời hai câu điều phối của AIE-2 trên #110.
 
 **Điều cần biết cho người non-tech:** "vector" hiện vẫn tính bằng **đếm từ chung** (bag-of-words), **chưa
 phải AI hiểu nghĩa thật** — đổi sang vector-hiểu-nghĩa để **Sprint 3**, khi có hạ tầng bảo mật. Chấm điểm
 là *quy trình + hàng rào*, không phải *độ thông minh của AI*.
 
-**Các ngày tới (D16→D20):** bộ 30 câu kiểm định (D16) → siết hàng rào chống rò rỉ T1/T6 + **lật cửa
-chính thức** (D17) → nhãn tay đo đồng thuận (D18) → giá tiền token cùng-1-số (D19) → **GATE-2 (D20)**
-ghép cả 4 mảng chạy thật lần đầu.
+**Các ngày tới (D18→D20):** nhãn tay đo đồng thuận (D18) → giá tiền token cùng-1-số (D19) → **GATE-2
+(D20)** ghép cả 4 mảng chạy thật lần đầu.
 
 ---
 
@@ -288,6 +303,8 @@ ghép cả 4 mảng chạy thật lần đầu.
 | **INV-1 / tenant-wall** | "Tường" xác định danh tính khách hàng ở server, bỏ qua lời client tự khai |
 | **fixtures-first** | Test chạy 100% bằng dữ liệu ghi sẵn, không cần AI thật — để kết quả luôn lặp lại |
 | **T1 / T6** | Hai kiểu tấn công rò rỉ: T1 = đọc chéo khách hàng; T6 = giả nhãn vai để đọc trộm |
+| **mutation testing (soi lỗ test)** | Cố tình làm hỏng từng dòng code rồi chạy test: nếu mọi bài vẫn xanh = dòng đó chưa ai canh (lỗ test) |
+| **KbSearchService (cửa chính thức)** | "Cửa" chuẩn để hỏi kho; D17 nối thẳng vào kho thật có hàng rào (trước để trống, đi đường vòng) |
 
 ---
 

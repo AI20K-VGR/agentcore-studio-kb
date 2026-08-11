@@ -15,6 +15,8 @@ Lưu ý: đây là văn bản do DongAnh2704 tự thiết kế và không có tr
 - **2026-08-05 (D13):** tạo lần đầu — tổng hợp D1→D12 + trạng thái D13 (pg pipeline live).
 - **2026-08-06 (D14):** +D14 — golden query grid (`grid_queries.py` + `emit_grid_queries.py` → `callisto-grid-queries-v0.yaml`, 20 case) cho AIE-1 đo chunking×embedding. PR kb#15 merged.
 - **2026-08-07 (D15):** +D15 — trace viewer bổ `tokens` + `check_ts_monotonic` trong `render_timeline`; vá drift docstring `postgres.py` (PgKbSearch wired D13 vs seam `KbSearchService` để D17). PR kb#16 mở. **Không đổi cơ chế ghi trace** (sink D5 giữ nguyên).
+- **2026-08-10 (D16):** +D16 — golden-set 30 **recorded**: `src/studio_kb/golden_set.py` typed (`GOLDEN_CASES` 22 dương + 8 âm) → `emit_golden_set.py` → `callisto-golden-30-v1.yaml` byte-identical; `build_callisto.py` 1-script-2-deliverable; `git mv` draft→v1 (R100); +3 guard (byte-identical · phủ-biên `EDGE_AXES` · refusal module↔yaml). kb 199 passed/2 xfailed. PR kb#18 merged.
+- **2026-08-11 (D17):** +D17 — **un-ratchet fence tại retrieval** (kb#19 **merged** `847376f`): `KbSearchService.search` DELEGATE `PgKbSearch` (hết `NotImplementedError`), **xoá `test_search_contract.py`**, gỡ xfail T1/T6 trong `test_leak`; ctor `(pool)`→`(pool, embedding=None)` self-provision stub. Follow-up kb#20 (mở): mở rộng operator `mutation_sweep` + prereq `test_spine_live` (kit#111). kb 222 passed/1 xfailed.
 
 ---
 
@@ -87,7 +89,7 @@ Bảng điểm/case: `success` (Đạt/Không) + `citation_accuracy`. `citation_
 |---|---|---|
 | `tenant_id` | **RLS** (DB) | policy `FORCE` khoá `app.tenant_id` phiên |
 | `section_role` | **chỉ `WHERE section_role = ANY(...)`** | không có RLS policy — mất mệnh đề = hở T6, im lặng |
-Đây là lý do `WHERE tenant_id` vẫn viết tường minh dù có RLS: phòng thủ chiều sâu (một refactor quên `set_config` là RLS bốc hơi). Khoảng trống v0 còn lại: `section_roles` hiện dùng **giá trị client khai**, chưa phân giải server-side — chữ ký `search()` không mang danh tính người gọi nên không giải được trong module; đóng T6 hoàn toàn cần **INV-1 tầng session (SWE #112, D17)**.
+Đây là lý do `WHERE tenant_id` vẫn viết tường minh dù có RLS: phòng thủ chiều sâu (một refactor quên `set_config` là RLS bốc hơi). **Trạng thái D17:** kb đã un-ratchet fence tại retrieval (T1 đóng hẳn — `test_leak` pass thật). T6 phía kb là **fail-closed trên `section_roles` được-giao**; đóng label-spoof HOÀN TOÀN cần interpreter **server-resolve `section_roles` từ `session.roles`** (engine **kit#111 / PR#21**, chưa merge) + INV-1 tầng session (SWE #112) — `search()` không mang danh tính người gọi nên không tự giải trong module kb.
 
 ### 3.4 Ba impl `KbSearch` — phân biệt
 | Impl | File | Nguồn | Xếp hạng | Vai |
@@ -95,7 +97,7 @@ Bảng điểm/case: `success` (Đạt/Không) + `citation_accuracy`. `citation_
 | `EmptyKbSearch` | engine/demo_stubs | — | luôn `[]` | demo stub |
 | `StaticKbSearch` | kb/static_search.py | 42 doc `.md` trong RAM (`load_callisto`) | **token-overlap thô** | v0 S1, `KbRetrieveExecutor` tiêm vào |
 | `PgKbSearch` | kb/postgres.py | `kb.chunks` + pgvector | **cosine `<=>`** | bản thật S2 (D13), fail-closed RLS |
-`KbSearchService` (kb/search.py) = seam canon, **giữ `NotImplementedError`** (test_search_contract XANH khẳng định; test_leak T1/T6 `xfail`). Un-ratchet (delegate → PgKbSearch + gỡ xfail) là **D17**, không phải D13. AIE-1 D13 tiêm thẳng `PgKbSearch`.
+`KbSearchService` (kb/search.py) = seam canon. **Un-ratcheted D17 (kb#19):** `search()` hết `NotImplementedError`, **DELEGATE một dòng → `PgKbSearch.search`**; `test_search_contract.py` **đã xoá**; xfail T1/T6 trong `test_leak` **đã gỡ** (giờ pass thật). Ctor `(pool, embedding=None)` — `KbSearchService(pool)` (T3 apps) self-provision stub `derive_vector` để XPASS, spine thật tiêm `PgKbSearch(pool, <embedding>)` trực tiếp (đường D13 vẫn giữ).
 
 ### 3.5 EmbeddingService (AIE-1 giữ bút, #81/#32)
 Protocol `async embed(texts: list[str]) -> list[list[float]]`. "2-impl": stub local fixtures (CI) + gateway (INV-4, tùy chọn). `KbIngest`/`PgKbSearch` **nhận EmbeddingService tiêm vào** — cùng một impl cho ingest & search để vector cùng không gian. Ràng buộc DE↔AIE-1: `EMBEDDING_DIM = 8` (`schema.py`, khớp `FakeEmbedding.dim`).
@@ -148,6 +150,8 @@ CLI: `load_callisto()` → `KbIngest(pool, _FixtureEmbedding()).ingest()`. Pool 
 - **D13 (08-05, #90):** DE lật KB tĩnh → **pgvector thật** — `scripts/ingest_callisto.py` (ankor 71·borea 69=140, idempotent), export `KbIngest`/`PgKbSearch` trong `__init__`; AIE-1 tiêm thẳng `PgKbSearch` vào `KbRetrieveExecutor` (ghép thật DE×AIE-1). `KbSearchService` giữ `NotImplementedError` (un-ratchet=D17). PR kb#13/#14 merged.
 - **D14 (08-06, #95):** DE cấp **golden query grid + expected chunks** — `grid_queries.py` (typed) → `emit_grid_queries.py` → `callisto-grid-queries-v0.yaml` (20 case: 14 dương **teeth ≥2 ứng viên cùng scope** + 6 âm T1/T6), `test_grid_inputs.py` annotate-verified. Ground-truth cho AIE-1 (#96) đo recall/precision qua ES 2-impl. Không đổi `EMBEDDING_DIM=8`. PR kb#15 merged.
 - **D15 (08-07, #100):** DE hoàn thiện **trace viewer** — `render_timeline` bổ `tokens{prompt/completion}` (số đã thu, trước chưa in) + thêm `check_ts_monotonic` (đo thứ tự phát đơn điệu trên `ts` gốc, `<` nên trùng ts không tính đảo) → viewer báo `✅ monotonic`/`⚠ đảo`. Vá drift docstring `postgres.py`. tenant-filter tại retrieve: **verify** `PgKbSearch` 0-leak (16 passed, 2 xfailed) + scaffold D17, **KHÔNG lật `KbSearchService`**. 4 test mới; kb 190 passed/2 xfailed. PR kb#16 mở.
+- **D16 (08-10, #105):** DE nâng golden-set 30 lên **recorded** — `src/studio_kb/golden_set.py` typed (`GOLDEN_CASES` 22 dương + 8 âm, `render_yaml()` tái tạo đúng-từng-byte, `EDGE_AXES` 7 trục biên) là **nguồn sự thật** (không parse yaml — kb không kéo `pyyaml`); `scripts/build_callisto.py` **1-script-2-deliverable** (KB manifest + golden cùng `load_callisto()` → chunk_id khớp do kiến tạo); `emit_golden_set.py` byte-identical; `git mv` draft→`callisto-golden-30-v1.yaml` (R100 zero-diff) + sửa `test_golden_set.py:29` cùng commit. +3 guard: byte-identical · phủ-biên `EDGE_AXES` · refusal module↔yaml (bịt mutant `is_refusal` bỏ `not`). Invariant `teeth≥2` (`test_golden_set.py:146`) + duy-nhất (`:137-145`) giữ. kb 199 passed/2 xfailed. PR kb#18 merged. Phân tích blocker D17 (B1 embedding optional+factory · B2/B4 khoá bởi `kb-search.v0.md §5.2`=SWE#112 · B3 audit carrier `trace-event.v0.md §7`).
+- **D17 (08-11, #110):** **un-ratchet fence tại retrieval.** kb#19 (**merged** `847376f`, 6 commit): `KbSearchService.search`→DELEGATE `PgKbSearch` (hết `NotImplementedError`), xoá `test_search_contract.py`, gỡ xfail T1/T6, ctor `(pool, embedding=None)` self-provision stub; T1 đóng hẳn, T6 fail-closed trên roles-được-giao (label-spoof đầy đủ chờ kit#111). AIE-2 re-review **APPROVED** (F1 M1 SURVIVE→DIE). kb 211 passed/1 xfailed. Follow-up kb#20 (mở, nhánh `day17/de-mutation-operators`): **mở rộng operator `mutation_sweep`** (gộp `_thu_thap`/`_dot_bien`→`_points`; +`cmpbound`/`arith`/int `v-1`&`v→0`/`delstmt`; `delstmt` skip mutant tương đương: import/pass/def/class + `Expr(str)` mọi vị trí + `if TYPE_CHECKING`) + prereq `test_spine_live` `roles=["public"]` (kit#111). Kiểm chứng 3 tầng: self-test 8→19 · meta-mutation 8/8 seam bind · test-mutation 0 assert rỗng. Sweep 519 mutant/79 sống sót (0 rác). kb 222 passed/1 xfailed. Reply coordinate #110 ③④ cho AIE-2 (golden-30 đã có teeth≥2; contention-đo-embedding là trục AIE-2, không sửa golden-30).
 
 ---
 
@@ -163,7 +167,7 @@ CLI: `load_callisto()` → `KbIngest(pool, _FixtureEmbedding()).ingest()`. Pool 
 
 **Embedding hiện tại:** cosine `<=>` trên **vector bag-of-words** (chưa ngữ nghĩa). Đổi sang model thật = S3/Phase-2, có điều kiện hạ tầng — không nằm trong D11–20 hay Day 30 (#67 là test-acceptance-set).
 
-**Roadmap D14→D20:** ✅ #95 golden query grid (D14, merged) · ✅ #100 trace viewer tokens+monotonic (D15, PR#16) · **tiếp:** #105 golden-set 30 (D16) · **#110+#112+#114 fence T1/T6 + INV-1 server-side = nơi lật `KbSearchService` (D17)** · #115 nhãn tay (D18) · #120 cost-lineage (D19) · **#125/#129 GATE-2 (D20)** spine 4 mảng chạy thật lần đầu.
+**Roadmap D14→D20:** ✅ #95 golden query grid (D14, merged) · ✅ #100 trace viewer tokens+monotonic (D15, kb#16) · ✅ #105 golden-set 30 recorded (D16, kb#18 merged) · ✅ **#110 fence un-ratchet T1/T6 (D17, kb#19 merged** + follow-up kb#20 mutation-operators) · **tiếp:** #115 nhãn tay (D18) · #120 cost-lineage (D19) · **#125/#129 GATE-2 (D20)** spine 4 mảng chạy thật lần đầu. **Chờ chéo-lane:** kit#111 (engine PR#21 server-resolve `section_roles`) để đóng T6 label-spoof hoàn toàn + bump con trỏ.
 
 > **Ghi chú lật `KbSearchService` (D17, #110):** un-ratchet CẦN 3 bước (delegate `PgKbSearch` + xoá `test_search_contract.py` + gỡ xfail `test_leak` T1/T6) và **phụ thuộc SWE #112** (resolve `section_role` server-side — không có #112 thì **chỉ đóng được T1, T6 vẫn rò**). Ctor đổi `(pool)`→`(pool, embedding)` (DL-13.1) + đồng bộ T3 bên apps lockstep. Các dependency đều là issue **D17 same-day** — phải chốt interface #112 TRƯỚC D17.
 
@@ -191,7 +195,7 @@ export STUDIO_DATABASE_URL=postgresql://studio_app:changeme@localhost:5433/studi
 uv run pytest                      # full workspace (conftest gốc cấp admin_pool/pool)
 uv run ruff check . && uv run mypy packages apps && uv run lint-imports
 uv run python packages/kb/scripts/ingest_callisto.py            # nạp 140 chunk
-uv run python packages/kb/scripts/mutation_sweep.py            # ~141s, 93 mutant
+uv run python packages/kb/scripts/mutation_sweep.py            # ~408s, 519 mutant (D17: +cmpbound/arith/int/delstmt)
 ```
 Pin **3.14** (`.venv/bin/python` hoặc `uv run --python 3.14`), cấm `python3` trần. skip ≠ pass — bật DB trước.
 
@@ -204,6 +208,8 @@ Pin **3.14** (`.venv/bin/python` hoặc `uv run --python 3.14`), cấm `python3`
 - Schema/pipeline: `packages/kb/src/studio_kb/{schema,postgres,doc_factory,embeddings,static_search,search}.py`
 - Trace viewer (đọc): `packages/kb/src/studio_kb/trace_reader.py` (`render_timeline` · `check_walk` · `check_ts_monotonic` · `PgTraceReader`)
 - Golden grid (D14): `packages/kb/src/studio_kb/grid_queries.py` + `scripts/emit_grid_queries.py` → `golden/callisto-grid-queries-v0.yaml`
+- Golden-set 30 (D16): `packages/kb/src/studio_kb/golden_set.py` (typed, `GOLDEN_CASES`/`EDGE_AXES`) + `scripts/{build_callisto,emit_golden_set}.py` → `golden/callisto-golden-30-v1.yaml`; guard `tests/test_golden_set.py` (byte-identical · teeth≥2 · duy-nhất · refusal)
+- Mutation sweep (D9, mở rộng D17): `packages/kb/scripts/mutation_sweep.py` (`_points` collect/apply; operator cmp/cmpbound/bool/not/arith/const/sqlline/delstmt) + `tests/test_mutation_sweep.py`
 - Đề bài gốc: `docs/requirements/00-orientation/{brief-overview,pre-reading,decisions-locked}.md`
 - Kế hoạch/nhật ký DE: `packages/kb/plans/`, `docs/reports/daily-notes/`
 - Bản non-tech: `packages/kb/overview.md`
