@@ -99,10 +99,13 @@ def test_sqlline_collect_va_apply_dong_bo() -> None:
     sql_cands = [i for i, c in enumerate(cands) if c.kind == "sqlline"]
     assert len(sql_cands) == 2
 
+    # Tách từng vế (không `and`): để mutation And->Or trên chính assert này bị bắt, và lỗi rõ vế nào.
     out0 = ast.unparse(mutation_sweep._dot_bien(ast.parse(src), sql_cands[0]))
-    assert "AND b = %s" not in out0 and "AND c = %s" in out0  # bỏ đúng dòng đầu, giữ dòng sau
+    assert "AND b = %s" not in out0  # ứng viên đầu → bỏ đúng dòng "AND b"
+    assert "AND c = %s" in out0  # dòng "AND c" phải còn nguyên
     out1 = ast.unparse(mutation_sweep._dot_bien(ast.parse(src), sql_cands[1]))
-    assert "AND c = %s" not in out1 and "AND b = %s" in out1
+    assert "AND c = %s" not in out1  # ứng viên sau → bỏ đúng dòng "AND c"
+    assert "AND b = %s" in out1  # dòng "AND b" phải còn nguyên
 
 
 def test_sqlline_khong_sinh_tu_docstring() -> None:
