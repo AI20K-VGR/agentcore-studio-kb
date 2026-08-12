@@ -149,9 +149,9 @@ def test_khong_mat_doc_nao_ngoai_cost_py_goi_cost_of() -> None:
             continue  # nguồn giá duy nhất được phép giữ cost_of (price_mismatches)
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
-            is_name = isinstance(node, ast.Name) and node.id == "cost_of"
-            is_attr = isinstance(node, ast.Attribute) and node.attr == "cost_of"
-            if is_name or is_attr:
+            if (isinstance(node, ast.Name) and node.id == "cost_of") or (
+                isinstance(node, ast.Attribute) and node.attr == "cost_of"
+            ):
                 offenders.append(f"{path.relative_to(kb_root)}:{node.lineno}")
 
     assert offenders == [], f"mặt đọc tự tính cost qua cost_of (vi phạm §4.1 'không mặt nào tự tính'): {offenders}"
