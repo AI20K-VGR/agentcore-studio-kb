@@ -99,7 +99,7 @@ Bật RLS / DROP bảng **đổi runtime lane khác** + là quyết định INV-
 |---|---|---|
 | DE (bút + mẫu kb) | Nguyễn Đông Anh | ✅	|
 | SWE | Thiệu Quang Minh | ✅ 2026-08-12 — **phần B** (RLS `wb.recipes`/`wb.recipe_versions`), PR kb#23 · RLS ở workbench#22. B2/C/D chưa nhận. |
-| AIE-1 | Trần Bá Đạt | ⬜ — approve contract PR kb#10 (trace-event/kb-search); **chưa** có dòng ký mini-RFC B·B2·C·D |
+| AIE-1 | Trần Bá Đạt | ✅ 2026-08-12 — **phần B** (`obs.trace_events`). Điều kiện A1-8 (writer bind `app.tenant_id`) **tự đóng** bằng PR `apps/studio#4` do chính AIE-1 mở; DE review+verify (45 passed) → rút objection. *(PR#4 tự giới hạn: chỉ đóng đk kỹ thuật, bật RLS production là mentor+DE.)* B2/C/D: không phản đối (B2=eval/wb ngoài lane AIE-1). |
 | AIE-2 | Lưu Tiến Duy | ✅ 2026-08-03 — B·B2·C·D (comment PR kb#10, ghi `evalhub:decisions/scorecard.md`) |
 | mentor (obs·core) | | ⬜ — DE khai mentor uỷ quyền toàn phần cho team; **cần link/vết** để đóng dòng này |
 
