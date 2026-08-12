@@ -303,7 +303,7 @@ Chốt xong ghi lại vào file này + daily-note mục *Contract / integration*
 | 23/07 (D4) | **Luật so `expected`** ở nhánh trả-lời-được | **`contains`** — `answer` chứa `expected` là PASS, bỏ so khớp tuyệt đối (`harness.py:69`). AIE-2 đồng ý. Nhãn ở `golden/smoke-5.yaml` **giữ nguyên**, đã kiểm với câu trả lời diễn đạt tự nhiên |
 | 23/07 (D4) | **Ai đặt tên bộ case** | **Bên sinh ra đặt** — `golden_set_ref = "callisto-smoke-5-v0"` (§1). Recipe chỉ tham chiếu. Phát hiện khi `builder_d4.py` trỏ vào `"golden-set-d4-callisto"`, một tên không tồn tại; AIE-2 đã dùng đúng tên. Nguyên nhân: DE phát bảng `chunk_id` nhưng **quên phát tên bộ** — nay ghi vào §1 |
 | 23/07 (D4) | **Phân loại refusal** (SC-05) | AIE-2 vá `expects_refusal` xét **cả hai trục**: `expected_tenant != tenant` **hoặc** `expected_section_role ∉ section_roles`. Kéo theo **field thứ 8** `expected_section_role` — DE đã thêm vào cả 5 case. Chọn cách này thay vì sentinel `expected == "refusal"`: nó **suy ra từ dữ liệu** thay vì gắn cờ, giữ đúng nguyên tắc của `golden_case.py` (cờ và dữ liệu không mâu thuẫn được), và bịt được trục mà `chunk_id` không mã hoá |
-| 12/08 (D18) | **Field `manual_label`** (nhãn tay cho agreement) | Thêm field **optional** thứ 9 vào golden-30 (§11). Ranh giới frozen `scorecard.v1.md §9` + `DEC-Q5`: **DE sở hữu giá trị**, **AIE-2 sở hữu** định nghĩa `agreement` đo gì + tên/shape field + nơi lưu (`eval.golden_sets`). Giá trị đang là **DRAFT do khung sinh** — phải người DE tinh chỉnh trước khi coi là nhãn tay thật (§10: *tay, không nhờ model*). Tên `manual_label` là **đề xuất**; AIE-2 đổi → rename, giá trị giữ |
+| 12/08 (D18) | **Field `manual_label`** (nhãn tay cho agreement) | Thêm field **optional** thứ 9 vào golden-30 (§11). Ranh giới frozen `scorecard.v1.md §9` + `DEC-Q5`: **DE sở hữu giá trị**, **AIE-2 sở hữu** định nghĩa `agreement` đo gì + tên/shape field + nơi lưu (`eval.golden_sets`). Giá trị đã **hand-verify** — DE đọc từng chunk nguồn, chốt tay (§10: *tay, không nhờ model*), comment mỗi case ghi căn cứ đọc. Tên `manual_label` là **đề xuất**; AIE-2 đổi → rename, giá trị giữ |
 
 **Còn mở — lỗ chấm chưa bịt:**
 
@@ -337,8 +337,9 @@ Chốt xong ghi lại vào file này + daily-note mục *Contract / integration*
 ## 11. Field `manual_label` (D18) — nhãn tay ground-truth cho agreement
 
 > Thêm ở **D18 (#115)**. Là field **thứ 9, optional**: chỉ **subset** case có, phần còn lại không
-> render dòng này (20 case cũ **byte-identical**). Nguồn sự thật vẫn là module typed
-> `src/studio_kb/golden_set.py`; yaml sinh ra qua `scripts/emit_golden_set.py`.
+> render dòng này (**19/20** case không nhãn **byte-identical** — riêng **HB-22** đổi `expected`
+> `"50 triệu"`→`"hạn mức 50 triệu"`, siết cùng cặp với HB-10 để chặn pass-oan leak-mimic). Nguồn sự
+> thật vẫn là module typed `src/studio_kb/golden_set.py`; yaml sinh ra qua `scripts/emit_golden_set.py`.
 
 **Field này để làm gì.** LLM-judge của AIE-2 (`evalhub/judge.py`) chấm `success` cho case chủ quan;
 `agreement` đo *judge có đồng ý với nhãn người không* (R-SPEC A7 · INV-4). `manual_label` là **answer-key
@@ -364,16 +365,20 @@ Guard (`test_manual_label_*`): giá trị phải khớp `is_refusal` của chín
 
 **Subset chọn thế nào (10 = 6 `pass` + 4 `refuse`).** Không phải cả 30, không random:
 
-1. **Đủ cả hai lớp** — tập toàn `pass` cho judge hằng *"luôn PASS"* điểm 100%, agreement mất sức phân
-   biệt (§10 + `scorecard.v1.md §1`). Có ≥1 `refuse` mới bắt được judge tồi.
+1. **Đủ cả hai lớp + sàn tỷ lệ `refuse`** — tập toàn `pass` cho judge hằng *"luôn PASS"* điểm 100%,
+   agreement mất sức phân biệt (§10 + `scorecard.v1.md §1`). Nhưng *"có mặt cả hai lớp"* chưa đủ: 9
+   `pass`/1 `refuse` vẫn thoả mà gần mất sức phân biệt — nên guard canh **sàn cứng `refuse >= 3`**
+   (`test_manual_label_du_hai_lop_va_vocab_hop_le`), không chỉ ≥1.
 2. **Nghiêng case KHÓ** — teeth-tie / phrase-collision / leak-mimic / fence-trap — nơi judge yếu lệch
    người nhất; nhãn cho case dễ chỉ ra 100% vô nghĩa.
 3. **Trải 2 tenant + nhiều vai** — không thiên trục.
 4. **Tất định** — subset+nhãn cố định → agreement tái lập trong CI.
 
-**⚠️ Nhãn hiện là `# DRAFT` do khung sinh — CHƯA phải nhãn tay thật.** Đúng §10 (*gán nhãn tay, không
-nhờ model*), DE phải **đọc lại từng chunk nguồn** và chốt/sửa giá trị bằng tay, gỡ chữ `DRAFT`. Vị trí:
-mỗi case subset trong `GOLDEN_CASES` (`golden_set.py`), field `manual_label=...` + comment `# DRAFT ...`.
+**Nhãn đã hand-verify (không phải khung sinh).** Đúng §10 (*gán nhãn tay, không nhờ model*), DE đã
+**đọc từng chunk nguồn** và chốt giá trị bằng tay — mỗi case subset trong `GOLDEN_CASES`
+(`golden_set.py`) mang comment `# nhãn tay: đọc <chunk>, <cụm> grounded & trong quyền <tenant>/<vai>`
+ghi lại căn cứ đọc. Không dòng nào là `# DRAFT`. Con số agreement tính trên subset này là số đo trên
+**nhãn người**, dùng công bố được.
 
 ---
 

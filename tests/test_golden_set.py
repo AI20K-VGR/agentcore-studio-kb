@@ -230,17 +230,25 @@ _LABELED = tuple(c for c in GOLDEN_CASES if c.manual_label is not None)
 
 
 def test_manual_label_du_hai_lop_va_vocab_hop_le() -> None:
-    """Subset nhãn tay phải đủ 'sàn' + CẢ HAI lớp verdict + vocab hợp lệ.
+    """Subset nhãn tay phải đủ 'sàn' + CẢ HAI lớp verdict + **sàn tỷ lệ `refuse`** + vocab hợp lệ.
 
     Vì sao 'cả hai lớp': agreement trên tập toàn `pass` cho một judge hằng *"luôn PASS"* điểm 100% —
-    không phân biệt được với judge thật (`scorecard.v1.md §1` cấm judge hằng). Sức phân biệt = có ≥1
-    `refuse` để bắt judge tồi. Sàn ≥8 (khuyến nghị 10) đủ số agreement đọc được + dư trần ≤100/ngày."""
+    không phân biệt được với judge thật (`scorecard.v1.md §1` cấm judge hằng). Sức phân biệt = có ĐỦ
+    `refuse` để bắt judge tồi. Chỉ *"có mặt cả hai lớp"* chưa đủ: subset thoái hoá về 9 `pass`/1
+    `refuse` vẫn đủ-hai-lớp mà gần như mất sức phân biệt — §11 chốt tỷ lệ 6/4, nên canh **sàn cứng
+    `refuse >= 3`** để CI không xanh câm khi subset trôi dần về một lớp. Sàn ≥8 (khuyến nghị 10) đủ số
+    agreement đọc được + dư trần ≤100/ngày."""
     assert len(_LABELED) >= 8, f"nhãn tay chỉ {len(_LABELED)} — dưới sàn 8 (khuyến nghị 10)"
     bad = [c.case_id for c in _LABELED if c.manual_label not in MANUAL_LABEL_VALUES]
     assert not bad, f"nhãn ngoài vocab {MANUAL_LABEL_VALUES}: {bad}"
     classes = {c.manual_label for c in _LABELED}
     assert classes == set(MANUAL_LABEL_VALUES), (
         f"subset thiếu lớp verdict — có {classes}, cần đủ {set(MANUAL_LABEL_VALUES)} để agreement phân biệt"
+    )
+    refuses = sum(c.manual_label == "refuse" for c in _LABELED)
+    assert refuses >= 3, (
+        f"chỉ {refuses} nhãn `refuse` — dưới sàn 3 (§11 chốt 6/4); subset đang trôi về một lớp, "
+        f"agreement mất sức phân biệt"
     )
 
 
