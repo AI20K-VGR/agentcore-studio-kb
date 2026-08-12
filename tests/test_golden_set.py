@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 from studio_kb.doc_factory import Chunk, load_callisto, resolve_tenant_id
-from studio_kb.golden_set import EDGE_AXES, GOLDEN_CASES, render_yaml
+from studio_kb.golden_set import EDGE_AXES, GOLDEN_CASES, MANUAL_LABEL_VALUES, render_yaml
 from studio_kb.static_search import StaticKbSearch
 
 _GOLDEN = Path(__file__).resolve().parents[1] / "golden" / "callisto-golden-30-v1.yaml"
@@ -219,3 +219,49 @@ def test_module_is_refusal_khop_yaml_va_khoa_ti_le() -> None:
     assert module_ref == yaml_ref, f"refusal lệch giữa module typed và yaml: {module_ref ^ yaml_ref}"
     assert sum(not c.is_refusal for c in GOLDEN_CASES) == 22, "số case dương phải là 22"
     assert sum(c.is_refusal for c in GOLDEN_CASES) == 8, "số case âm phải là 8"
+
+
+# ── Nhãn tay ground-truth (D18 / #115) — canh answer-key giữ sức phân biệt cho agreement ──────────
+# Nhãn tay tiêu thụ ở AIE-2 (#118) đo `agreement` LLM-judge. Guard ở đây KHÔNG chấm giá trị đúng/sai
+# (đó là phán đoán người DE), mà canh các TÍNH CHẤT khiến agreement có nghĩa: đủ hai lớp, vocab hợp lệ,
+# nhất quán fence-semantics, trải tenant. Byte-identical (test trên) đã canh nhãn khớp yaml.
+
+_LABELED = tuple(c for c in GOLDEN_CASES if c.manual_label is not None)
+
+
+def test_manual_label_du_hai_lop_va_vocab_hop_le() -> None:
+    """Subset nhãn tay phải đủ 'sàn' + CẢ HAI lớp verdict + **sàn tỷ lệ `refuse`** + vocab hợp lệ.
+
+    Vì sao 'cả hai lớp': agreement trên tập toàn `pass` cho một judge hằng *"luôn PASS"* điểm 100% —
+    không phân biệt được với judge thật (`scorecard.v1.md §1` cấm judge hằng). Sức phân biệt = có ĐỦ
+    `refuse` để bắt judge tồi. Chỉ *"có mặt cả hai lớp"* chưa đủ: subset thoái hoá về 9 `pass`/1
+    `refuse` vẫn đủ-hai-lớp mà gần như mất sức phân biệt — §11 chốt tỷ lệ 6/4, nên canh **sàn cứng
+    `refuse >= 3`** để CI không xanh câm khi subset trôi dần về một lớp. Sàn ≥8 (khuyến nghị 10) đủ số
+    agreement đọc được + dư trần ≤100/ngày."""
+    assert len(_LABELED) >= 8, f"nhãn tay chỉ {len(_LABELED)} — dưới sàn 8 (khuyến nghị 10)"
+    bad = [c.case_id for c in _LABELED if c.manual_label not in MANUAL_LABEL_VALUES]
+    assert not bad, f"nhãn ngoài vocab {MANUAL_LABEL_VALUES}: {bad}"
+    classes = {c.manual_label for c in _LABELED}
+    assert classes == set(MANUAL_LABEL_VALUES), (
+        f"subset thiếu lớp verdict — có {classes}, cần đủ {set(MANUAL_LABEL_VALUES)} để agreement phân biệt"
+    )
+    refuses = sum(c.manual_label == "refuse" for c in _LABELED)
+    assert refuses >= 3, (
+        f"chỉ {refuses} nhãn `refuse` — dưới sàn 3 (§11 chốt 6/4); subset đang trôi về một lớp, "
+        f"agreement mất sức phân biệt"
+    )
+
+
+def test_manual_label_khop_fence_semantics() -> None:
+    """`refuse` CHỈ trên case bẫy-hàng-rào, `pass` CHỈ trên case trả-lời-được — answer-key nhất quán
+    với `is_refusal`. Bắt lỗi gán nhãn ngược (vd dán `pass` cho case T1 rò-rỉ), thứ làm agreement đo
+    sai chiều mà không lỗi nào nổi lên."""
+    lech = [c.case_id for c in _LABELED if (c.manual_label == "refuse") != c.is_refusal]
+    assert not lech, f"nhãn tay ngược fence-semantics (refuse⇎is_refusal): {lech}"
+
+
+def test_manual_label_trai_hai_tenant() -> None:
+    """Subset trải CẢ HAI tenant — một judge có thể chắc ở ankor mà rò ở borea; tập một-tenant giấu
+    điều đó. Không thiên trục."""
+    tenants = {c.tenant for c in _LABELED}
+    assert {"ankor", "borea"} <= tenants, f"subset nhãn tay không trải đủ tenant: {tenants}"
