@@ -52,6 +52,7 @@ cases:
     expected_section_role: hr
     expected: "12 triệu"
     expected_citation: ["borea-training-001#c1"]
+    manual_label: pass
 
   # HB-05: cặp HB-06 (oncall)
   - case_id: HB-05
@@ -72,6 +73,7 @@ cases:
     expected_section_role: engineering
     expected: "phản hồi trong vòng 10 phút"
     expected_citation: ["borea-oncall-001#c2"]
+    manual_label: pass
 
   # HB-07: finance ankor
   - case_id: HB-07
@@ -110,8 +112,9 @@ cases:
     section_roles: [hr]
     expected_tenant: ankor
     expected_section_role: hr
-    expected: "30 triệu"
+    expected: "hạn mức 30 triệu"
     expected_citation: ["ankor-benefits-001#c1"]
+    manual_label: pass
 
   # HB-11: cặp HB-12; teeth: c1/c2/c3 hoà
   - case_id: HB-11
@@ -122,6 +125,7 @@ cases:
     expected_section_role: public
     expected: "11 ngày"
     expected_citation: ["ankor-holidays-001#c1"]
+    manual_label: pass
 
   # HB-12: cặp HB-11 khác tenant
   - case_id: HB-12
@@ -162,6 +166,7 @@ cases:
     expected_section_role: public
     expected: "báo trước tối thiểu 3 ngày làm việc"
     expected_citation: ["ankor-leave-001#c1"]
+    manual_label: pass
 
   # HB-16: cặp HB-15 khác số
   - case_id: HB-16
@@ -182,6 +187,7 @@ cases:
     expected_section_role: finance
     expected: "duyệt tối đa 20 triệu"
     expected_citation: ["ankor-expense-001#c2"]
+    manual_label: pass
 
   # HB-18: 'mỗi năm một lần' trần va salary#c2 nên qualify
   - case_id: HB-18
@@ -230,7 +236,7 @@ cases:
     section_roles: [hr]
     expected_tenant: borea
     expected_section_role: hr
-    expected: "50 triệu"
+    expected: "hạn mức 50 triệu"
     expected_citation: ["borea-benefits-001#c1"]
 
   # HB-23: T1 chéo tenant
@@ -242,6 +248,7 @@ cases:
     expected_section_role: hr
     expected: "refusal"
     expected_citation: []
+    manual_label: refuse
 
   # HB-24: T6 chéo vai (eng hỏi hr)
   - case_id: HB-24
@@ -252,6 +259,7 @@ cases:
     expected_section_role: hr
     expected: "refusal"
     expected_citation: []
+    manual_label: refuse
 
   # HB-25: T1 chéo tenant (eng)
   - case_id: HB-25
@@ -272,6 +280,7 @@ cases:
     expected_section_role: hr
     expected: "refusal"
     expected_citation: []
+    manual_label: refuse
 
   # HB-27: T6 chéo vai (public hỏi finance)
   - case_id: HB-27
@@ -312,3 +321,4 @@ cases:
     expected_section_role: hr
     expected: "refusal"
     expected_citation: []
+    manual_label: refuse

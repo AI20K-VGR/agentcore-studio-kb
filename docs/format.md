@@ -303,6 +303,7 @@ Chốt xong ghi lại vào file này + daily-note mục *Contract / integration*
 | 23/07 (D4) | **Luật so `expected`** ở nhánh trả-lời-được | **`contains`** — `answer` chứa `expected` là PASS, bỏ so khớp tuyệt đối (`harness.py:69`). AIE-2 đồng ý. Nhãn ở `golden/smoke-5.yaml` **giữ nguyên**, đã kiểm với câu trả lời diễn đạt tự nhiên |
 | 23/07 (D4) | **Ai đặt tên bộ case** | **Bên sinh ra đặt** — `golden_set_ref = "callisto-smoke-5-v0"` (§1). Recipe chỉ tham chiếu. Phát hiện khi `builder_d4.py` trỏ vào `"golden-set-d4-callisto"`, một tên không tồn tại; AIE-2 đã dùng đúng tên. Nguyên nhân: DE phát bảng `chunk_id` nhưng **quên phát tên bộ** — nay ghi vào §1 |
 | 23/07 (D4) | **Phân loại refusal** (SC-05) | AIE-2 vá `expects_refusal` xét **cả hai trục**: `expected_tenant != tenant` **hoặc** `expected_section_role ∉ section_roles`. Kéo theo **field thứ 8** `expected_section_role` — DE đã thêm vào cả 5 case. Chọn cách này thay vì sentinel `expected == "refusal"`: nó **suy ra từ dữ liệu** thay vì gắn cờ, giữ đúng nguyên tắc của `golden_case.py` (cờ và dữ liệu không mâu thuẫn được), và bịt được trục mà `chunk_id` không mã hoá |
+| 12/08 (D18) | **Field `manual_label`** (nhãn tay cho agreement) | Thêm field **optional** thứ 9 vào golden-30 (§11). Ranh giới frozen `scorecard.v1.md §9` + `DEC-Q5`: **DE sở hữu giá trị**, **AIE-2 sở hữu** định nghĩa `agreement` đo gì + tên/shape field + nơi lưu (`eval.golden_sets`). Giá trị đang là **DRAFT do khung sinh** — phải người DE tinh chỉnh trước khi coi là nhãn tay thật (§10: *tay, không nhờ model*). Tên `manual_label` là **đề xuất**; AIE-2 đổi → rename, giá trị giữ |
 
 **Còn mở — lỗ chấm chưa bịt:**
 
@@ -333,4 +334,47 @@ Chốt xong ghi lại vào file này + daily-note mục *Contract / integration*
 
 ---
 
-*Draft D2 — 2026-07-21. Cập nhật ngay sau buổi chốt với AIE-2.*
+## 11. Field `manual_label` (D18) — nhãn tay ground-truth cho agreement
+
+> Thêm ở **D18 (#115)**. Là field **thứ 9, optional**: chỉ **subset** case có, phần còn lại không
+> render dòng này (20 case cũ **byte-identical**). Nguồn sự thật vẫn là module typed
+> `src/studio_kb/golden_set.py`; yaml sinh ra qua `scripts/emit_golden_set.py`.
+
+**Field này để làm gì.** LLM-judge của AIE-2 (`evalhub/judge.py`) chấm `success` cho case chủ quan;
+`agreement` đo *judge có đồng ý với nhãn người không* (R-SPEC A7 · INV-4). `manual_label` là **answer-key
+người kiểm** để tính con số đó. `judge.py` **cấm** `agreement` hằng số → phải có nguồn nhãn thật.
+
+**Ranh giới (frozen — `evalhub/docs/contracts/scorecard.v1.md §9` + `DEC-Q5`).**
+
+| Phần | Chủ |
+|---|---|
+| **Giá trị** nhãn (đọc chunk nguồn, phán đoán tay) | **DE** |
+| Định nghĩa `agreement` đo gì · tên+shape field · nơi lưu (`eval.golden_sets`) · loader/judge | **AIE-2** |
+
+Tên `manual_label` + vocab dưới là **đề xuất DE**; AIE-2 chốt khác thì rename, **giá trị giữ nguyên**.
+
+**Vocab** (`MANUAL_LABEL_VALUES`, binary khớp `success: bool` của judge):
+
+| Giá trị | Nghĩa |
+|---|---|
+| `pass` | case trả-lời-được: đáp án grounded, agent PHẢI trả lời đúng |
+| `refuse` | case bẫy-hàng-rào (T1/T6): agent PHẢI từ chối |
+
+Guard (`test_manual_label_*`): giá trị phải khớp `is_refusal` của chính case — bắt gán nhãn ngược.
+
+**Subset chọn thế nào (10 = 6 `pass` + 4 `refuse`).** Không phải cả 30, không random:
+
+1. **Đủ cả hai lớp** — tập toàn `pass` cho judge hằng *"luôn PASS"* điểm 100%, agreement mất sức phân
+   biệt (§10 + `scorecard.v1.md §1`). Có ≥1 `refuse` mới bắt được judge tồi.
+2. **Nghiêng case KHÓ** — teeth-tie / phrase-collision / leak-mimic / fence-trap — nơi judge yếu lệch
+   người nhất; nhãn cho case dễ chỉ ra 100% vô nghĩa.
+3. **Trải 2 tenant + nhiều vai** — không thiên trục.
+4. **Tất định** — subset+nhãn cố định → agreement tái lập trong CI.
+
+**⚠️ Nhãn hiện là `# DRAFT` do khung sinh — CHƯA phải nhãn tay thật.** Đúng §10 (*gán nhãn tay, không
+nhờ model*), DE phải **đọc lại từng chunk nguồn** và chốt/sửa giá trị bằng tay, gỡ chữ `DRAFT`. Vị trí:
+mỗi case subset trong `GOLDEN_CASES` (`golden_set.py`), field `manual_label=...` + comment `# DRAFT ...`.
+
+---
+
+*Draft D2 — 2026-07-21. Cập nhật ngay sau buổi chốt với AIE-2. · §11 thêm D18 (12/08).*
