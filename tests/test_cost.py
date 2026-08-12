@@ -113,11 +113,17 @@ def test_aggregate_tron_tenant_raise_ho_inv1() -> None:
 
 
 def test_price_mismatches_bat_cost_lech_nguon_gia() -> None:
-    """Lưới §4.1: event có `cost != cost_of(tokens)` bị chỉ mặt; khớp thì rỗng."""
+    """Lưới §4.1: event có `cost != cost_of(tokens)` bị chỉ mặt; khớp thì rỗng.
+
+    Có cả ca lệch **nhỏ** (~1e-4): so phải là `!=` thô, không phải `round(…,2)` nới dung — nếu ai đó thêm
+    tolerance cho 'đỡ nhiễu' thì `nho` lọt và lưới im (review kb#22 F3 · món nhỏ 2, mutant Z-3).
+    """
     khop = _event(NodeType.LLM_STEP, event_id="ok", tokens=Tokens(prompt=1000, completion=0), cost=0.003)
     lech = _event(NodeType.LLM_STEP, event_id="bad", tokens=Tokens(prompt=1000, completion=0), cost=0.999)
+    nho = _event(NodeType.LLM_STEP, event_id="tiny", tokens=Tokens(prompt=1000, completion=0), cost=0.0031)
     assert price_mismatches([khop]) == []
     assert price_mismatches([khop, lech]) == ["bad"]
+    assert price_mismatches([nho]) == ["tiny"]  # cost_of=0.003, lệch 1e-4 vẫn phải bắt
 
 
 def test_price_mismatches_hom_nay_toan_0_thi_khop() -> None:
@@ -136,25 +142,39 @@ def test_khong_mat_doc_nao_ngoai_cost_py_goi_cost_of() -> None:
     tính**: recompute `tokens × giá` ở mặt đọc = có nguồn giá thứ hai (drift), vi phạm §4.1 kể cả khi ra
     đúng số. `cost_of` chỉ được sống trong `cost.py` (nguồn giá, dùng cho `price_mismatches`).
 
-    Quét AST `src/studio_kb/*.py` + `scripts/*.py` (mọi mặt đọc trong lane kb); bài DB
+    Quét AST **đệ quy** `src/studio_kb/**/*.py` + `scripts/**/*.py` (mọi mặt đọc trong lane kb, kể cả
+    subpackage sâu — `glob` một tầng để lọt file lồng, review kb#22 F3); bài DB
     `test_db_read_run_cost_khop_aggregate` mới là bài so hai-đường-thật (DB ↔ thuần), giữ nguyên.
+
+    Canh cả hằng đơn giá (`PROMPT_RATE_PER_1K`/`COMPLETION_RATE_PER_1K`) và alias import (`cost_of as _x`):
+    mặt đọc tự nhân `tokens × đơn giá` bằng chính hằng nguồn giá cũng là drift (review kb#22 F3 · món nhỏ 1).
+    Còn số magic thô (`… * 0.003`) thì ngoài tầm quét-theo-tên — đó là trần đã biết, không phải bất biến ẩn.
     """
     src_pkg = Path(cost_mod.__file__).parent  # …/src/studio_kb
     kb_root = src_pkg.parent.parent  # …/packages/kb
-    surfaces = sorted(src_pkg.glob("*.py")) + sorted((kb_root / "scripts").glob("*.py"))
+    scripts_dir = kb_root / "scripts"
+    # Guard xanh-giả: resolve sai gốc (cài non-editable) → glob rỗng → vi phạm lọt trong im lặng (F3).
+    assert scripts_dir.is_dir(), f"không thấy {scripts_dir} — quét rỗng thì bài này xanh giả"
+    surfaces = sorted(src_pkg.rglob("*.py")) + sorted(scripts_dir.rglob("*.py"))
+    assert len(surfaces) > 5, f"chỉ quét được {len(surfaces)} file — nghi resolve sai gốc repo"
 
+    price_names = {"cost_of", "PROMPT_RATE_PER_1K", "COMPLETION_RATE_PER_1K"}
     offenders: list[str] = []
     for path in surfaces:
         if path.name == "cost.py":
-            continue  # nguồn giá duy nhất được phép giữ cost_of (price_mismatches)
+            continue  # nguồn giá duy nhất được phép giữ cost_of + đơn giá (price_mismatches)
         tree = ast.parse(path.read_text(encoding="utf-8"))
+        watched = set(price_names)  # + alias cục bộ: `from …cost import cost_of as _gia` → canh cả `_gia`
         for node in ast.walk(tree):
-            if (isinstance(node, ast.Name) and node.id == "cost_of") or (
-                isinstance(node, ast.Attribute) and node.attr == "cost_of"
+            if isinstance(node, ast.ImportFrom):
+                watched |= {a.asname for a in node.names if a.name in price_names and a.asname}
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Name) and node.id in watched) or (
+                isinstance(node, ast.Attribute) and node.attr in watched
             ):
                 offenders.append(f"{path.relative_to(kb_root)}:{node.lineno}")
 
-    assert offenders == [], f"mặt đọc tự tính cost qua cost_of (vi phạm §4.1 'không mặt nào tự tính'): {offenders}"
+    assert offenders == [], f"mặt đọc tự tính cost qua nguồn giá (vi phạm §4.1 'không mặt nào tự tính'): {offenders}"
 
 
 # ── tầng DB (cần Docker) ────────────────────────────────────────────────────────────────────────
