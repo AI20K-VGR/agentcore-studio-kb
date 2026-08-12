@@ -10,16 +10,30 @@ addresses: "Still open #5 — schema drift (Anh, needs a mini-RFC)"
 
 # Mini-RFC — Chuẩn tenant + RLS cho bảng tenant-scoped
 
-## Vấn đề (kiểm từng bảng, 03/08)
-11 bảng, RLS mới bật **1** (`kb.chunks`). Rà theo threat-model — **không** RLS đồng loạt:
-- **3 bảng ĐÁNG bật RLS** (có đường user đọc + payload nhạy cảm): `wb.recipes`, `wb.recipe_versions`
-  (recipe = IP tenant), `obs.trace_events` (trace/cost/citations).
-- **2 bảng KHÔNG bật read-RLS** (hàng đợi infra drain cross-tenant, RLS sẽ phá): `core.jobs`, `core.outbox`.
-- **3 bảng HOÃN** (chưa có cột tenant — quyết cột trước): `obs.costs`, `eval.golden_sets`, `eval.scorecards`.
-- **1 bảng nghi CHẾT trùng lặp → đề xuất DROP:** `obs.golden_sets` (0 chỗ dùng; golden-set thật là `eval.golden_sets`).
-- **1 registry** `core.tenants` — n/a (key = `id`). **1 đã có** `kb.chunks`.
+## Vấn đề (kiểm từng bảng — 03/08; phân loại lại nhị phân 12/08 · D18)
+11 bảng, RLS mới bật **1** (`kb.chunks`). Rà theo threat-model, mỗi bảng về **đúng một** trong hai
+nhóm — **bỏ nhóm "HOÃN" cũ** (xem [Amendment D18](#amendment-2026-08-12--d18) bên dưới):
 
-→ **3 + 2 + 3 + 1 + 1 + 1 = 11.**
+- **5 CẦN RLS** (tenant-scoped + có đường user đọc + payload nhạy cảm):
+  `kb.chunks` (✅ đã có, mẫu) · `wb.recipes` · `wb.recipe_versions` (recipe = IP tenant) ·
+  `obs.trace_events` (trace/cost/citations) · `obs.costs` (chi phí per-tenant, "đồng hồ điện" hiện trên UI).
+- **5 KHÔNG CẦN RLS**:
+  `core.jobs` · `core.outbox` (hàng đợi infra drain cross-tenant — RLS sẽ phá) ·
+  `core.tenants` (registry định danh — RLS là vòng tròn logic) ·
+  `eval.golden_sets` (bộ đề **CHUNG**, ref-keyed) ·
+  `eval.scorecards` (kết quả chấm **nội bộ**, observe-only — *đề xuất, chờ AIE-2 phê*).
+- **1 XOÁ:** `obs.golden_sets` (0 reader; trùng `eval.golden_sets`).
+
+→ **5 + 5 + 1 = 11.**
+
+> ### Amendment 2026-08-12 · D18
+> **Đổi:** gỡ hẳn nhóm "3 bảng HOÃN" (`obs.costs`, `eval.golden_sets`, `eval.scorecards`) — mỗi bảng
+> về cần/không-cần RLS. **Lý do:** câu *"có cần RLS không"* phụ thuộc **bản chất data** (data khách hàng
+> nhạy cảm + có đường đọc?), **không** phụ thuộc bảng đã xây hay chưa — nên quyết được ngay, không cần
+> hoãn tới ngày build. `obs.costs`→**CẦN** (chi phí per-tenant lên UI); `eval.*`→**KHÔNG CẦN** (đề chung
+> + kết quả chấm nội bộ, observe-only, khớp DEC-07). ⚠️ Amendment này **sau** chữ ký AIE-2 (ký trên bản
+> B2-hoãn cũ) — phần `eval.*` **giữ mức đề xuất, chờ AIE-2 phê** vì là lane của họ; phần `obs.costs` là
+> lane DE.
 
 ## Đề xuất
 - **A — cột workbench** `tenant TEXT`→`tenant_id UUID` (`schema.py:31,43` + `UNIQUE`, `publish.py:47`).
@@ -38,15 +52,16 @@ addresses: "Still open #5 — schema drift (Anh, needs a mini-RFC)"
     > theo `USING`, INSERT của writer bị từ chối ⇒ mọi `interpreter.run()` gãy ở emit. **Phần A
     > (`tenant_id UUID`) AIE-1 ký được ngay.**
 - **B-excl — `core.jobs`/`core.outbox`: KHÔNG read-RLS** (xem "Loại trừ"). Cùng lắm enforce phía ghi.
-- **B2 — 3 bảng chưa có cột tenant:** quyết *"có cần tenant-scope không?"* → nếu có, thêm `tenant_id UUID`
-  rồi mới RLS. `obs.costs` gắn D19 (DE); `eval.*` gắn D16 (#108, AIE-2). Không RLS mù khi chưa có cột.
-  > ⚠️ **Đây là NHÓM KHÁC với phần A.** Phần A (PR #13) chỉ sửa `wb.recipes`/`wb.recipe_versions` —
-  > 2 bảng này đã có tenant từ trước, không thuộc nhóm hoãn. Ba bảng B2 nằm ở **lane khác**
-  > (`apps/studio`, `evalhub`); **PR #13 không chạm dòng nào** của chúng. Vì thế đánh-giá-lại sau #13
-  > **vẫn hoãn** — không phải né, mà vì #13 (workbench-only) không liên quan tới chúng. Lý do hoãn
-  > **không** phải "chờ ai sửa tenant" mà là **bảng chưa được xây** → chưa quyết được tenant-scope.
-  > Mốc gỡ hoãn = ngày chủ lane xây thật (`obs.costs`→D19 DE · `eval.*`→D16 AIE-2), cộng invariant C
-  > ép RLS khi có dữ liệu. Không mở vô hạn.
+- **B2 — 3 bảng "hoãn" cũ, nay chốt nhị phân (amendment D18):** trả lời *"có cần RLS không?"* ngay từ
+  bản chất data, không chờ bảng xây xong:
+  - `obs.costs` → **CẦN RLS.** Chi phí per-tenant; đích D19 là "đồng hồ điện" hiện trên UI. DE build ở
+    D19 thì thêm `tenant_id UUID` + RLS theo mẫu **ngay từ đầu**, không để cột trần rồi vá sau. (Lane DE.)
+  - `eval.golden_sets` → **KHÔNG CẦN.** `golden_set_ref` là bộ đề **dùng chung** (ref-keyed), không phải
+    data khách hàng per-tenant. Fence tenant thật nằm ở `kb.chunks` (retrieval) + trace `tenant_id`.
+  - `eval.scorecards` → **KHÔNG CẦN** (đề xuất). Kết quả chấm nội bộ; `gate` do pipeline publish/rollback
+    đọc (INV-6, hệ thống — không phải tenant đọc chéo); observe-only theo DEC-07. **Lật sang CẦN** nếu về
+    sau có màn hình cho tenant xem scorecard agent mình **và** `results` lưu answer-text của tenant.
+    → **Chủ lane AIE-2 chốt**, không quyết hộ.
 - **D — `obs.golden_sets`:** **nghi bảng chết trùng lặp** — cả `obs.golden_sets` lẫn `eval.golden_sets`
   đều **0 runtime reader** (mọi ref tới `eval.golden_sets` là docstring/DDL; `EvalHarness.run()` vẫn
   `NotImplementedError`). Chọn `eval.golden_sets` làm nguồn sự thật vì **quyền ghi**, không phải "đang
@@ -69,9 +84,10 @@ Hàng đợi hạ tầng **drain cross-tenant**, không có đường user đọ
 | `wb.recipes`,`wb.recipe_versions` | A đổi cột | SWE | ✅ **PR #13, chờ merge** |
 | `wb.recipes`,`wb.recipe_versions` | B RLS | SWE | ⏳ chờ #13 merge → cần ký |
 | `obs.trace_events` | B RLS (+ D19 aggregator tenant-aware) | mentor + DE | cần ký |
-| `core.jobs`,`core.outbox` | **loại trừ** read-RLS | mentor | — (DL-11.8) |
-| `obs.costs` | B2 thêm cột→RLS (D19) | DE điền | cần ký |
-| `eval.golden_sets`,`eval.scorecards` | B2 quyết tenant-scope (D16) | AIE-2 | cần ký |
+| `core.jobs`,`core.outbox` | **KHÔNG CẦN** read-RLS | mentor | — (DL-11.8) |
+| `core.tenants` | **KHÔNG CẦN** (registry định danh) | — | — n/a |
+| `obs.costs` | **CẦN RLS** — thêm `tenant_id`+RLS khi build (D19) | DE | cần ký |
+| `eval.golden_sets`,`eval.scorecards` | **KHÔNG CẦN** (eval observe-only, D18) | AIE-2 | đề xuất → AIE-2 phê |
 | `obs.golden_sets` | D DROP (xác nhận mentor) | mentor | cần ký |
 | `kb.chunks` | mẫu tham chiếu | DE | ✅ đã có |
 
@@ -82,10 +98,10 @@ Bật RLS / DROP bảng **đổi runtime lane khác** + là quyết định INV-
 | Vai | Người | Ký |
 |---|---|---|
 | DE (bút + mẫu kb) | Nguyễn Đông Anh | ✅	|
-| SWE | Thiệu Quang Minh | ⬜ |
-| AIE-1 | Trần Bá Đạt | ⬜ |
-| AIE-2 | Lưu Tiến Duy | ⬜ |
-| mentor (obs·core) | | ⬜ |
+| SWE | Thiệu Quang Minh | ✅ 2026-08-12 — **phần B** (RLS `wb.recipes`/`wb.recipe_versions`), PR kb#23 · RLS ở workbench#22. B2/C/D chưa nhận. |
+| AIE-1 | Trần Bá Đạt | ⬜ — approve contract PR kb#10 (trace-event/kb-search); **chưa** có dòng ký mini-RFC B·B2·C·D |
+| AIE-2 | Lưu Tiến Duy | ✅ 2026-08-03 — B·B2·C·D (comment PR kb#10, ghi `evalhub:decisions/scorecard.md`) |
+| mentor (obs·core) | | ⬜ — DE khai mentor uỷ quyền toàn phần cho team; **cần link/vết** để đóng dòng này |
 
 *Chốt xong ghi decision-log. Non-goal: INV-1 roles (đó là #110/#112, D17).*
 
@@ -100,11 +116,11 @@ Bật RLS / DROP bảng **đổi runtime lane khác** + là quyết định INV-
 | `obs.trace_events` | apps/studio | `tenant_id UUID` | ❌ | B RLS |
 | `core.jobs` | apps/studio | `tenant_id UUID` | ❌ | **loại** (queue drain) |
 | `core.outbox` | apps/studio | `tenant_id UUID` | ❌ | **loại** (outbox drain) |
-| `obs.costs` | apps/studio | — (shell) | ❌ | B2 (D19) |
-| `eval.golden_sets` | evalhub | — | ❌ | B2 (D16) |
-| `eval.scorecards` | evalhub | — (chỉ `agent_id`) | ❌ | B2 (D16) |
+| `obs.costs` | apps/studio | — (shell) | ❌ | **CẦN** — thêm `tenant_id`+RLS @D19 |
+| `eval.golden_sets` | evalhub | — | ❌ | **KHÔNG CẦN** (đề chung) |
+| `eval.scorecards` | evalhub | — (chỉ `agent_id`) | ❌ | **KHÔNG CẦN*** (observe-only · AIE-2 phê) |
 | `obs.golden_sets` | apps/studio | — (shell, 0 ref) | ❌ | **D — DROP?** |
-| `core.tenants` | apps/studio | — (registry) | n/a | n/a |
+| `core.tenants` | apps/studio | — (registry) | n/a | **KHÔNG CẦN** (registry định danh) |
 
 RLS duy nhất: `kb_chunks_tenant_isolation`. Reader `obs.trace_events`: `read_run` lọc `WHERE run_id AND tenant_id`
 (trace_reader.py:70). wb tables write-free (`publish()`/`rollback()` stub). `obs.golden_sets` **và**
