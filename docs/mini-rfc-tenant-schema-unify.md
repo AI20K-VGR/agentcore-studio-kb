@@ -1,7 +1,7 @@
 ---
 id: studio.mini-rfc.tenant-schema-unify
 type: mini-rfc
-status: DRAFT — chờ 4/4 chữ ký
+status: DRAFT — gate 4 thành viên (mentor uỷ quyền, DE 12/08); B đủ 4/4, B2·C·D còn hở SWE/AIE-1
 author: DE — Nguyễn Đông Anh
 date: 2026-08-03
 neo: D-13 · umbrella §3 (INV-1/INV-5) · GITFLOWS §5
@@ -94,14 +94,21 @@ Hàng đợi hạ tầng **drain cross-tenant**, không có đường user đọ
 ## Vì sao cần ký (B · B2 · C · D — không phải A)
 Bật RLS / DROP bảng **đổi runtime lane khác** + là quyết định INV-1. → Ký chuẩn **1 lần**, rồi mỗi chủ lane tự thực thi.
 
-## Chữ ký (B · B2 · C · D)
+## Chữ ký — gate **4 thành viên** (DE · SWE · AIE-1 · AIE-2)
+> **Quyết định DE 2026-08-12:** gate ký rút còn **4 thành viên team**; **mentor không tính vào gate**
+> (mentor uỷ quyền team — *theo lời DE, chưa có vết mentor trên PR/issue*). An toàn vì thực thi obs/core
+> **vẫn** qua CODEOWNERS `apps/studio` = AIE-1 + mentor: DROP `obs.golden_sets` / RLS DDL phải codeowner
+> duyệt mới merge, nên giám sát kỹ thuật của mentor không mất dù bỏ dòng ký.
+
 | Vai | Người | Ký |
 |---|---|---|
-| DE (bút + mẫu kb) | Nguyễn Đông Anh | ✅	|
+| DE (bút + mẫu kb) | Nguyễn Đông Anh | ✅ — B·B2·C·D |
 | SWE | Thiệu Quang Minh | ✅ 2026-08-12 — **phần B** (RLS `wb.recipes`/`wb.recipe_versions`), PR kb#23 · RLS ở workbench#22. B2/C/D chưa nhận. |
 | AIE-1 | Trần Bá Đạt | ✅ 2026-08-12 — **phần B** (`obs.trace_events`). Điều kiện A1-8 (writer bind `app.tenant_id`) **tự đóng** bằng PR `apps/studio#4` do chính AIE-1 mở; DE review+verify (45 passed) → rút objection. *(PR#4 tự giới hạn: chỉ đóng đk kỹ thuật, bật RLS production là mentor+DE.)* B2/C/D: không phản đối (B2=eval/wb ngoài lane AIE-1). |
 | AIE-2 | Lưu Tiến Duy | ✅ 2026-08-03 — B·B2·C·D (comment PR kb#10, ghi `evalhub:decisions/scorecard.md`) |
-| mentor (obs·core) | | ⬜ — DE khai mentor uỷ quyền toàn phần cho team; **cần link/vết** để đóng dòng này |
+| ~~mentor (obs·core)~~ | | ⛔ **không tính vào gate** (uỷ quyền team theo DE 12/08, chưa có vết) — obs/core vẫn gác bằng CODEOWNERS |
+
+**Trạng thái chữ ký:** **B** — đủ 4/4 thành viên (DE·SWE·AIE-1·AIE-2). **B2·C·D** — mới DE + AIE-2; còn chờ SWE/AIE-1 nhận (B2 phần eval là AIE-2 đã ký; wb/costs/invariant/drop còn hở).
 
 *Chốt xong ghi decision-log. Non-goal: INV-1 roles (đó là #110/#112, D17).*
 
