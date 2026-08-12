@@ -138,6 +138,17 @@ class PgCostReader:
         events = await self._reader.read_run(run_id, tenant_id)
         return aggregate_run_cost(events)
 
+    async def read_run_cost_with_drift(self, run_id: str, tenant_id: UUID) -> tuple[RunCost, list[str]]:
+        """`RunCost` + `event_id` nào **lệch nguồn giá** (`price_mismatches`), đọc event **một lần**.
+
+        Mặt đọc-cho-người (CLI/dashboard) gọi cái này để vừa in cost vừa **cảnh báo drift**: ngày AIE-1
+        nối tokens thật mà quên nối `cost_of` lúc emit, danh sách lệch khác rỗng → CLI kêu ngay thay vì
+        in một con số trông sạch (đúng ca F-1 trong failure-mode). `read_run_cost` giữ nguyên cho mặt
+        chỉ-cần-số. Không tính lại cost ở đây (§4.1) — `price_mismatches` chỉ so `event.cost` với nguồn giá.
+        """
+        events = await self._reader.read_run(run_id, tenant_id)
+        return aggregate_run_cost(events), price_mismatches(events)
+
     async def list_run_ids(self, tenant_id: UUID) -> list[str]:
         """Mọi `run_id` của `tenant_id` — để cost table quét từng run. `tenant_id` bắt buộc (hàng rào)."""
         async with self._pool.connection() as conn:

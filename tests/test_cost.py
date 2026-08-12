@@ -12,11 +12,14 @@ tokens**. `test_aggregate_cong_cost_da_luu_khong_tinh_lai` khoá đúng điều 
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
 from uuid import UUID
 
 import pytest
 from studio_contracts.nodes import NodeType
 from studio_contracts.trace import Tokens, TraceEvent
+from studio_kb import cost as cost_mod
 from studio_kb.cost import (
     CostAggregateError,
     PgCostReader,
@@ -123,16 +126,35 @@ def test_price_mismatches_hom_nay_toan_0_thi_khop() -> None:
     assert price_mismatches(events) == []
 
 
-def test_cung_1_so_moi_mat_doc_cung_tong() -> None:
-    """ "Cùng-1-số": mọi mặt đọc phải ra cùng tổng vì cùng gọi `aggregate_run_cost` trên cùng event —
-    không mặt nào tự tính. Ở đây mô phỏng 2 mặt (reader expose ↔ số CLI in) đọc cùng nguồn."""
-    events = [
-        _event(NodeType.LLM_STEP, event_id="a", cost=0.001234),
-        _event(NodeType.TOOL_CALL, event_id="b", cost=0.000766),
-    ]
-    surface_reader = aggregate_run_cost(events).cost
-    surface_cli = aggregate_run_cost(events).cost
-    assert surface_reader == surface_cli == 0.002
+def test_khong_mat_doc_nao_ngoai_cost_py_goi_cost_of() -> None:
+    """§4.1 "một số, ba mặt" dạng **test-được**: KHÔNG module đọc nào ngoài `cost.py` tham chiếu `cost_of`.
+
+    Thay bài `test_cung_1_so_moi_mat_doc_cung_tong` cũ (review kb#22 F1): bài đó gọi cùng một hàm thuần
+    hai lần rồi assert bằng nhau — `f(x)==f(x)` đúng với mọi hàm tất định, không mutant nào làm nó đỏ
+    (một `aggregate_run_cost` trả hằng số vẫn PASS). "Cùng-1-số" nói về **các mặt đọc**, mà kb chỉ có một
+    hàm cộng dồn, nên bất biến thật không phải "hai mặt ra cùng số" (hư cấu) mà là **không mặt nào tự
+    tính**: recompute `tokens × giá` ở mặt đọc = có nguồn giá thứ hai (drift), vi phạm §4.1 kể cả khi ra
+    đúng số. `cost_of` chỉ được sống trong `cost.py` (nguồn giá, dùng cho `price_mismatches`).
+
+    Quét AST `src/studio_kb/*.py` + `scripts/*.py` (mọi mặt đọc trong lane kb); bài DB
+    `test_db_read_run_cost_khop_aggregate` mới là bài so hai-đường-thật (DB ↔ thuần), giữ nguyên.
+    """
+    src_pkg = Path(cost_mod.__file__).parent  # …/src/studio_kb
+    kb_root = src_pkg.parent.parent  # …/packages/kb
+    surfaces = sorted(src_pkg.glob("*.py")) + sorted((kb_root / "scripts").glob("*.py"))
+
+    offenders: list[str] = []
+    for path in surfaces:
+        if path.name == "cost.py":
+            continue  # nguồn giá duy nhất được phép giữ cost_of (price_mismatches)
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            is_name = isinstance(node, ast.Name) and node.id == "cost_of"
+            is_attr = isinstance(node, ast.Attribute) and node.attr == "cost_of"
+            if is_name or is_attr:
+                offenders.append(f"{path.relative_to(kb_root)}:{node.lineno}")
+
+    assert offenders == [], f"mặt đọc tự tính cost qua cost_of (vi phạm §4.1 'không mặt nào tự tính'): {offenders}"
 
 
 # ── tầng DB (cần Docker) ────────────────────────────────────────────────────────────────────────
@@ -165,6 +187,28 @@ async def test_db_read_run_cost_khop_aggregate(admin_pool: object, pool: object)
     assert rc == aggregate_run_cost(events)
     assert rc.cost == 0.003
     assert rc.prompt_tokens == 147
+
+
+async def test_db_read_run_cost_with_drift_canh_bao_lech(admin_pool: object, pool: object) -> None:
+    """Đường CLI dùng (F2 review kb#22): event có `cost` LỆCH `cost_of(tokens)` bị chỉ mặt; khớp thì rỗng.
+
+    Cùng round-trip Postgres `NUMERIC → Decimal → float` mà `price_mismatches` phải chịu thật (AIE-2 nghi
+    dương-tính-giả nhưng đo 0 lệch) — bài này chạy nó qua DB, không chỉ tầng thuần.
+    """
+    del admin_pool
+    lech = _event(
+        NodeType.LLM_STEP, event_id="d-bad", run_id="run-drift", tokens=Tokens(prompt=1000, completion=0), cost=0.999
+    )  # cost_of=0.003 nhưng lưu 0.999 → lệch
+    khop = _event(
+        NodeType.TOOL_CALL, event_id="d-ok", run_id="run-drift", tokens=Tokens(prompt=1000, completion=0), cost=0.003
+    )  # cost_of=0.003, khớp
+    await _write(pool, [lech, khop])
+
+    rc, mismatches = await PgCostReader(pool).read_run_cost_with_drift("run-drift", ANKOR_ID)  # type: ignore[arg-type]
+
+    assert mismatches == ["d-bad"], "chỉ event lệch nguồn giá bị chỉ mặt, sống qua round-trip NUMERIC→float"
+    assert rc == aggregate_run_cost([lech, khop]), "cost vẫn CỘNG số đã lưu (§4.1), drift không đổi tổng"
+    assert rc.cost == round(0.999 + 0.003, 6)
 
 
 async def test_db_read_run_cost_khong_co_run_raise(admin_pool: object, pool: object) -> None:

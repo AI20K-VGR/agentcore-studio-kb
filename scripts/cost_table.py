@@ -32,14 +32,23 @@ async def _run(dsn: str, tenant: str) -> None:
         print(f"cost table — tenant {tenant} ({tenant_id}) — {len(run_ids)} run")
         print(f"  {'run_id':<24} {'events':>6} {'prompt':>8} {'completion':>11} {'cost':>12}")
         total = 0.0
+        drift_runs: list[str] = []
         for run_id in run_ids:
-            rc = await reader.read_run_cost(run_id, tenant_id)
+            rc, mismatches = await reader.read_run_cost_with_drift(run_id, tenant_id)
             total += rc.cost
+            flag = "  ⚠ giá lệch" if mismatches else ""
             print(
                 f"  {rc.run_id:<24} {rc.event_count:>6} {rc.prompt_tokens:>8} "
-                f"{rc.completion_tokens:>11} {rc.cost:>12.6f}"
+                f"{rc.completion_tokens:>11} {rc.cost:>12.6f}{flag}"
             )
+            if mismatches:
+                drift_runs.append(run_id)
         print(f"  {'TỔNG':<24} {'':>6} {'':>8} {'':>11} {round(total, 6):>12.6f}")
+        if drift_runs:
+            print(
+                f"⚠ CẢNH BÁO: {len(drift_runs)} run có event lệch nguồn giá (§4.1) — emit không dùng "
+                f"cost_of? kiểm: {', '.join(drift_runs)}"
+            )
     finally:
         await pool.close()
 
