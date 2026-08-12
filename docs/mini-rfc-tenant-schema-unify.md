@@ -66,8 +66,8 @@ Hàng đợi hạ tầng **drain cross-tenant**, không có đường user đọ
 ## Ai thực thi + thứ tự
 | Bảng | Việc | Lane | Trạng thái |
 |---|---|---|---|
-| `wb.recipes`,`wb.recipe_versions` | A đổi cột | SWE | ✅ **PR #13, chờ merge** |
-| `wb.recipes`,`wb.recipe_versions` | B RLS | SWE | ⏳ chờ #13 merge → cần ký |
+| `wb.recipes`,`wb.recipe_versions` | A đổi cột | SWE | ✅ **PR #13, đã merge** (xác nhận: `schema.py` hiện đã `tenant_id UUID`) |
+| `wb.recipes`,`wb.recipe_versions` | B RLS | SWE | ✅ đã ký + implement — `packages/workbench` branch `swe/day18-publish-rollback` (kit#117, D18), `ENABLE`+`FORCE ROW LEVEL SECURITY` + policy mẫu `kb_chunks_tenant_isolation` |
 | `obs.trace_events` | B RLS (+ D19 aggregator tenant-aware) | mentor + DE | cần ký |
 | `core.jobs`,`core.outbox` | **loại trừ** read-RLS | mentor | — (DL-11.8) |
 | `obs.costs` | B2 thêm cột→RLS (D19) | DE điền | cần ký |
@@ -82,7 +82,7 @@ Bật RLS / DROP bảng **đổi runtime lane khác** + là quyết định INV-
 | Vai | Người | Ký |
 |---|---|---|
 | DE (bút + mẫu kb) | Nguyễn Đông Anh | ✅	|
-| SWE | Thiệu Quang Minh | ⬜ |
+| SWE | Thiệu Quang Minh | ✅ 2026-08-12 — ký cho phần B (`wb.recipes`/`wb.recipe_versions` RLS), kit#117 D18 |
 | AIE-1 | Trần Bá Đạt | ⬜ |
 | AIE-2 | Lưu Tiến Duy | ⬜ |
 | mentor (obs·core) | | ⬜ |
