@@ -123,6 +123,31 @@ class _RolesCapturingKbSearch:
         return await self._inner.search(query, tenant_id, section_roles, top_k)
 
 
+def _voi_recipe_tu_che_khai_section_roles(recipe: Recipe, section_roles: list[str]) -> Recipe:
+    """Trả bản sao của `recipe` với node `kb-retrieve` **tự khai** `section_roles` trong `node.params`.
+
+    **Vì sao phải tự chế thay vì nhờ `create_recipe_d4(scope=...)` khai hộ.** Bản đầu của bài T6 lấy
+    giá trị client-khai từ builder workbench — và ngày **13/08** SWE dọn `builder.py`
+    (`workbench 47db2f9`, kit#122): `create_recipe_d4/d6` **thôi ghi** `tenant_id`/`section_roles` vào
+    `node.params`, lý do *"interpreter luôn đè nên khai ở đây chỉ tạo ảo giác client kiểm soát được"*.
+    Lý do đó **đúng cho builder**, nhưng nó xoá mất **vector tấn công** khỏi bài test: không còn giá
+    trị client-khai nào thì phép "đè" không có gì để đè, và bài test **xanh mà chứng minh số 0** (đo
+    được: bỏ cầu chì 2 ra thì bài vẫn PASS trên workbench mới).
+
+    Mối đe doạ **không** biến mất cùng builder: `Node.params` là `dict[str, object]` tự do, nên một
+    recipe **viết tay / do client POST lên** vẫn đặt `section_roles` vào đó được — đúng thứ
+    `interpreter.py` phải vô hiệu hoá. Dựng thẳng ở đây làm bài test độc lập khỏi việc builder có
+    tình cờ khai hộ hay không: từ nay workbench đổi cách gì cũng không làm bài này xanh-giả.
+    """
+    nodes = [
+        node.model_copy(update={"params": {**node.params, "section_roles": section_roles}})
+        if node.type is NodeType.KB_RETRIEVE
+        else node
+        for node in recipe.dag.nodes
+    ]
+    return recipe.model_copy(update={"dag": recipe.dag.model_copy(update={"nodes": nodes})})
+
+
 async def _run_spine(
     pool: Pool,
     *,
@@ -131,6 +156,7 @@ async def _run_spine(
     recipe_tenant_id: UUID | None = None,
     scope: str = "ankor/public",
     session_roles: list[str] | None = None,
+    spoofed_section_roles: list[str] | None = None,
     query: str | None = None,
     kb_search: KbSearch | None = None,
 ) -> tuple[Recipe, RunResult]:
@@ -146,8 +172,8 @@ async def _run_spine(
 
     - `tenant_id` (phiên) vs `recipe_tenant_id` (recipe khai) — trục INV-1, xem
       `test_inv1_recipe_tu_khai_tenant_khac_thi_phien_thang`;
-    - `session_roles` (phiên) vs `scope` (recipe khai, workbench parse thành `section_roles`) —
-      trục T6, xem `test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang`.
+    - `session_roles` (phiên) vs `spoofed_section_roles` (recipe **tự chế** khai thẳng vào
+      `node.params`) — trục T6, xem `test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang`.
 
     `kb_search` tiêm được để bài T6 quan sát **giá trị thực** đi vào `kb.search`; mặc định vẫn là
     `StaticKbSearch()` thật như trước.
@@ -161,6 +187,8 @@ async def _run_spine(
         if query is None
         else create_recipe_d4(tenant_id=recipe_tenant, scope=scope, query=query)
     )
+    if spoofed_section_roles is not None:
+        recipe = _voi_recipe_tu_che_khai_section_roles(recipe, spoofed_section_roles)
     result = await run(
         recipe,
         # D8/INV-1: `run()` đòi `session_context` BẮT BUỘC (engine `a6967a2`, PR #12) — tenant đi qua
@@ -396,9 +424,12 @@ async def test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang(pool: Pool)
     1. *Đòn tấn công không ăn được ngay từ đầu.* Nếu câu hỏi không với tới kho `finance` thì "không
        thấy chunk finance" đúng cả khi hàng rào đã gãy. Chốt bằng phép đo ngược: đưa thẳng
        `["finance"]` cho `StaticKbSearch` phải **ra** chunk finance.
-    2. *Recipe không thật sự khai finance.* Nếu `_parse_kb_scope` đổi cách parse, `section_roles`
-       trong node có thể đã là `["public"]` từ trước khi interpreter chạm vào — lúc đó bài không
-       kiểm override nào cả.
+    2. *Recipe không thật sự khai `finance`.* **Cầu chì này đã cứu bài test một lần rồi** (13/08):
+       SWE dọn `builder.py` (`workbench 47db2f9`) cho `create_recipe_d4` thôi ghi `section_roles` vào
+       `node.params` — bản đầu của bài lấy giá trị client-khai từ đó, nên **mất sạch vector tấn
+       công**, và nếu không có assert này thì bài **vẫn PASS** (đo được) trong khi không đè cái gì cả.
+       Nay giá trị client-khai **tự chế tại chỗ** (`_voi_recipe_tu_che_khai_section_roles`), độc lập
+       hoàn toàn khỏi builder — nhưng cầu chì vẫn giữ, vì nó canh cả ca "helper tự chế hỏng".
     3. *`kb.search` chưa từng được gọi.* Một run gãy trước `kb-retrieve` cũng cho 0 chunk finance.
        Chốt bằng `seen_section_roles is not None`.
 
@@ -419,7 +450,8 @@ async def test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang(pool: Pool)
     recipe, result = await _run_spine(
         pool,
         answer="Ngân sách nội bộ điều chỉnh theo quy định của bộ phận tài chính.",
-        scope="ankor/finance",  # recipe tự khai — vai kẻ tấn công, nới quyền trong chính tenant mình
+        scope="ankor/finance",  # scope recipe khai (workbench vẫn validate cấu trúc chuỗi này)
+        spoofed_section_roles=["finance"],  # recipe TỰ CHẾ nhét thẳng vào params — vai kẻ tấn công
         session_roles=["public"],  # phiên: server-resolve, hẹp hơn hẳn
         query=_FINANCE_QUERY,
         kb_search=spy,
