@@ -8,10 +8,13 @@ Un-ratchet (D17/#110): DE flipped `KbSearchService.search` to the real `PgKbSear
 **T6 stays `xfail`** and CANNOT pass at the kb layer by design: this test calls `KbSearchService`
 directly with a spoofed `section_roles=["confidential"]`, and kb TRUSTS the roles list it is handed
 (frozen 4-arg signature carries no caller identity, `kb-search.v0.md §5.2`). Neutralizing a client-
-declared list is UPSTREAM — the interpreter injects session-resolved roles over recipe-declared ones
-(`interpreter.py:291`, engine #111). The kb-lane acceptance of that override (recipe roles replaced →
-no leak) lives in `test_no_bypass.py`; retire this xfail marker only when the T6-at-interpreter test
-lands green (engine lane, not D17).
+declared list happens one layer up: the interpreter injects session-resolved `tenant_id` AND
+`section_roles` over recipe-declared ones (`interpreter.py:324-325` at the current `packages/engine`
+pointer `62773ba`; landed 2026-08-11, engine #111 — reviewed kb#25 F1, this docstring's line ref had
+drifted from an earlier D15-pointer state). The kb-lane acceptance of that override (recipe roles
+replaced → no leak) lives in `test_no_bypass.py`; retire this xfail marker only when a new
+T6-at-interpreter integration test (running `studio_engine.run()` for real, like `test_spine_live.py`)
+lands green — that test is **DE's own** to write, not upstream work to wait on.
 """
 
 from __future__ import annotations
@@ -66,10 +69,10 @@ async def test_t1_idor(admin_pool: object, pool: object) -> None:
 
 
 @pytest.mark.xfail(
-    reason="T6 enforced by injecting session_roles at interpreter.py:291 (engine #111); kb TRUSTS the "
-    "roles list by design, so this direct KbSearchService call with spoofed roles cannot be closed at "
-    "the kb layer — retire when the T6-at-interpreter test lands green. kb-lane no-bypass teeth: "
-    "test_no_bypass.py.",
+    reason="T6 enforced by injecting session_roles at interpreter.py:324-325 (engine #111, landed "
+    "2026-08-11); kb TRUSTS the roles list by design, so this direct KbSearchService call with spoofed "
+    "roles cannot be closed at the kb layer — retire when a new T6-at-interpreter integration test "
+    "(DE-authored, not upstream) lands green. kb-lane no-bypass teeth: test_no_bypass.py.",
     # strict=True (review kb#19 F1): a normal run fails the exclusion assertion (kb returns the
     # spoofed confidential chunk) → xfailed. If it ever XPASSES — e.g. a mutation makes the seam
     # ignore section_roles so the confidential chunk stops coming back — that is a LOUD failure, not
