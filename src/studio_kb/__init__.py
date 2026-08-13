@@ -23,8 +23,9 @@ Sprint 2 (D13) thêm tầng Postgres thật (`postgres.py`) vào seam công khai
 
 Sprint 2 (D17, #110) **lật seam chính thức**: `KbSearchService.search` (`search.py`) nay uỷ quyền một
 dòng sang `PgKbSearch.search` — đường vào chính thức chạy fence fail-closed thật (RLS tenant + `WHERE
-section_role`). T1 IDOR thành gate cứng ở `test_leak.py`; T6 label-spoof (client tự khai) đóng mức đầu,
-override thật nằm upstream (`interpreter.py:291`, engine #111) — xem `test_no_bypass.py`.
+section_role`). T1 IDOR thành gate cứng ở `test_leak.py`; T6 label-spoof (client tự khai) đóng thật ở
+D20 — override nằm upstream (`interpreter.py:324-325`, engine #111, landed 2026-08-11), kb-lane no-bypass
+teeth ở `test_no_bypass.py`.
 """
 
 from __future__ import annotations

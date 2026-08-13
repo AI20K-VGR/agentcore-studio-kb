@@ -32,6 +32,7 @@ from uuid import UUID
 import pytest_asyncio
 from studio_app.core._db import Pool
 from studio_app.obs.trace_writer import PgTraceWriter
+from studio_contracts.kb import KbSearch, KbSearchResultItem
 from studio_contracts.nodes import NodeType
 from studio_contracts.recipe import Recipe
 from studio_contracts.trace import TraceEvent
@@ -49,6 +50,14 @@ BOREA_ID = TENANT_IDS["borea"]
 # SC-01 trong `golden/smoke-5.yaml`. Dùng đúng id thật, không bịa: một id bịa sẽ bị luật grounding
 # loại và mọi assert về citation thành rỗng — xanh mà không chứng minh gì.
 _CITED_CHUNK = "ankor-leave-001#c1"
+
+# Câu hỏi + chunk cho bài T6 (`test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang`).
+# Chọn bằng ĐO, không bằng cảm giác: trên kho Callisto hiện tại, câu này với `section_roles=
+# ["finance"]` cho `ankor-budget-001#c2` hạng nhất (score 0.875), còn với `["public"]` **không ra
+# một chunk finance nào**. Cặp tương phản đó chính là thứ làm phép loại trừ của bài T6 có nghĩa —
+# nếu câu hỏi không với tới được kho finance thì "không thấy finance" đúng cả khi hàng rào đã hỏng.
+_FINANCE_QUERY = "Bộ phận điều chỉnh ngân sách nội bộ giữa các hạng mục trong phạm vi bao nhiêu?"
+_FINANCE_CHUNK = "ankor-budget-001#c2"
 
 
 class _CitingLLM:
@@ -78,8 +87,52 @@ class _UnusedEmbedding:
         return []
 
 
+class _RolesCapturingKbSearch:
+    """Ghi lại `section_roles` mà `kb.search` **thật sự nhận**, rồi uỷ quyền nguyên vẹn cho
+    `StaticKbSearch`. Dùng cho bài T6 (`test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang`).
+
+    **Không phải "quadrant mock quadrant"** (luật `day-06.md:46`): đây không dựng giả quadrant khác
+    — nó bọc chính `StaticKbSearch` của DE, ghi một biến rồi gọi thẳng bản thật, nên hành vi lọc
+    đem ra assert vẫn là hành vi thật của kb, không phải hành vi bịa trong test.
+
+    **Vì sao cần ghi lại input chứ không chỉ nhìn output.** Output (`chunks` trong trace) chứng minh
+    *hệ quả* — không có chunk finance nào lọt. Input chứng minh *cơ chế* — kb.search nhận đúng
+    `["public"]` của phiên chứ không phải `["finance"]` recipe khai. Hai vế hỏng độc lập nhau: một
+    ngày `StaticKbSearch` lọc sai mà interpreter vẫn đè đúng thì vế output đỏ còn vế input xanh, và
+    người đọc cần phân biệt được "hàng rào nào vừa gãy". Plan D20 §③ đòi đúng vế input:
+    *"assert tại giá trị `section_roles` thực vào `kb.search`"*.
+    """
+
+    def __init__(self) -> None:
+        self._inner = StaticKbSearch()
+        self.seen_section_roles: list[str] | None = None
+        """`None` = `kb.search` **chưa từng được gọi**, khác hẳn `[]` = *được gọi với danh sách rỗng*.
+        Phân biệt hai ca này là cần: một run không bao giờ tới `kb-retrieve` cũng cho 0 chunk
+        finance, tức xanh vì lý do sai."""
+
+    async def search(
+        self,
+        query: str,
+        tenant_id: UUID,
+        section_roles: list[str],
+        top_k: int,
+    ) -> list[KbSearchResultItem]:
+        # Chép ra `list(...)` chứ không giữ tham chiếu: interpreter dựng danh sách này rồi tiêm vào
+        # `node.params`, và một bản ghi bị sửa sau khi ghi thì không còn là bằng chứng.
+        self.seen_section_roles = list(section_roles)
+        return await self._inner.search(query, tenant_id, section_roles, top_k)
+
+
 async def _run_spine(
-    pool: Pool, *, answer: str, tenant_id: UUID = ANKOR_ID, recipe_tenant_id: UUID | None = None
+    pool: Pool,
+    *,
+    answer: str,
+    tenant_id: UUID = ANKOR_ID,
+    recipe_tenant_id: UUID | None = None,
+    scope: str = "ankor/public",
+    session_roles: list[str] | None = None,
+    query: str | None = None,
+    kb_search: KbSearch | None = None,
 ) -> tuple[Recipe, RunResult]:
     """Chạy trọn một run với sink thật, trả `(recipe, RunResult)`.
 
@@ -87,11 +140,27 @@ async def _run_spine(
     tiến trình và xuống Postgres thật. Trả kèm `recipe` vì từ D6 chuỗi node kỳ vọng suy từ
     `recipe.dag`, không từ một hằng số.
 
-    `tenant_id` là tenant **của phiên** (server-resolve). `recipe_tenant_id` là tenant **recipe tự
-    khai** — mặc định trùng phiên, và tách rời được là điều kiện để kiểm INV-1: hai nguồn khai cùng
-    một giá trị thì không bài test nào phân biệt nổi hệ thống đang đọc nguồn nào.
+    **Hai cặp (recipe tự khai / phiên server-resolve) tách rời được, vì cùng một lý do.** Hai nguồn
+    khai cùng một giá trị thì không bài test nào phân biệt nổi hệ thống đang đọc nguồn nào — mặc
+    định của cả hai cặp là *trùng nhau*, và chỉ bài kiểm hàng rào mới tách chúng ra:
+
+    - `tenant_id` (phiên) vs `recipe_tenant_id` (recipe khai) — trục INV-1, xem
+      `test_inv1_recipe_tu_khai_tenant_khac_thi_phien_thang`;
+    - `session_roles` (phiên) vs `scope` (recipe khai, workbench parse thành `section_roles`) —
+      trục T6, xem `test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang`.
+
+    `kb_search` tiêm được để bài T6 quan sát **giá trị thực** đi vào `kb.search`; mặc định vẫn là
+    `StaticKbSearch()` thật như trước.
     """
-    recipe = create_recipe_d4(tenant_id=tenant_id if recipe_tenant_id is None else recipe_tenant_id)
+    # Hai nhánh gọi tường minh thay vì `**{...}` có điều kiện: `query=None` KHÔNG truyền được (nó là
+    # `str` ở `create_recipe_d4`), mà chép lại giá trị mặc định của workbench vào đây thì tạo nguồn
+    # sự thật thứ hai — ngày workbench đổi câu mặc định, bản chép ở test âm thầm lệch.
+    recipe_tenant = tenant_id if recipe_tenant_id is None else recipe_tenant_id
+    recipe = (
+        create_recipe_d4(tenant_id=recipe_tenant, scope=scope)
+        if query is None
+        else create_recipe_d4(tenant_id=recipe_tenant, scope=scope, query=query)
+    )
     result = await run(
         recipe,
         # D8/INV-1: `run()` đòi `session_context` BẮT BUỘC (engine `a6967a2`, PR #12) — tenant đi qua
@@ -105,8 +174,14 @@ async def _run_spine(
         # Vắng `roles` → `resolve_session` mặc định `[]` (least-privilege) → sau khi interpreter
         # server-resolve `section_roles` từ `session.roles` (engine kit#111/PR21), `[]` = deny-all →
         # fence lọc hết chunk → mất trích dẫn. Khai đúng role tối thiểu để chuỗi thật vẫn truy được.
-        session_context=resolve_session({"tenant_id": tenant_id, "user": "spine-test", "roles": ["public"]}),
-        kb_search=StaticKbSearch(),
+        session_context=resolve_session(
+            {
+                "tenant_id": tenant_id,
+                "user": "spine-test",
+                "roles": ["public"] if session_roles is None else session_roles,
+            }
+        ),
+        kb_search=StaticKbSearch() if kb_search is None else kb_search,
         llm=_CitingLLM(answer),
         embedding=_UnusedEmbedding(),
         trace_writer=PgTraceWriter(pool),
@@ -296,6 +371,82 @@ async def test_inv1_recipe_tu_khai_tenant_khac_thi_phien_thang(pool: Pool) -> No
     assert all(e.tenant_id == ANKOR_ID for e in events), "trace phải mang tenant của phiên, không của recipe"
 
     assert await PgTraceReader(pool).read_run(result.run_id, BOREA_ID) == []
+
+
+async def test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang(pool: Pool) -> None:
+    """KHÓA T6 label-spoof (`kit#111`, `kb-search.v0.md` §3.3) — *"client tự khai VAI bị bỏ qua"*.
+
+    **Bài anh em của `test_inv1_recipe_tu_khai_tenant_khac_thi_phien_thang`, trục thứ hai.** Bài kia
+    tách `tenant_id` (bạn là ai); bài này tách `section_roles` (bạn được đọc mục nào). Cùng một
+    tenant hợp lệ, cùng một phiên thật — kẻ tấn công không giả danh tenant khác mà **tự nới quyền
+    trong tenant của chính mình**: recipe khai `kb_binding.scope="ankor/finance"`, phiên chỉ được
+    server-resolve ra `roles=["public"]`.
+
+    **Vì sao kb phải có bài này dù engine đã có bài của riêng nó.** `packages/engine/tests/
+    test_section_roles_server_resolve.py` chứng minh override tại biên executor, bằng double của
+    AIE-1 — đó là bằng chứng của lane engine. Bài này chứng minh cùng bất biến **trong kho kb**,
+    trên chuỗi thật `resolve_session`(SWE) → `interpreter`(AIE-1) → `kb.search`(DE) → Postgres →
+    đọc lại, với **kho tài liệu Callisto thật** của DE. Không có nó, evidence-pack của kb phải đi
+    mượn bằng chứng ở repo khác cho một dòng DoD của chính mình (`#125` *"T6 label-spoof xanh"*), và
+    người chấm chỉ đọc kb không kiểm lại được — đúng thứ chuẩn *"đủ để chấm không cần hỏi"* cấm.
+
+    **Ba cầu chì trước hai vế khẳng định.** Ba thứ dưới đây đều có thể làm bài này xanh vì lý do
+    sai, nên mỗi thứ bị chốt lại trước:
+
+    1. *Đòn tấn công không ăn được ngay từ đầu.* Nếu câu hỏi không với tới kho `finance` thì "không
+       thấy chunk finance" đúng cả khi hàng rào đã gãy. Chốt bằng phép đo ngược: đưa thẳng
+       `["finance"]` cho `StaticKbSearch` phải **ra** chunk finance.
+    2. *Recipe không thật sự khai finance.* Nếu `_parse_kb_scope` đổi cách parse, `section_roles`
+       trong node có thể đã là `["public"]` từ trước khi interpreter chạm vào — lúc đó bài không
+       kiểm override nào cả.
+    3. *`kb.search` chưa từng được gọi.* Một run gãy trước `kb-retrieve` cũng cho 0 chunk finance.
+       Chốt bằng `seen_section_roles is not None`.
+
+    Rồi mới tới hai vế, cố ý phủ **cơ chế** và **hệ quả** — hỏng độc lập nhau:
+      1. cơ chế — giá trị THỰC vào `kb.search` là `["public"]` của phiên, không phải `["finance"]`
+         recipe khai (plan D20 §③: *"assert tại giá trị `section_roles` thực vào `kb.search`"*);
+      2. hệ quả — đọc lại từ Postgres, không một chunk `finance` nào có mặt trong trace.
+    """
+    spy = _RolesCapturingKbSearch()
+
+    # Cầu chì 1 — đòn tấn công phải THẬT SỰ ăn được nếu không ai chặn.
+    neu_khong_chan = await StaticKbSearch().search(_FINANCE_QUERY, ANKOR_ID, ["finance"], 5)
+    assert any(h.chunk_id == _FINANCE_CHUNK for h in neu_khong_chan), (
+        f"tiền đề của bài: {_FINANCE_QUERY!r} phải với tới được {_FINANCE_CHUNK} khi vai finance "
+        "được chấp nhận — nếu không, phép loại trừ bên dưới xanh mà không chứng minh gì"
+    )
+
+    recipe, result = await _run_spine(
+        pool,
+        answer="Ngân sách nội bộ điều chỉnh theo quy định của bộ phận tài chính.",
+        scope="ankor/finance",  # recipe tự khai — vai kẻ tấn công, nới quyền trong chính tenant mình
+        session_roles=["public"],  # phiên: server-resolve, hẹp hơn hẳn
+        query=_FINANCE_QUERY,
+        kb_search=spy,
+    )
+
+    # Cầu chì 2 — recipe phải thật sự khai `finance` sau khi workbench parse `scope`.
+    retrieve_node = next(n for n in recipe.dag.nodes if n.type is NodeType.KB_RETRIEVE)
+    assert retrieve_node.params["section_roles"] == ["finance"], (
+        "tiền đề của bài: node kb-retrieve phải mang vai recipe tự khai, nếu không thì không có "
+        f"gì để đè — đang là {retrieve_node.params['section_roles']!r}"
+    )
+
+    # Cầu chì 3 + Vế 1 (cơ chế): `kb.search` được gọi, và nhận đúng vai của PHIÊN.
+    assert spy.seen_section_roles is not None, "kb.search chưa từng được gọi — run gãy trước kb-retrieve?"
+    assert spy.seen_section_roles == ["public"], (
+        "interpreter phải ĐÈ vai recipe khai bằng vai phiên trước khi gọi kb.search — "
+        f"kb.search nhận {spy.seen_section_roles!r}"
+    )
+
+    # Vế 2 (hệ quả): đọc lại từ Postgres — không chunk finance nào lọt vào trace.
+    events = await PgTraceReader(pool).read_run(result.run_id, ANKOR_ID)
+    retrieve = next(e for e in events if e.node_type is NodeType.KB_RETRIEVE)
+    chunks = _chunks(retrieve)
+
+    assert chunks, "phải truy xuất được chunk public — rỗng thì phép loại trừ dưới vô nghĩa"
+    assert all(c["section_role"] == "public" for c in chunks)
+    assert not any(c["chunk_id"] == _FINANCE_CHUNK for c in chunks)
 
 
 async def test_trace_la_nguon_citation_dung_duoc_cho_bo_cham(spine: tuple[Recipe, RunResult, list[TraceEvent]]) -> None:

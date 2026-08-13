@@ -11,10 +11,16 @@ delegation line — e.g. hardcoding the roles argument — survives with the who
 that gap was review kb#19 F1). The pure-SQL properties (empty/`"*"`) stay on `PgKbSearch` directly.
 
 **Scope note — this does NOT close T6.** Neutralizing a CLIENT/recipe-declared `section_roles` (the
-label-spoof vector) is the inject at `interpreter.py:291` (engine #111), NOT in kb — the frozen 4-arg
+label-spoof vector) is the inject at `interpreter.py:324-325` (engine #111), NOT in kb — the frozen 4-arg
 signature carries no caller identity (`kb-search.v0.md §5.2`). These teeth only prove kb honours the
-list it is given. The end-to-end T6 proof is an engine test (#111); the kb-side xfail marker on
-`test_leak.py::test_t6_label_spoof` is `strict=True` so an unexpected XPASS is loud, not swallowed.
+list it is given. The end-to-end T6 proof exists in **both** lanes, independently: engine's
+`test_section_roles_server_resolve.py` (#111, executor boundary, AIE-1 doubles) and kb's own
+`test_spine_live.py::test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang` (real
+`interpreter.run()` over the real Callisto corpus, asserting both the value reaching `kb.search` and
+the resulting trace in Postgres). The kb-side label-spoof placeholder
+(`test_leak.py::test_t6_label_spoof`) was retired at D20 once those were green; `test_leak_meta.py`
+repoints its anti-tamper onto the role-axis exclusion asserts below, so the kb-lane no-bypass teeth
+stay guarded against silent hollowing.
 """
 
 from __future__ import annotations
@@ -103,7 +109,7 @@ async def test_seam_public_caller_sees_no_finance(pool: object) -> None:
     """Second role value through the seam (public) — a public-only caller never sees the finance
     chunk. Kills the delegation mutant from the other direction (hardcoded roles incl. finance would
     surface `ankor-budget-001#c1` here). NOT a T6 proof: whether the caller's roles are the session-
-    resolved ones (vs recipe-declared) is decided upstream at `interpreter.py:291` (#111)."""
+    resolved ones (vs recipe-declared) is decided upstream at `interpreter.py:324-325` (#111)."""
     await _seed_roles(pool)
     hits = await KbSearchService(pool).search("ngân sách chính sách", ANKOR_ID, ["public"], 10)  # type: ignore[arg-type]
 
