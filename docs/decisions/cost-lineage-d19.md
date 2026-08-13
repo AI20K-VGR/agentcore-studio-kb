@@ -59,7 +59,7 @@ executor(AIE-1) → tokens ──emit(interpreter)──▶ obs.trace_events (ev
 | **F-4** | Trộn tenant khi cộng dồn (obs.trace_events **không RLS**) → hở INV-1 | **đã vá**: `aggregate_run_cost` raise khi trộn `tenant_id`; mọi query mang `tenant_id` (hàng rào duy nhất) |
 | **F-5** | Float drift khi cộng nhiều event | làm tròn 6 chữ số ở `cost_of` + tổng; nếu tiền-chính-xác cần thì đổi `Decimal` (honest-TODO) |
 | **F-6** | Event thiếu ở giữa run → tổng thiếu mà timeline trông liền | dùng `trace_reader.check_walk` (0-gap) cạnh cost table trước khi tin số |
-| **F-7** | Mặt đọc (UI-test/playground) tự nhân `tokens×đơn giá` cho tiện → phá §4.1 | contract cấm; lưới ở `test_khong_mat_doc_nao_ngoai_cost_py_goi_cost_of` (quét AST đệ quy, canh cả hằng đơn giá + alias) + `price_mismatches`; AIE-2/SWE phải gọi reader của DE |
+| **F-7** | Mặt đọc (UI-test/playground) tự nhân `tokens×đơn giá` cho tiện → phá §4.1 | contract cấm; lưới ở `test_khong_mat_doc_nao_ngoai_cost_py_goi_cost_of` (quét AST đệ quy **lane kb**, canh cả hằng đơn giá + alias) + `price_mismatches`. **Cross-repo (sửa lượt 3):** 4 quadrant cùng 1 layer import-linter (`studio_kb\|engine\|workbench\|evalhub`) ⇒ AIE-2/SWE **không import được** `studio_kb.cost` (`make lint` đỏ) — nên "gọi reader của DE" bất khả thi. Thực tế: mỗi mặt đọc tự **cộng `cost` đã lưu** (phép đọc trên nhiều dòng, KHÔNG suy giá từ `tokens` → vẫn đúng §4.1). Nửa cross-repo này **không có lưới ở lane kb**; đóng khi `cost_of` land ở `contracts` (Q-A §3), luật giá đi cùng nó |
 
 ## 5. Bất biến sống-còn
 Cost-lineage nằm nhóm **KHÔNG được cắt** (DESCOPE §0): dù tụt nấc (dashboard→CLI), 3 mặt vẫn đọc **một**

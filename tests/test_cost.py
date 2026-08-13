@@ -154,9 +154,15 @@ def test_khong_mat_doc_nao_ngoai_cost_py_goi_cost_of() -> None:
     kb_root = src_pkg.parent.parent  # …/packages/kb
     scripts_dir = kb_root / "scripts"
     # Guard xanh-giả: resolve sai gốc (cài non-editable) → glob rỗng → vi phạm lọt trong im lặng (F3).
+    # Mỗi NGUỒN quét tự chứng minh nó còn sống — KHÔNG núp sau tổng của nguồn kia (review kb#22 lượt 3):
+    # `len(surfaces) > 5` chỉ chứng minh TỔNG khác rỗng; nếu `src/` resolve rỗng thì riêng 9 file `scripts/`
+    # vẫn thoả (9 > 5), 12 mặt đọc trong `src/` — nơi mọi mặt đọc lane kb thật sự sống — bị bỏ qua câm.
     assert scripts_dir.is_dir(), f"không thấy {scripts_dir} — quét rỗng thì bài này xanh giả"
-    surfaces = sorted(src_pkg.rglob("*.py")) + sorted(scripts_dir.rglob("*.py"))
-    assert len(surfaces) > 5, f"chỉ quét được {len(surfaces)} file — nghi resolve sai gốc repo"
+    src_files = sorted(src_pkg.rglob("*.py"))
+    script_files = sorted(scripts_dir.rglob("*.py"))
+    assert len(src_files) >= 8, f"quét src/studio_kb chỉ được {len(src_files)} file — nghi resolve sai gốc"
+    assert len(script_files) >= 4, f"quét scripts/ chỉ được {len(script_files)} file — nghi resolve sai gốc"
+    surfaces = src_files + script_files
 
     price_names = {"cost_of", "PROMPT_RATE_PER_1K", "COMPLETION_RATE_PER_1K"}
     offenders: list[str] = []
