@@ -31,15 +31,16 @@ end-to-end, rồi **đối chiếu plan-vs-actual** với [design-note D11](../d
 | trace viewer | D14–D16 | `trace_reader.render_timeline` + `PgTraceReader.read_run` |
 | golden-set 30 (+10 nhãn tay) | D16 + **D18** | `golden/callisto-golden-30-v1.yaml` (30 case · 10 `manual_label`) |
 
-**2 DEPENDENCY — trạng thái tính tới 13/08 (sửa sau review AIE-2, kb#25 F1/F2 — bản trước khai #111 sai
-"chưa land"; RE-VERIFY sáng D20 vẫn bắt buộc, remote đổi được qua đêm — đừng tin bản ghi này thay `git fetch`):**
+**1 DEPENDENCY còn treo (T6 đã đóng xong) — trạng thái tính tới 13/08 (sửa sau review AIE-2, kb#25 F1/F2 —
+bản trước khai #111 sai "chưa land"; RE-VERIFY sáng D20 vẫn bắt buộc, remote đổi được qua đêm — đừng tin
+bản ghi này thay `git fetch`):**
 
-1. **T6 label-spoof "xanh" thật — #111 (engine, AIE-1) ĐÃ LAND 11/08** (kit#113, `a4e59ed`), một ngày
-   TRƯỚC dry-run 12/08. Con trỏ `packages/engine` hiện ở `62773ba` (D17); `interpreter.py:324-325` inject
-   **cả** `tenant_id` **lẫn** `section_roles` từ `session_context.roles`. Việc còn thiếu **không phải
-   upstream nữa** — là bài test tích hợp ở tầng interpreter, **lane DE** (kb-acceptance D17 ③c: mô phỏng
-   override + `kb.search` thật + no-bypass teeth vẫn xanh, nhưng chưa có bài chạy `interpreter.run()` thật
-   để đóng T6 hẳn). **DoD #125 "T6 xanh" trọn khi DE viết xong bài đó** — không còn phải hỏi AIE-1.
+1. **T6 label-spoof "xanh" thật — ĐÃ ĐÓNG XONG.** #111 (engine, AIE-1) land 11/08 (kit#113, `a4e59ed`),
+   một ngày TRƯỚC dry-run 12/08. Con trỏ `packages/engine` hiện ở `62773ba` (D17); `interpreter.py:324-325`
+   inject **cả** `tenant_id` **lẫn** `section_roles` từ `session_context.roles`. Bài test tích hợp ở tầng
+   interpreter (lane DE) đã **viết xong trong `kb#26`** và **gộp vào branch này** (`git merge`,
+   commit `ce0276f`) — DoD #125 "T6 xanh" **đã trọn**. Không còn việc gì để làm ở ③ cho T6 nữa; mục ③
+   dưới đây giữ nguyên phần mô tả kỹ thuật để tham chiếu, nhưng bản thân bài test đã xanh sẵn.
 2. **"cost cùng-1-số" ⇐ cost-lineage — D19 (kb#22) ĐÃ LAND 13/08.** `src/studio_kb/cost.py` +
    `scripts/cost_table.py` đọc on-read từ `obs.trace_events`, cộng dồn `event.cost` đã lưu (không tính
    lại). **Nhưng `interpreter.py:438`** (con trỏ engine hiện tại) **vẫn `cost=_NO_COST`** (0.0) —
@@ -51,8 +52,8 @@ end-to-end, rồi **đối chiếu plan-vs-actual** với [design-note D11](../d
 **Lằn giữ nguyên (bám contract, INV-5 freeze):** chỉ WRITE `packages/kb`; **KHÔNG đổi** chữ ký `kb.search`
 (§3.3 FROZEN: `(query, tenant_id, section_roles, top_k)`) và **KHÔNG đổi** tên/nghĩa khoá trace-event §3.2
 (`tokens{prompt,completion}` · `cost` · `citations[]`); giữ `EMBEDDING_DIM=8` + schema/RLS; **KHÔNG WRITE**
-engine (T6-integration-test viết ở kb, nhưng KHÔNG sửa `interpreter.py`; cost `_NO_COST`→`cost_of` wire là
-AIE-1 lane #121) hay apps (`obs.costs` là apps/studio); **KHÔNG fake-green** T6/cost ở gate.
+engine (T6-integration-test đã viết ở kb, KHÔNG sửa `interpreter.py`; cost `_NO_COST`→`cost_of` wire là
+AIE-1 lane #121) hay apps (`obs.costs` là apps/studio); **KHÔNG fake-green** cost ở gate (T6 đã xanh thật).
 
 ---
 
@@ -67,8 +68,8 @@ AIE-1 lane #121) hay apps (`obs.costs` là apps/studio); **KHÔNG fake-green** T
 - **1 câu coordinate còn lại (comment issue, KHÔNG WRITE lane khác) — AIE-1 #121, không còn #126:**
   - **AIE-1 #121 (cost seam):** *"`cost_of` cần land ở `contracts` trước khi engine wire tại emit (Q-A,
     DE không sửa `contracts`) — bạn định wire lúc nào? DE cần biết để cost-table/trace-viewer đọc CÙNG số
-    với UI-test khi số thật chảy vào (§3.2 invariant)."* (Không còn câu hỏi #111/T6 — đã land, xác nhận
-    xong; T6 integration-test giờ là việc DE tự viết, không chờ trả lời ai.)
+    với UI-test khi số thật chảy vào (§3.2 invariant)."* (Không còn câu hỏi #111/T6 — đã land VÀ bài test
+    tích hợp DE-viết đã merge ở kb#26, không còn gì phải hỏi ai về T6.)
 
 ### ① KB thật per-tenant — chứng minh 1 lệnh dựng lại (clone-tươi-chạy-nguyên-lệnh)
 - Chạy `scripts/ingest_callisto` (hoặc lệnh ingest chuẩn) trên DB tươi → `kb.chunks` có 2 tenant
@@ -88,12 +89,13 @@ AIE-1 lane #121) hay apps (`obs.costs` là apps/studio); **KHÔNG fake-green** T
 ### ③ kb.search cited + T1/T6 — leakage=0 là AC CỨNG (§3.3 / INV-1)
 - **T1 IDOR:** `test_t1_idor` xanh thật (RLS + `WHERE tenant_id`, đã gỡ xfail D17). Câu cross-tenant → `[]`
   (refusal + audit), không hallucinate.
-- **T6 label-spoof:** #111 **đã land** (xác nhận ⓪, không còn nhánh "nếu chưa") — viết bài test tích hợp
-  MỚI, đi qua `interpreter.run()` thật (kiểu `test_spine_live`): recipe khai `section_roles=["finance"]`
-  nhưng session `roles=["public"]` → interpreter đè (`interpreter.py:324-325`) → `kb.search` nhận
-  `["public"]` → không rò finance-chunk. Đây là T6 **đóng thật** (§3.3: client tự khai bị bỏ qua). Bài
-  này là **DE tự viết**, không chờ ai; gỡ `xfail` ở `test_leak.py::test_t6_label_spoof` nếu nó thay được
-  vai trò, sửa `test_leak_meta.py` cùng commit (anti-tamper string).
+- **T6 label-spoof: ĐÃ ĐÓNG XONG (kb#26, gộp vào branch này).** Bài test tích hợp engine-lane
+  (`test_section_roles_server_resolve.py`) đi qua `interpreter.run()` thật: recipe khai
+  `section_roles=["finance"]` nhưng session `roles=["public"]` → interpreter đè (`interpreter.py:324-325`)
+  → `kb.search` nhận `["public"]` → không rò finance-chunk. T6 **đóng thật** (§3.3: client tự khai bị bỏ
+  qua). Kb-side placeholder `test_leak.py::test_t6_label_spoof` đã **xoá** (không còn `xfail`),
+  `test_leak_meta.py` đã repoint anti-tamper sang răng loại-trừ trong `test_no_bypass.py`. Sáng D20 chỉ
+  cần chạy lại suite để xác nhận vẫn xanh, không cần viết gì thêm.
 - **KHÔNG** vocab-guard / răng-giả để ép xanh; assert tại **giá trị `section_roles` thực vào `kb.search`**.
 
 ### ④ Trace viewer + cost cùng-1-số (§3.2 cost-lineage invariant)
@@ -118,7 +120,7 @@ Viết `docs/reports/de-d20-plan-vs-actual.md` (hoặc mục trong report gate),
 | Dự đoán D11 (§6) | Actual D20 | Kết |
 |---|---|---|
 | Fence mới ở tầng retrieval, cần 1 điểm chặn dùng chung | Lật `KbSearchService`→`PgKbSearch` (D17): fence tại retrieval, 1 seam | ✅ đúng hướng |
-| INV-1 chặn `tenant`, **chưa** chặn `roles` (`section_roles` nhận-rồi-bỏ) | `section_roles` inject #111 (engine) đã land 11/08; gap còn lại = bài test tích hợp DE ở ③ | ✅/⏳ theo ③ (lane DE, không còn phụ thuộc AIE-1) |
+| INV-1 chặn `tenant`, **chưa** chặn `roles` (`section_roles` nhận-rồi-bỏ) | `section_roles` inject #111 (engine) đã land 11/08; bài test tích hợp DE đã viết + gộp (kb#26) | ✅ đóng thật, không còn treo |
 | `obs.costs` ngoài fence-lane DE, DE điền D19 | D19 (kb#22) land 13/08 nhưng KHÔNG build `obs.costs` — on-read từ `obs.trace_events`; số thật chờ #121 | ⏳ theo #121 (AIE-1) |
 | `obs.golden_sets` nghi bảng-chết trùng `eval.golden_sets` → đề xuất DROP (mini-RFC schema-drift) | mini-RFC amendment D18 = kb#24, **APPROVED** 13/08; DROP còn chờ xác nhận AIE-1 (gate thay mentor); `eval.*` đã chốt (golden_sets KHÔNG CẦN, scorecards CẦN) | ghi trạng thái mới |
 - Trung thực cả chỗ **lệch dự đoán** (mentor S1: giữ nhịp làm sạch, không giấu). Đây là input quyết scope tuần 5.
@@ -130,7 +132,7 @@ Viết `docs/reports/de-d20-plan-vs-actual.md` (hoặc mục trong report gate),
 - [ ] **KB thật ingest→embed→index per-tenant** — ①: 1 lệnh dựng lại, 2 tenant, NOT NULL, idempotent.
 - [ ] **`kb.search` cited** — ②③: spine-live citations grounded + shape §3.3.
 - [ ] **tenant filter + T1 xanh** — ③: `test_t1_idor` xanh thật (RLS).
-- [ ] **T6 label-spoof xanh** — ③: #111 đã land; viết bài test tích hợp DE qua interpreter, retire xfail.
+- [x] **T6 label-spoof xanh** — ③: ĐÃ XONG (kb#26, gộp vào branch này) — #111 land + bài test tích hợp DE qua interpreter + xfail đã retire.
 - [ ] **trace viewer** — ④: `render_timeline` trên run live.
 - [ ] **cost-lineage cùng-1-số** — ④: kb#22 (D19) đã land, đọc-không-tính-lại; honest-TODO chờ #121 (AIE-1) wire số thật.
 - [ ] **golden-set 30** — ⑤: 30 case + 10 nhãn tay, byte-identical.
@@ -142,8 +144,8 @@ Viết `docs/reports/de-d20-plan-vs-actual.md` (hoặc mục trong report gate),
 ## 3. Coordinate (comment issue, KHÔNG WRITE lane khác)
 
 - **AIE-1 #126:** 6 node-type executor chạy DAG thật qua EmbeddingService + bảng chunking×embedding
-  trade-off (số) — DE cấp KB/golden làm nguồn, **không** viết executor. (T6 integration **không còn** ở
-  đây — #111 đã land, bài test tích hợp là DE tự viết ở ③.)
+  trade-off (số) — DE cấp KB/golden làm nguồn, **không** viết executor. (T6 integration **đã đóng xong**
+  ở kb#26, không còn gì để coordinate.)
 - **AIE-1 #121 — cost seam:** khi nào wire `cost_of` tại emit (`interpreter.py:438`, thay `_NO_COST`)?
   Cần `cost_of` land ở `contracts` trước (Q-A, DE không sửa `contracts`). DE cần biết để trace-viewer đọc
   **cùng số** UI-test, không tính lại (§3.2).
@@ -172,9 +174,8 @@ Viết `docs/reports/de-d20-plan-vs-actual.md` (hoặc mục trong report gate),
 
 ## 5. Còn treo / ngoài phạm vi hôm nay
 
-- **T6 integration-close** (assert đè `section_roles` thật qua interpreter) — #111 (engine, AIE-1) **đã
-  land** 11/08, không còn treo phía upstream. Việc còn lại là bài test tích hợp **DE tự viết** (③); retire
-  `xfail` khi bài đó xanh. **DE không WRITE engine** — chỉ thêm test trong lane kb.
+- ~~T6 integration-close~~ — **KHÔNG còn treo.** #111 (engine, AIE-1) land 11/08; bài test tích hợp DE
+  viết xong + gộp ở kb#26; `xfail` đã retire. Giữ dòng này để lịch sử review (F1) không mất dấu.
 - **cost-lineage nguồn-1-số** = **D19 (kb#22) đã land** 13/08 (cỗ máy cộng dồn); số thật còn treo ở **#121
   (AIE-1, còn mở)** wire `cost_of` tại emit + `cost_of` land ở `contracts` (Q-A) — cross-lane seam, **không**
   DE tự tính lại cost trong `kb.search`/reader.
@@ -182,6 +183,7 @@ Viết `docs/reports/de-d20-plan-vs-actual.md` (hoặc mục trong report gate),
 - **`obs.golden_sets` DROP** (schema-drift) = mini-RFC amendment D18 (kb#24, **APPROVED** 13/08) giữ đề
   xuất DROP; còn chờ xác nhận AIE-1 (gate thay mentor) → ghi trạng thái ở ⑥, không tự DROP một mình.
 - **L2 gateway embed thật** (fixtures→gateway qua flag, INV-4) = stretch S3, không đổi storage (vẫn pgvector §4).
-- **Trạng thái:** plan gate-ready. Nhịp: refresh + re-verify pointer (⓪) → ①②③④⑤ chứng minh ghép (T6 tự
-  đóng ở ③, cost chờ #121 ở ④) → ⑥ plan-vs-actual → PR → review ≤2 vòng. **Không fake-green cost; skip ≠
-  pass; đọc trạng thái pointer engine trước khi khẳng định — kể cả bản ghi trong chính plan này.**
+- **Trạng thái:** plan gate-ready. Nhịp: refresh + re-verify pointer (⓪) → ①②③④⑤ chứng minh ghép (T6 đã
+  xong từ kb#26, chỉ cần xác nhận lại ở ③; cost chờ #121 ở ④) → ⑥ plan-vs-actual → PR → review ≤2 vòng.
+  **Không fake-green cost; skip ≠ pass; đọc trạng thái pointer engine trước khi khẳng định — kể cả bản
+  ghi trong chính plan này.**
