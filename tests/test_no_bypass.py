@@ -13,8 +13,10 @@ that gap was review kb#19 F1). The pure-SQL properties (empty/`"*"`) stay on `Pg
 **Scope note — this does NOT close T6.** Neutralizing a CLIENT/recipe-declared `section_roles` (the
 label-spoof vector) is the inject at `interpreter.py:291` (engine #111), NOT in kb — the frozen 4-arg
 signature carries no caller identity (`kb-search.v0.md §5.2`). These teeth only prove kb honours the
-list it is given. The end-to-end T6 proof is an engine test (#111); the kb-side xfail marker on
-`test_leak.py::test_t6_label_spoof` is `strict=True` so an unexpected XPASS is loud, not swallowed.
+list it is given. The end-to-end T6 proof is an engine test (`test_section_roles_server_resolve.py`,
+#111). The kb-side label-spoof placeholder (`test_leak.py::test_t6_label_spoof`) has been retired now
+that that engine test is green (D20); `test_leak_meta.py` repoints its anti-tamper onto the role-axis
+exclusion asserts below, so the kb-lane no-bypass teeth stay guarded against silent hollowing.
 """
 
 from __future__ import annotations
