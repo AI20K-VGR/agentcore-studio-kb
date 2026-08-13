@@ -11,10 +11,20 @@ Un-ratchet (D17/#110): DE flipped `KbSearchService.search` to the real `PgKbSear
 call with a spoofed `section_roles=["confidential"]` always returns the confidential chunk. Neutral-
 izing a client-declared list is UPSTREAM — the interpreter injects session-resolved `tenant_id` AND
 `section_roles` over recipe-declared ones (`interpreter.py:324-325` at the current `packages/engine`
-pointer `62773ba`; landed 2026-08-11, engine #111), proven green by the engine-lane test
-`test_section_roles_server_resolve.py`. The kb-lane acceptance of that override (kb honours the roles
-list it is given → no bypass) lives in `test_no_bypass.py`; the anti-tamper meta-test now guards those
-role-exclusion teeth instead of the retired placeholder.
+pointer `62773ba`; landed 2026-08-11, engine #111).
+
+**kb proves that override on its OWN corpus, in this repo** —
+`test_spine_live.py::test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang`: a recipe declaring
+`kb_binding.scope="ankor/finance"` against a session resolved to `roles=["public"]`, run through the
+real `interpreter.run()`, asserting both the value `kb.search` actually receives and the absence of
+any finance chunk in the trace read back from Postgres. That is the kb-lane end-to-end proof; the
+engine-lane `test_section_roles_server_resolve.py` proves the same invariant at the executor boundary
+with AIE-1's own doubles. Two lanes, two independent proofs — kb does not borrow evidence for a DoD
+line of its own (`#125` *"T6 label-spoof xanh"*).
+
+The kb-lane acceptance of the override at the seam itself (kb honours the roles list it is given →
+no bypass) lives in `test_no_bypass.py`; the anti-tamper meta-test guards those role-exclusion teeth
+instead of the retired placeholder.
 """
 
 from __future__ import annotations

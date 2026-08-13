@@ -89,14 +89,21 @@ AIE-1 lane #121) hay apps (`obs.costs` là apps/studio); **KHÔNG fake-green** c
 ### ③ kb.search cited + T1/T6 — leakage=0 là AC CỨNG (§3.3 / INV-1)
 - **T1 IDOR:** `test_t1_idor` xanh thật (RLS + `WHERE tenant_id`, đã gỡ xfail D17). Câu cross-tenant → `[]`
   (refusal + audit), không hallucinate.
-- **T6 label-spoof: ĐÃ ĐÓNG XONG (kb#26, gộp vào branch này).** Bài test tích hợp engine-lane
-  (`test_section_roles_server_resolve.py`) đi qua `interpreter.run()` thật: recipe khai
-  `section_roles=["finance"]` nhưng session `roles=["public"]` → interpreter đè (`interpreter.py:324-325`)
-  → `kb.search` nhận `["public"]` → không rò finance-chunk. T6 **đóng thật** (§3.3: client tự khai bị bỏ
-  qua). Kb-side placeholder `test_leak.py::test_t6_label_spoof` đã **xoá** (không còn `xfail`),
-  `test_leak_meta.py` đã repoint anti-tamper sang răng loại-trừ trong `test_no_bypass.py`. Sáng D20 chỉ
-  cần chạy lại suite để xác nhận vẫn xanh, không cần viết gì thêm.
-- **KHÔNG** vocab-guard / răng-giả để ép xanh; assert tại **giá trị `section_roles` thực vào `kb.search`**.
+- **T6 label-spoof: ĐÃ ĐÓNG XONG, bằng bài test CỦA CHÍNH KB.**
+  `test_spine_live::test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang` đi qua `interpreter.run()`
+  thật trên kho Callisto thật: recipe khai `kb_binding.scope="ankor/finance"` nhưng session
+  `roles=["public"]` → interpreter đè (`interpreter.py:324-325`) → `kb.search` nhận `["public"]` → không
+  rò finance-chunk. T6 **đóng thật** (§3.3: client tự khai bị bỏ qua).
+  - **Vì sao không dừng ở bằng chứng engine** (`test_section_roles_server_resolve.py`, #111 — vẫn giữ,
+    hai lane hai bằng chứng độc lập): kb#26 retire xfail dựa vào bài của engine, tức kb đi mượn bằng
+    chứng cho một dòng DoD của chính mình. Đo được — gỡ hẳn dòng inject khỏi interpreter thì **cả 238
+    test kb vẫn xanh**: kb có **0 coverage** cho bất biến nó đang tuyên bố.
+  - Kb-side placeholder `test_leak.py::test_t6_label_spoof` đã **xoá** (không còn `xfail`),
+    `test_leak_meta.py` repoint anti-tamper sang răng loại-trừ trong `test_no_bypass.py`.
+- **KHÔNG** vocab-guard / răng-giả để ép xanh; assert tại **giá trị `section_roles` thực vào `kb.search`**
+  — bài trên làm đúng vậy qua `_RolesCapturingKbSearch` (ghi lại input thật), **cộng** vế hệ quả đọc lại
+  từ Postgres. Self-mutation đã chạy: M-1 (bỏ dòng inject) và M-2 (đè bằng chính giá trị recipe khai) đều
+  bị bắt đỏ; hai vế có răng độc lập.
 
 ### ④ Trace viewer + cost cùng-1-số (§3.2 cost-lineage invariant)
 - **Trace viewer:** `render_timeline` in timeline từng node của run thật ở ② (`tok=prompt/completion cost=…
@@ -132,7 +139,7 @@ Viết `docs/reports/de-d20-plan-vs-actual.md` (hoặc mục trong report gate),
 - [ ] **KB thật ingest→embed→index per-tenant** — ①: 1 lệnh dựng lại, 2 tenant, NOT NULL, idempotent.
 - [ ] **`kb.search` cited** — ②③: spine-live citations grounded + shape §3.3.
 - [ ] **tenant filter + T1 xanh** — ③: `test_t1_idor` xanh thật (RLS).
-- [x] **T6 label-spoof xanh** — ③: ĐÃ XONG (kb#26, gộp vào branch này) — #111 land + bài test tích hợp DE qua interpreter + xfail đã retire.
+- [x] **T6 label-spoof xanh** — ③: ĐÃ XONG — #111 land + **kb có bài integration của riêng mình** (`test_spine_live::test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang`) + xfail đã retire.
 - [ ] **trace viewer** — ④: `render_timeline` trên run live.
 - [ ] **cost-lineage cùng-1-số** — ④: kb#22 (D19) đã land, đọc-không-tính-lại; honest-TODO chờ #121 (AIE-1) wire số thật.
 - [ ] **golden-set 30** — ⑤: 30 case + 10 nhãn tay, byte-identical.
