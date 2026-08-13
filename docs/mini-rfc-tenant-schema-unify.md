@@ -65,7 +65,7 @@ nhóm — **bỏ nhóm "HOÃN" cũ** (xem [Amendment D18](#amendment-2026-08-12-
   - `eval.scorecards` → **CẦN RLS** (chốt bởi chủ lane AIE-2, review kb#24). Điều kiện lật *"`results`
     lưu answer-text của tenant"* **đã thoả HÔM NAY**, không phải "về sau": `EvalHarness.run()`
     (`evalhub:harness.py:463`, đã hiện thực trên `origin/main` — hết `NotImplementedError`) chạy từng case
-    `tenant_id=tenant_ids[case.tenant]` rồi đổ `CaseResult(expected, actual)` — answer-text dẫn xuất từ
+    `tenant_id=tenant_ids[case.tenant]` (`:530`) rồi đổ `CaseResult(expected, actual=scored.actual)` (`:540`) — answer-text dẫn xuất từ
     kho tenant — vào `eval.scorecards.results JSONB` (`evalhub:schema.py:31`). Tiêu chí RFC là **bản chất
     data**, không phải "ai đọc" (`gate`): bản chất `results` là nội dung per-tenant ⇒ CẦN. Chưa hở thật
     (0 writer, bảng mới có DDL) nhưng RFC này quyết theo bản-chất-data *"không phụ thuộc bảng đã xây hay
@@ -110,9 +110,9 @@ Bật RLS / DROP bảng **đổi runtime lane khác** + là quyết định INV-
 | DE (bút + mẫu kb) | Nguyễn Đông Anh | ✅ — B·B2·C·D |
 | SWE | Thiệu Quang Minh | ✅ 2026-08-12 — **phần B** (RLS `wb.recipes`/`wb.recipe_versions`), PR kb#23 · RLS ở workbench#22. B2/C/D chưa nhận. |
 | AIE-1 | Trần Bá Đạt | ✅ 2026-08-12 — **phần B** (`obs.trace_events`). Điều kiện A1-8 (writer bind `app.tenant_id`) **tự đóng** bằng PR `apps/studio#4` do chính AIE-1 mở; DE review+verify (45 passed) → rút objection. *(PR#4 tự giới hạn: chỉ đóng đk kỹ thuật, bật RLS production là AIE-1+DE — gate thay mentor.)* B2/C/D: không phản đối (B2=eval/wb ngoài lane AIE-1). |
-| AIE-2 | Lưu Tiến Duy | ✅ 2026-08-03 — **B·C·D** (comment PR kb#10). **B2 ⬜:** chữ ký 03/08 là trên **bản "hoãn" cũ** (*"quyết tenant-scope sau, không RLS mù"*) — **KHÔNG** tính là phê amendment D18 (*"KHÔNG CẦN"* là nghĩa khác). Lập trường D18 do chính AIE-2 chốt ở review kb#24: `eval.golden_sets` **KHÔNG CẦN ✅**, `eval.scorecards` **→ CẦN** (`results` = answer-text per-tenant). Phê B2 chính thức khi doc đã khớp (bản này). |
+| AIE-2 | Lưu Tiến Duy | ✅ 2026-08-03 — **B·C·D** (comment PR kb#10). **✅ B2 (phê ở review kb#24, commit 0ef2728):** chữ ký 03/08 là trên **bản "hoãn" cũ** (*"quyết tenant-scope sau, không RLS mù"*) — **KHÔNG** tính là phê amendment D18 (*"KHÔNG CẦN"* là nghĩa khác). Lập trường D18 do chính AIE-2 chốt ở review kb#24: `eval.golden_sets` **KHÔNG CẦN ✅**, `eval.scorecards` **→ CẦN** (`results` = answer-text per-tenant). Doc đã khớp (bản này) → **đã phê B2 chính thức**. |
 
-**Trạng thái chữ ký:** **B** — đủ 4/4 thành viên (DE·SWE·AIE-1·AIE-2). **B2·C·D** — mới DE ký đủ; AIE-2 đã chốt phần eval của B2 ở kb#24 (golden_sets KHÔNG CẦN, scorecards CẦN) nhưng **chưa** phê chính thức amendment; `obs.costs` (B2, lane DE) chưa build; SWE/AIE-1 còn hở wb/invariant/drop. Chữ ký 03/08 của AIE-2 **không** tính vào B2-amendment.
+**Trạng thái chữ ký:** **B** — đủ 4/4 thành viên (DE·SWE·AIE-1·AIE-2). **B2·C·D** — mới DE ký đủ; AIE-2 đã chốt phần eval của B2 ở kb#24 (golden_sets KHÔNG CẦN, scorecards CẦN) và **đã phê chính thức** amendment (review kb#24); `obs.costs` (B2, lane DE) chưa build; SWE/AIE-1 còn hở wb/invariant/drop. Chữ ký 03/08 của AIE-2 **không** tính vào B2-amendment.
 
 *Chốt xong ghi decision-log. Non-goal: INV-1 roles (đó là #110/#112, D17).*
 
@@ -129,7 +129,7 @@ Bật RLS / DROP bảng **đổi runtime lane khác** + là quyết định INV-
 | `core.outbox` | apps/studio | `tenant_id UUID` | ❌ | **loại** (outbox drain) |
 | `obs.costs` | apps/studio | — (shell) | ❌ | **CẦN** khi/nếu build (D19 kb#22 KHÔNG build — on-read `trace_events`) |
 | `eval.golden_sets` | evalhub | — | ❌ | **KHÔNG CẦN** (đề chung) · AIE-2 phê kb#24 |
-| `eval.scorecards` | evalhub | — (chỉ `agent_id`) | ❌ | **CẦN** — `results` = answer-text per-tenant (`harness.py:463`); AIE-2 chốt kb#24 |
+| `eval.scorecards` | evalhub | — (chỉ `agent_id`) | ❌ | **CẦN** — `results` = answer-text per-tenant (`harness.py:530`+`:540`); AIE-2 chốt kb#24 |
 | `obs.golden_sets` | apps/studio | — (shell, 0 ref) | ❌ | **D — DROP?** |
 | `core.tenants` | apps/studio | — (registry) | n/a | **KHÔNG CẦN** (registry định danh) |
 
