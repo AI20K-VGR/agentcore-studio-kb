@@ -17,7 +17,7 @@ Honest boundary — what this seam does NOT do (T6 "mức đầu", see plan D17 
 it: empty → `[]`, no wildcard). Neutralizing a CLIENT-declared `section_roles` (the T6 label-spoof
 vector) happens UPSTREAM — the interpreter injects the session-resolved roles over the recipe-
 declared ones before calling `search`, exactly as it already injects `tenant_id`
-(`interpreter.py:291`, engine lane #111). The frozen 4-arg signature carries no caller identity
+(`interpreter.py:324-325`, engine lane #111, landed 2026-08-11). The frozen 4-arg signature carries no caller identity
 (`kb-search.v0.md §5.2`), so kb cannot resolve roles from inside this function — it can only be
 fail-closed on the list it is handed. That is why #114 scopes T6 to "mức đầu".
 

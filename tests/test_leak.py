@@ -5,23 +5,22 @@ phase-5 Risks table: "leak-test 'xanh giả'").
 Un-ratchet (D17/#110): DE flipped `KbSearchService.search` to the real `PgKbSearch` mechanism, so
 **T1 IDOR is now a hard gate** (xfail removed) — a leaky impl returning everyone's chunks fails it.
 
-**T6 stays `xfail`** and CANNOT pass at the kb layer by design: this test calls `KbSearchService`
-directly with a spoofed `section_roles=["confidential"]`, and kb TRUSTS the roles list it is handed
-(frozen 4-arg signature carries no caller identity, `kb-search.v0.md §5.2`). Neutralizing a client-
-declared list happens one layer up: the interpreter injects session-resolved `tenant_id` AND
+**T6 label-spoof is now closed UPSTREAM at the interpreter and its kb-layer placeholder is retired**
+(D20). It could never pass at the kb layer by design: kb TRUSTS the roles list it is handed (frozen
+4-arg signature carries no caller identity, `kb-search.v0.md §5.2`), so a direct `KbSearchService`
+call with a spoofed `section_roles=["confidential"]` always returns the confidential chunk. Neutral-
+izing a client-declared list is UPSTREAM — the interpreter injects session-resolved `tenant_id` AND
 `section_roles` over recipe-declared ones (`interpreter.py:324-325` at the current `packages/engine`
-pointer `62773ba`; landed 2026-08-11, engine #111 — reviewed kb#25 F1, this docstring's line ref had
-drifted from an earlier D15-pointer state). The kb-lane acceptance of that override (recipe roles
-replaced → no leak) lives in `test_no_bypass.py`; retire this xfail marker only when a new
-T6-at-interpreter integration test (running `studio_engine.run()` for real, like `test_spine_live.py`)
-lands green — that test is **DE's own** to write, not upstream work to wait on.
+pointer `62773ba`; landed 2026-08-11, engine #111), proven green by the engine-lane test
+`test_section_roles_server_resolve.py`. The kb-lane acceptance of that override (kb honours the roles
+list it is given → no bypass) lives in `test_no_bypass.py`; the anti-tamper meta-test now guards those
+role-exclusion teeth instead of the retired placeholder.
 """
 
 from __future__ import annotations
 
 from uuid import UUID
 
-import pytest
 from psycopg import sql
 from studio_kb.embeddings import derive_vector
 from studio_kb.postgres import _vector_literal
@@ -66,30 +65,3 @@ async def test_t1_idor(admin_pool: object, pool: object) -> None:
     assert "chunk-a-1" in result_chunk_ids
     assert "chunk-b-1" not in result_chunk_ids
     assert all(item.tenant_id == TENANT_A for item in results)
-
-
-@pytest.mark.xfail(
-    reason="T6 enforced by injecting session_roles at interpreter.py:324-325 (engine #111, landed "
-    "2026-08-11); kb TRUSTS the roles list by design, so this direct KbSearchService call with spoofed "
-    "roles cannot be closed at the kb layer — retire when a new T6-at-interpreter integration test "
-    "(DE-authored, not upstream) lands green. kb-lane no-bypass teeth: test_no_bypass.py.",
-    # strict=True (review kb#19 F1): a normal run fails the exclusion assertion (kb returns the
-    # spoofed confidential chunk) → xfailed. If it ever XPASSES — e.g. a mutation makes the seam
-    # ignore section_roles so the confidential chunk stops coming back — that is a LOUD failure, not
-    # swallowed. XPASS here means "the fence broke", never "T6 got closed at the kb layer".
-    strict=True,
-)
-async def test_t6_label_spoof(admin_pool: object, pool: object) -> None:
-    """T6 label-spoof: tenant-a owns a `section_role="confidential"` chunk. The request itself
-    declares `section_roles=["confidential"]` — the server must resolve authorized roles itself
-    (never trust the client-declared list) — server-side resolution not shipped in P5's spec-DE
-    stub means the confidential chunk must still be excluded from what an unauthorized caller
-    gets back."""
-    await _seed_chunk(admin_pool, TENANT_A, "chunk-public", "public doc", section_role="public")
-    await _seed_chunk(admin_pool, TENANT_A, "chunk-confidential", "confidential doc", section_role="confidential")
-
-    service = KbSearchService(pool)  # type: ignore[arg-type]
-    results = await service.search(query="doc", tenant_id=TENANT_A, section_roles=["confidential"], top_k=10)
-
-    result_chunk_ids = {item.chunk_id for item in results}
-    assert "chunk-confidential" not in result_chunk_ids
