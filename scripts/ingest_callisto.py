@@ -1,9 +1,15 @@
 """Nạp corpus Callisto vào `kb.chunks` per-tenant (D13, DE) — biến `KbIngest` từ *có class* thành
 *có lệnh chạy được*.
 
-    docker compose -f docker-compose.test.yml up -d --wait   # pg + pgvector, port 5433
-    export STUDIO_DATABASE_URL=postgresql://studio_app:changeme@localhost:5433/studio_test
-    uv run python packages/kb/scripts/ingest_callisto.py
+    # Chạy tay = kit README §"Các bước" (dev-stack, port 5432). BẮT BUỘC backend apps/studio đã boot
+    # MỘT LẦN trước: lifespan của nó cấp grant DML cho studio_app (xem "Không tự dựng schema" dưới) —
+    # chạy trước đó sẽ gãy "permission denied for schema kb".
+    docker compose up -d                                       # dev-stack, port 5432
+    uv run python apps/studio/scripts/seed_demo_tenants.py     # tenants (owner-pool)
+    # → khởi động backend apps/studio 1 lần (ensure_all_schemas + grant_app_privileges), rồi:
+    export STUDIO_DATABASE_URL=postgresql://studio_app:changeme@localhost:5432/studio
+    uv run python packages/kb/scripts/ingest_callisto.py       # → ankor 71 · borea 69 · 140 chunk / 2 tenant
+    # (Test/CI: test-stack riêng docker-compose.test.yml port 5433/studio_test — harness tự apply grant.)
 
 Đây là DoD "KB ingest→embed→index per-tenant **chạy**": `load_callisto()` (42 doc / 140 chunk) →
 embed → `kb.chunks`, gom theo tenant. Idempotent — chạy lại không nhân đôi (`KbIngest` dùng
@@ -91,9 +97,10 @@ def main() -> None:
     dsn = os.environ.get(_DSN_ENV)
     if not dsn:
         raise SystemExit(
-            f"{_DSN_ENV} chưa đặt — cần pg sống. Chạy trước:\n"
-            "  docker compose -f docker-compose.test.yml up -d --wait\n"
-            f"  export {_DSN_ENV}=postgresql://studio_app:changeme@localhost:5433/studio_test"
+            f"{_DSN_ENV} chưa đặt — cần pg sống + backend đã boot 1 lần (cấp grant DML cho "
+            "studio_app). Đường chuẩn: kit README §'Các bước' (dev-stack). Tối thiểu:\n"
+            "  docker compose up -d\n"
+            f"  export {_DSN_ENV}=postgresql://studio_app:changeme@localhost:5432/studio"
         )
     asyncio.run(_run(dsn))
 
