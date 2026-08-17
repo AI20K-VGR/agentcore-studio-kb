@@ -1,10 +1,13 @@
 # Quy trình trực on-call — Ankor
 
 ## Lịch trực
-Đội Engineering Ankor trực on-call theo tuần, xoay vòng giữa các thành viên. Lịch trực lập trước 1 tháng trên PagerDuty. Mỗi đợt trực bắt đầu thứ Hai 9:00 và kết thúc thứ Hai tuần sau 9:00.
+Đội Engineering Ankor trực on-call theo tuần, xoay vòng giữa các thành viên.
+Lịch trực lập trước 1 tháng trên PagerDuty.
+Mỗi đợt trực bắt đầu thứ Hai 9:00 và kết thúc thứ Hai tuần sau 9:00.
 
 ## Đội trực
-Mỗi ca trực có 2 người: Primary (phản hồi đầu tiên) và Secondary (backup). Primary có tối đa 15 phút để acknowledge alert. Nếu không acknowledge, auto-escalate sang Secondary.
+Mỗi ca trực có 2 người: Primary (phản hồi đầu tiên) và Secondary (backup).
+Primary có tối đa 15 phút để acknowledge alert.
 
 ## Phụ cấp trực
 Phụ cấp on-call: 1.500.000 VNĐ/tuần trực ngày thường, 2.500.000 VNĐ/tuần có ngày lễ. Phụ cấp xử lý sự cố ngoài giờ: 200.000 VNĐ/incident. Tối đa 8 tuần trực/năm cho mỗi engineer.
@@ -22,10 +25,17 @@ Bước 1: Acknowledge alert trên PagerDuty. Bước 2: Đánh giá mức độ
 P1 không giải quyết trong 30 phút: escalate lên Engineering Manager. 1 giờ: escalate CTO. P2 không giải quyết trong 2 giờ: escalate Engineering Manager. Escalation matrix trên PagerDuty.
 
 ## Postmortem
-Mọi P1 và P2 phải có postmortem (blameless) trong 48 giờ sau resolve. Template postmortem trên Confluence. Postmortem review meeting hằng tuần thứ Tư 10:00.
+Mọi P1 và P2 phải có postmortem (blameless) trong 48 giờ sau resolve.
+Template postmortem trên Confluence.
+Postmortem review meeting hằng tuần thứ Tư 10:00.
+Nhân viên mới được training về policy trong 2 tuần onboarding đầu tiên.
 
 ## Nghỉ bù sau trực
-Nếu on-call engineer bị gọi xử lý sự cố giữa đêm (22:00–6:00), được đi muộn hoặc nghỉ bù 4 giờ ngày hôm sau. Trực tuần có sự cố P1 được thêm 1 ngày nghỉ bù.
+Nếu on-call engineer bị gọi xử lý sự cố giữa đêm (22:00–6:00), được đi muộn hoặc nghỉ bù 4 giờ ngày hôm sau.
+Trực tuần có sự cố P1 được thêm 1 ngày nghỉ bù.
+Policy này áp dụng cho tất cả engineer bao gồm cả contractor và intern.
 
 ## Cải tiến on-call
-On-call health review hằng quý: số lượng alert, false positive rate, MTTA, MTTR. Target: false positive dưới 20%, MTTR P1 dưới 1 giờ. Toil reduction goal: giảm 10% alert volume mỗi quý.
+On-call health review hằng quý: số lượng alert, false positive rate, MTTA, MTTR.
+Target: false positive dưới 20%, MTTR P1 dưới 1 giờ.
+

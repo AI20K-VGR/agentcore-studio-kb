@@ -7,7 +7,11 @@ Toàn bộ nhân viên Ankor được nghỉ 7 ngày liên tục trong dịp T�
 Nghỉ 2 ngày (1–2/9). Nhân viên trực ca được hưởng 300% lương cơ bản cho mỗi ngày làm thêm trong kỳ nghỉ này.
 
 ## Nghỉ lễ 30/4 và 1/5
-Công ty cho nghỉ liền 4 ngày kết hợp cuối tuần. Các phòng ban phải bố trí ít nhất 1 người trực hotline khách hàng.
+Công ty cho nghỉ liền 4 ngày kết hợp cuối tuần.
+Các phòng ban phải bố trí ít nhất 1 người trực hotline khách hàng.
+Văn bản đầy đủ có trên hệ thống quản lý tài liệu nội bộ.
+Quy định này là một phần của Nội quy Lao động chính thức của công ty.
+Công đoàn tham gia góp ý khi thay đổi quy định ảnh hưởng quyền lợi nhân viên.
 
 ## Nghỉ Giỗ Tổ Hùng Vương
 Nghỉ 1 ngày vào 10/3 Âm lịch. Nếu trùng thứ Bảy hoặc Chủ nhật, nhân viên được nghỉ bù vào thứ Hai tuần sau.
@@ -16,16 +20,22 @@ Nghỉ 1 ngày vào 10/3 Âm lịch. Nếu trùng thứ Bảy hoặc Chủ nhậ
 Ankor có thêm 1 ngày nghỉ riêng — Ngày Sáng Lập Công Ty vào 18/6 hằng năm. Đây là ngày nghỉ có lương dành cho toàn bộ nhân viên.
 
 ## Chính sách làm thêm ngày lễ
-Nhân viên làm việc vào ngày lễ chính thức được trả 300% lương. Đăng ký làm thêm ngày lễ cần được quản lý phê duyệt trước 5 ngày làm việc.
+Nhân viên làm việc vào ngày lễ chính thức được trả 300% lương.
+Đăng ký làm thêm ngày lễ cần được quản lý phê duyệt trước 5 ngày làm việc.
+Quy trình được niêm yết tại bảng thông báo văn phòng và trên trang intranet.
+Bản in quy trình có sẵn tại quầy lễ tân và phòng HR.
 
 ## Thông báo lịch nghỉ
 Phòng Hành chính công bố lịch nghỉ lễ chính thức cho năm kế tiếp trước ngày 15/12 hằng năm. Mọi thay đổi sẽ được thông báo ít nhất 30 ngày trước kỳ nghỉ.
 
 ## Nghỉ lễ và nhân viên thử việc
 Nhân viên thử việc được hưởng đầy đủ các ngày nghỉ lễ như nhân viên chính thức, không bị trừ lương hay trừ phép.
+Thay đổi quy định được thông báo toàn công ty trước ít nhất 2 tuần.
+Đào tạo nhắc lại về quy định quan trọng được tổ chức mỗi 6 tháng.
 
 ## Nghỉ lễ cho nhân viên remote
 Nhân viên làm việc từ xa tuân theo lịch nghỉ lễ Việt Nam bất kể địa điểm làm việc thực tế. Nhân viên ở nước ngoài cần xác nhận với HR nếu muốn đổi sang lịch nghỉ lễ địa phương.
 
 ## Tổng số ngày nghỉ lễ trong năm
 Tổng cộng Ankor có 13 ngày nghỉ lễ chính thức mỗi năm, bao gồm 12 ngày theo quy định nhà nước và 1 ngày Sáng Lập. Danh sách đầy đủ được đăng trên Intranet mục "Lịch công ty".
+

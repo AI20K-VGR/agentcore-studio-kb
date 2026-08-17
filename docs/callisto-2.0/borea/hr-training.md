@@ -25,7 +25,13 @@ Bootcamp 2 tuần cho Engineering (bao gồm code challenge hằng ngày). Các 
 Borea đo ROI đào tạo theo mô hình Kirkpatrick 4 cấp. Nhân viên điền đánh giá ngay sau khoá học, quản lý review impact sau 1 tháng và 3 tháng. Data tổng hợp trên People Analytics dashboard.
 
 ## Thư viện và tài nguyên học tập
-Tài khoản O'Reilly Safari (unlimited) cho toàn bộ nhân viên. Thư viện vật lý 500+ đầu sách tại tầng 4 với khu đọc sách yên tĩnh. Podcast nội bộ "Borea Learns" phát hành hằng tuần.
+Tài khoản O'Reilly Safari (unlimited) cho toàn bộ nhân viên.
+Thư viện vật lý 500+ đầu sách tại tầng 4 với khu đọc sách yên tĩnh.
+Podcast nội bộ "Borea Learns" phát hành hằng tuần.
+Manager trực tiếp có trách nhiệm phổ biến chính sách cho nhân viên trong team.
+Tài liệu chính sách đầy đủ lưu trên HR Portal với lịch sử thay đổi.
+Nhân viên mới được đào tạo toàn bộ chính sách HR trong tuần onboarding.
 
 ## Hội thảo và networking
 Nhân viên được tham dự tối đa 3 hội thảo/năm (trong nước hoặc quốc tế), công ty chi trả toàn bộ. Speaker tại hội thảo ngoài được thưởng 5.000.000 VNĐ. Borea tài trợ 5 meetup cộng đồng/năm.
+
