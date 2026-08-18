@@ -1,0 +1,227 @@
+[
+  {
+    "id": "s1-ankor-hr-thaisan",
+    "query": "nghỉ thai sản được bao nhiêu tháng",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-leave#c5"],
+    "stratum": "S1",
+    "notes": "trùng thẳng 'nghỉ thai sản'"
+  },
+  {
+    "id": "s1-ankor-eng-production-access",
+    "query": "quyền truy cập production được cấp cho ai",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-access#c5"],
+    "stratum": "S1",
+    "notes": "trùng 'quyền truy cập production'"
+  },
+  {
+    "id": "s1-ankor-fin-pettycash",
+    "query": "quỹ petty cash mỗi phòng ban được bao nhiêu",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-expense#c5"],
+    "stratum": "S1",
+    "notes": "trùng 'petty cash phòng ban'"
+  },
+  {
+    "id": "s1-ankor-pub-tet",
+    "query": "nghỉ Tết Nguyên Đán mấy ngày",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-holidays#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'nghỉ Tết Nguyên Đán'"
+  },
+  {
+    "id": "s1-borea-hr-sick",
+    "query": "nghỉ ốm tối đa bao nhiêu ngày một năm",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-leave#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'nghỉ ốm tối đa ... ngày/năm'"
+  },
+  {
+    "id": "s1-ankor-hr-wfh-days",
+    "query": "được làm việc từ xa mấy ngày một tuần",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-remote-work#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'làm việc từ xa ... ngày/tuần'"
+  },
+  {
+    "id": "s1-ankor-eng-oncall-allowance",
+    "query": "phụ cấp trực on-call một tuần được bao nhiêu",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-oncall#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'phụ cấp on-call ... /tuần'"
+  },
+  {
+    "id": "s1-borea-fin-reimburse-limit",
+    "query": "hạn mức hoàn ứng ăn uống một bữa là bao nhiêu",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-reimbursement#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'hạn mức hoàn ứng ăn uống /bữa'"
+  },
+  {
+    "id": "s1-ankor-pub-gift-limit",
+    "query": "được nhận quà tặng từ đối tác trị giá bao nhiêu",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-code-of-conduct#c5"],
+    "stratum": "S1",
+    "notes": "trùng 'nhận quà tặng ... đối tác'"
+  },
+  {
+    "id": "s1-borea-eng-db-access",
+    "query": "truy cập database production ở Borea như thế nào",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-access#c8"],
+    "stratum": "S1",
+    "notes": "trùng 'truy cập database production'"
+  },
+  {
+    "id": "s1-ankor-eng-oncall-sla-p1",
+    "query": "sự cố P1 phải acknowledge trong mấy phút",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-oncall#c4"],
+    "stratum": "S1",
+    "notes": "trùng 'P1 acknowledge ... phút'"
+  },
+  {
+    "id": "s1-borea-pub-tet",
+    "query": "Borea nghỉ Tết Nguyên Đán mấy ngày",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-holidays#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'nghỉ Tết Nguyên Đán' (Borea 9 ngày)"
+  },
+  {
+    "id": "s1-ankor-fin-approval-teamlead",
+    "query": "Team Lead được phê duyệt chi phí tối đa bao nhiêu",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-approval-limits#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'Team Lead phê duyệt chi phí'"
+  },
+  {
+    "id": "s1-borea-hr-leave-annual",
+    "query": "nhân viên chính thức Borea được bao nhiêu ngày phép năm",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-leave#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'nhân viên chính thức / ngày phép năm'"
+  },
+  {
+    "id": "s1-ankor-eng-review-sla",
+    "query": "SLA review PR nhỏ ở Ankor là bao lâu",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-code-review#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'SLA review / PR nhỏ'"
+  },
+  {
+    "id": "s1-borea-pub-office-hours",
+    "query": "giờ hành chính ở Borea bắt đầu và kết thúc lúc mấy giờ",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-office-hours#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'giờ hành chính'"
+  },
+  {
+    "id": "s1-ankor-hr-performance-cycle",
+    "query": "Ankor đánh giá hiệu suất nhân viên mấy lần trong năm",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-performance#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'đánh giá hiệu suất'"
+  },
+  {
+    "id": "s1-borea-eng-rollback",
+    "query": "rollback tự động xảy ra khi error rate bao nhiêu",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-deployment#c5"],
+    "stratum": "S1",
+    "notes": "trùng 'rollback tự động / error rate'"
+  },
+  {
+    "id": "s1-ankor-pub-casual-friday",
+    "query": "Casual Friday ở Ankor được mặc trang phục gì",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-dress-code#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'Casual Friday / trang phục'"
+  },
+  {
+    "id": "s1-ankor-fin-tax-tndn",
+    "query": "thuế thu nhập doanh nghiệp Ankor bao nhiêu phần trăm",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-tax#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'thuế thu nhập doanh nghiệp'"
+  },
+  {
+    "id": "s1-borea-hr-payday",
+    "query": "Borea trả lương vào ngày nào mỗi tháng",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-payroll#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'trả lương / ngày / tháng'"
+  },
+  {
+    "id": "s1-ankor-eng-incident-classify",
+    "query": "phân loại sự cố P1 P2 P3 ở Ankor như thế nào",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-incident#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'phân loại sự cố P1'"
+  },
+  {
+    "id": "s1-borea-fin-procurement-scope",
+    "query": "quy trình mua sắm Borea áp dụng cho giao dịch từ bao nhiêu trở lên",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-procurement#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'mua sắm / áp dụng / giao dịch'"
+  },
+  {
+    "id": "s1-ankor-pub-parking-fee",
+    "query": "phí đỗ xe ô tô tại Ankor bao nhiêu mỗi tháng",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-parking#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'phí đỗ xe ô tô / tháng'"
+  },
+  {
+    "id": "s1-borea-eng-alert-level",
+    "query": "alert ở Borea chia thành mấy mức nghiêm trọng",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-monitoring#c5"],
+    "stratum": "S1",
+    "notes": "trùng 'alert / mức'"
+  }
+]

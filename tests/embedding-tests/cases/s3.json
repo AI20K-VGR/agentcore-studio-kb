@@ -1,0 +1,202 @@
+[
+  {
+    "id": "s3-ankor-hr-maternity-return",
+    "query": "sau khi sinh con thì khi nào phải đi làm lại",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-leave#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-hr-remote-work#c1"],
+    "notes": "đáp án thai sản; nhiều chunk hr chia sẻ 'làm/đi/lại' hơn"
+  },
+  {
+    "id": "s3-borea-hr-leave-carryover",
+    "query": "phép còn dư cuối năm được xử lý thế nào",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-leave#c2"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-hr-leave#c1", "borea-hr-leave#c8"],
+    "notes": "carryover; c1/c8 chia sẻ 'phép/năm'"
+  },
+  {
+    "id": "s3-ankor-hr-sick-notify",
+    "query": "bị ốm đột xuất thì phải báo cho ai",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-leave#c3"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-hr-leave#c4"],
+    "notes": "nghỉ ốm; 'đăng ký nghỉ' chia sẻ 'báo/phải'"
+  },
+  {
+    "id": "s3-borea-hr-onboarding-buddy",
+    "query": "ai kèm cặp người mới trong thời gian đầu vào làm",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-onboarding#c3"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-hr-onboarding#c2"],
+    "notes": "buddy system; các chunk onboarding khác chia sẻ 'người mới/làm'"
+  },
+  {
+    "id": "s3-borea-hr-setup-allowance",
+    "query": "được hỗ trợ tiền mua bàn ghế làm việc tại nhà không",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-remote-work#c4"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-hr-benefits#c3"],
+    "notes": "phụ cấp setup WFH; hr-benefits chia sẻ 'tiền/hỗ trợ/làm/nhà' nhiều hơn"
+  },
+  {
+    "id": "s3-ankor-fin-reimburse-late",
+    "query": "gửi yêu cầu lấy lại chi phí muộn có được chấp nhận không",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-reimbursement#c4"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-finance-expense#c2", "ankor-finance-expense#c3"],
+    "notes": "quy trình nộp quá hạn; chunk chi phí khác chia sẻ 'chi phí/được'"
+  },
+  {
+    "id": "s3-borea-eng-prod-session",
+    "query": "quyền vào hệ thống chạy thật giữ được bao lâu",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-access#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-engineering-access#c6"],
+    "notes": "production JIT 4h; SSH/cert cũng nói 'giờ/session'"
+  },
+  {
+    "id": "s3-ankor-pub-holiday-overtime-pay",
+    "query": "đi làm dịp nghỉ chính thức được cộng thêm thù lao ra sao",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-holidays#c6"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-public-holidays#c10"],
+    "notes": "làm thêm ngày lễ; chunk lễ khác chia sẻ 'làm/nghỉ/lương'"
+  },
+  {
+    "id": "s3-ankor-eng-oncall-sla",
+    "query": "toàn bộ dịch vụ ngừng hoạt động thì đội ứng cứu vào cuộc nhanh cỡ nào",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-oncall#c4"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-engineering-incident#c3"],
+    "notes": "SLA P1; incident/xử lý sự cố chia sẻ token hơn đáp án"
+  },
+  {
+    "id": "s3-ankor-fin-approval-limits",
+    "query": "khi có việc gấp cần chi ngay thì ai được duyệt và mức trần bao nhiêu",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-approval-limits#c8"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-finance-approval-limits#c1"],
+    "notes": "đáp án: chi khẩn cấp (CFO/CEO duyệt, trần 100tr/vụ). Mồi cùng vai #c1 (nguyên tắc duyệt chi chung) trùng 'chi/duyệt/mức' ≥ đáp án nhưng không nói tình huống gấp."
+  },
+  {
+    "id": "s3-borea-hr-remote-hours",
+    "query": "làm từ xa thì cần có mặt trực tuyến vào lúc nào",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-remote-work#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-hr-remote-work#c8"],
+    "notes": "đáp án: khung giờ lõi phải online khi WFH. Mồi cùng vai #c8 (WFH dài hạn) trùng 'từ xa/online' nhưng nói điều kiện full-remote, không nói giờ giấc."
+  },
+  {
+    "id": "s3-ankor-eng-deploy-rollback",
+    "query": "quy trình triển khai bản mới có tự thu hồi lại khi gặp lỗi không",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-deployment#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-engineering-deployment#c1"],
+    "notes": "đáp án: rollback tự động khi lỗi. Mồi cùng vai #c1 (chiến lược triển khai) trùng 'triển khai/quy trình' ≥ đáp án nhưng nói lịch release."
+  },
+  {
+    "id": "s3-borea-pub-conduct-gifts",
+    "query": "nhân viên nhận quà từ đối tác thì phải khai báo ra sao",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-code-of-conduct#c6"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-public-code-of-conduct#c4"],
+    "notes": "đáp án: quy định nhận quà từ bên ngoài. Mồi cùng bộ quy tắc #c4 (xung đột lợi ích) trùng 'khai báo/nhân viên' ≥ đáp án, dễ lẫn."
+  },
+  {
+    "id": "s3-borea-fin-budget-contingency",
+    "query": "hạng mục dự phòng cùng đổi mới trong ngân sách chiếm bao nhiêu phần",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-budget#c8"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-finance-budget#c4"],
+    "notes": "đáp án: quỹ dự phòng + đổi mới (%). Mồi cùng vai #c4 (hạng mục ngân sách OPEX/CAPEX) trùng 'hạng mục/ngân sách'."
+  },
+  {
+    "id": "s3-ankor-pub-parking-bikes",
+    "query": "ai được ưu tiên một suất đỗ ô tô trong toà nhà",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-parking#c2"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-public-parking#c3"],
+    "notes": "đáp án: ai được suất đỗ ô tô. Mồi cùng doc #c3 (phí đỗ xe) trùng 'đỗ/ô tô/xe' nhưng nói phí, không nói phân bổ."
+  },
+  {
+    "id": "s3-borea-eng-incident-classify",
+    "query": "sự cố phải nghiêm trọng tới mức nào thì mới xếp loại P1",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-incident#c1"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-engineering-incident#c2"],
+    "notes": "đáp án: tiêu chí xếp mức P1. Mồi cùng doc #c2 (phát hiện sự cố) trùng 'sự cố' nhưng nói kênh phát hiện."
+  },
+  {
+    "id": "s3-ankor-fin-expense-alert",
+    "query": "chi vượt so với ngân sách tháng thì phải báo cáo cho ai",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-expense#c2"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-finance-approval-limits#c1"],
+    "notes": "đáp án: ngưỡng vượt ngân sách tháng → giải trình. Mồi cùng vai finance approval-limits#c1 (nguyên tắc duyệt chi) trùng 'chi/duyệt/mọi khoản'."
+  },
+  {
+    "id": "s3-ankor-eng-security-password",
+    "query": "nguyên tắc bảo mật của công ty yêu cầu gì về mật khẩu đăng nhập",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-security#c2"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-engineering-security#c1"],
+    "notes": "đáp án: độ dài + chu kỳ đổi mật khẩu. Mồi cùng doc #c1 (nguyên tắc bảo mật ISO) trùng 'nguyên tắc/bảo mật' nhưng không nói mật khẩu."
+  },
+  {
+    "id": "s3-borea-hr-payroll-bonus",
+    "query": "thưởng cuối năm được chi cho nhân viên vào lúc nào",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-payroll#c10"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-hr-benefits#c6"],
+    "notes": "đáp án: thời điểm trả lương 13 + thưởng. Mồi cùng vai hr benefits#c6 (thưởng cuối năm theo KPI) trùng 'thưởng/cuối năm/nhân viên'."
+  },
+  {
+    "id": "s3-ankor-hr-performance-pip",
+    "query": "nhân viên bị đánh giá kém phải làm kế hoạch cải thiện trong bao lâu",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-performance#c7"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-hr-grievance#c1"],
+    "notes": "đáp án: PIP cho người điểm thấp (90 ngày). Mồi cùng vai hr grievance#c1 trùng 'đánh giá/nhân viên/làm việc' ≥ đáp án nhưng là khiếu nại."
+  }
+]

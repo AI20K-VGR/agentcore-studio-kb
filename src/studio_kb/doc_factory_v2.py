@@ -2,7 +2,8 @@
 
 Đọc `docs/callisto-2.0-schema.md`: tenant từ thư mục, role từ tên file, không front-matter, không
 override, citation = tên file. Hợp đồng là `tests/test_doc_factory_v2.py` (bất biến I1..I9).
-Tái dùng `Chunk`/`SECTION_VOCAB`/`resolve_tenant_id` của `doc_factory` — không nhân bản.
+Tái dùng `Chunk`/`SECTION_VOCAB`/`resolve_tenant_id` từ `doc_factory_core` (KHÔNG phụ thuộc 1.0
+`doc_factory`, để 1.0 xoá được mà 2.0 vẫn đứng) — không nhân bản.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import re
 from pathlib import Path
 from uuid import UUID
 
-from studio_kb.doc_factory import SECTION_VOCAB, Chunk, resolve_tenant_id
+from studio_kb.doc_factory_core import SECTION_VOCAB, Chunk, resolve_tenant_id
 
 # Cùng hình dạng heading 1.0, nhưng ở 2.0 nhóm `override` chỉ dùng để PHÁT HIỆN-và-RAISE (cấm), không áp dụng.
 _HEADING_RE = re.compile(r"^##\s+(?P<title>.*?)(?:\s*\{section:\s*(?P<override>[\w-]+)\s*\})?\s*$")

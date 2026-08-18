@@ -45,45 +45,13 @@ liệt kê lần hai — `test_golden_set.py` canh vocab + đủ hai lớp + kh�
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+# `GoldenCase`/`MANUAL_LABEL_VALUES`/renderer sống ở `golden_set_core` để 1.0 xoá được mà không kéo
+# theo 2.0 (`golden_set_v2`). Re-export làm mặt tương thích: mọi import cũ giữ nguyên.
+from studio_kb.golden_set_core import MANUAL_LABEL_VALUES, GoldenCase, render_cases
+
+__all__ = ["GoldenCase", "MANUAL_LABEL_VALUES", "GOLDEN_SET_REF", "GOLDEN_CASES", "EDGE_AXES", "render_yaml"]
 
 GOLDEN_SET_REF = "callisto-golden-30-v1"
-
-
-@dataclass(frozen=True, slots=True)
-class GoldenCase:
-    """Một golden case — 8 field format (`docs/format.md` §2) + `note` (comment, KHÔNG phải field).
-
-    `note` chỉ render thành comment trong yaml để giải thích ý đồ; nó không vào phần dữ liệu 8-field,
-    nên loader của evalhub (#108) đọc y hệt smoke-5. `section_roles`/`expected_citation` là `tuple` để
-    dataclass frozen hashable — render thành list yaml inline (`[public]`).
-    """
-
-    case_id: str
-    query: str
-    tenant: str
-    section_roles: tuple[str, ...]
-    expected_tenant: str
-    expected_section_role: str
-    expected: str
-    expected_citation: tuple[str, ...]
-    note: str
-    manual_label: str | None = None
-    """Nhãn tay ground-truth (D18, DE) — chỉ subset có, còn lại `None`. Giá trị trong `MANUAL_LABEL_VALUES`:
-    `"pass"` (case trả-lời-được: đáp án grounded, agent PHẢI trả lời đúng) · `"refuse"` (case bẫy hàng rào:
-    agent PHẢI từ chối). Là **answer-key người kiểm** để AIE-2 đo `agreement` của LLM-judge — không suy máy
-    móc từ `is_refusal`, mà DE đọc chunk nguồn xác nhận (dù giá trị PHẢI nhất quán với `is_refusal`, xem
-    guard `test_manual_label_*`). AIE-2 sở hữu format/nơi-lưu (`scorecard.v1.md §9`); DE sở hữu giá trị."""
-
-    @property
-    def is_refusal(self) -> bool:
-        """Case âm (leak-test) ⇔ không có citation kỳ vọng. Suy từ dữ liệu, không phải cờ riêng."""
-        return not self.expected_citation
-
-
-# Vocab nhãn tay (D18) — hai lớp verdict LLM-judge sinh ra: trả-lời-được vs từ-chối. Cố ý binary khớp
-# `success: bool` của `judge.judge()`; đủ hai lớp mới cho agreement sức phân biệt (§1 cấm judge hằng).
-MANUAL_LABEL_VALUES: tuple[str, ...] = ("pass", "refuse")
 
 
 # ── Nguồn sự thật: 22 case dương + 8 case âm (T1 hai chiều · T6 hai tenant) ──────────────────────
@@ -480,40 +448,10 @@ _HEADER: tuple[str, ...] = (
 )
 
 
-def _render_list(items: tuple[str, ...]) -> str:
-    """Render tuple thành list yaml inline: `[public]`, `[]` — khớp shape smoke-5/grid."""
-    if not items:
-        return "[]"
-    return "[" + ", ".join(items) + "]"
-
-
-def _render_citation(items: tuple[str, ...]) -> str:
-    """`expected_citation` phải quote (chứa `#`, `-`): `["ankor-remote-001#c1"]` hoặc `[]`."""
-    if not items:
-        return "[]"
-    return "[" + ", ".join(f'"{item}"' for item in items) + "]"
-
-
 def render_yaml() -> str:
     """Render `GOLDEN_CASES` thành text yaml deterministic — nguồn cho `callisto-golden-30-v1.yaml`.
 
-    Cùng đầu vào luôn ra **cùng byte** (tuple có thứ tự, không set/dict thứ-tự-bất-định): đó là điều
-    kiện để `test_golden_set.py` so file trên đĩa với bản render lại, bắt drift gõ tay. Tái tạo ĐÚNG
-    TỪNG BYTE bộ đã xanh từ D14 (header + 30 case + comment từng case), nên promote `draft`→`v1` là
-    pure-rename zero-content-diff.
+    Uỷ quyền generator chung `golden_set_core.render_cases` (cùng byte như trước khi tách). Tái tạo
+    ĐÚNG TỪNG BYTE bộ đã xanh từ D14, nên `test_golden_set.py` (byte-identical) vẫn canh drift gõ tay.
     """
-    lines: list[str] = [*_HEADER, "", f"golden_set_ref: {GOLDEN_SET_REF}", "", "cases:"]
-    for case in GOLDEN_CASES:
-        lines.append(f"  # {case.case_id}: {case.note}")
-        lines.append(f"  - case_id: {case.case_id}")
-        lines.append(f'    query: "{case.query}"')
-        lines.append(f"    tenant: {case.tenant}")
-        lines.append(f"    section_roles: {_render_list(case.section_roles)}")
-        lines.append(f"    expected_tenant: {case.expected_tenant}")
-        lines.append(f"    expected_section_role: {case.expected_section_role}")
-        lines.append(f'    expected: "{case.expected}"')
-        lines.append(f"    expected_citation: {_render_citation(case.expected_citation)}")
-        if case.manual_label is not None:
-            lines.append(f"    manual_label: {case.manual_label}")
-        lines.append("")
-    return "\n".join(lines[:-1]) + "\n"
+    return render_cases(_HEADER, GOLDEN_SET_REF, GOLDEN_CASES)
