@@ -6,8 +6,8 @@
     "section_roles": ["engineering", "hr"],
     "expected_citation": ["ankor-engineering-access#c6"],
     "stratum": "S4",
-    "decoy_hint": ["ankor-hr-remote-work#c7"],
-    "notes": "đáp án engineering (SSH rotation); từ 'khoá/đổi' kéo chunk hr role khác"
+    "decoy_hint": ["ankor-hr-benefits#c7"],
+    "notes": "đáp án engineering (SSH rotation); hr-benefits#c7 (quỹ giáo dục — 'khoá học') kéo nhầm vì 'khoá' đa nghĩa"
   },
   {
     "id": "s4-ankor-pub-conduct-gift-vs-fin",
@@ -16,8 +16,8 @@
     "section_roles": ["public", "finance"],
     "expected_citation": ["ankor-public-code-of-conduct#c5"],
     "stratum": "S4",
-    "decoy_hint": ["ankor-finance-reimbursement#c1"],
-    "notes": "đáp án public (quà tặng/tiếp khách); finance 'chi phí đối tác' kéo chéo"
+    "decoy_hint": ["ankor-finance-budget#c5"],
+    "notes": "đáp án public (quà tặng/tiếp khách); finance-budget#c5 (hạn mức phê duyệt chi) kéo chéo vì 'mức/cho phép'"
   },
   {
     "id": "s4-ankor-hr-performance-cycle",
@@ -148,5 +148,405 @@
     "stratum": "S4",
     "decoy_hint": ["borea-finance-reimbursement#c7"],
     "notes": "đáp án: trợ cấp đi lại xăng/đỗ xe (hr). Mồi chéo vai finance-reimbursement#c7 (tạm ứng) trùng 'công ty/được/chi'."
+  },
+  {
+    "id": "s4-ankor-fin-budget-alert-system",
+    "query": "chi phí vượt ngưỡng ngân sách thì hệ thống cảnh báo cho ai",
+    "tenant": "ankor",
+    "section_roles": ["finance", "engineering"],
+    "expected_citation": ["ankor-finance-budget#c7"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-engineering-infra#c9"],
+    "notes": "đáp án: theo dõi vượt ngân sách → báo (finance). Mồi chéo vai engineering-infra#c9 (AWS cost alert) trùng 'chi phí/ngân sách/cảnh báo'."
+  },
+  {
+    "id": "s4-borea-hr-commute-allowance",
+    "query": "đi lại bằng grab được hỗ trợ tiền xăng theo hoá đơn km không",
+    "tenant": "borea",
+    "section_roles": ["hr", "finance"],
+    "expected_citation": ["borea-hr-benefits#c4"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-finance-reimbursement#c2"],
+    "notes": "đáp án: trợ cấp đi lại cố định hằng tháng (hr). Mồi chéo vai finance-reimbursement#c2 (hạn mức hoàn ứng công tác: Grab/taxi theo hoá đơn, xăng 4.000đ/km) trùng 'grab/xăng/hoá đơn/km' — công tác, không phải đi làm hằng ngày."
+  },
+  {
+    "id": "s4-ankor-hr-review-cycle-length",
+    "query": "công ty đánh giá hiệu quả nhân viên bao lâu một lần",
+    "tenant": "ankor",
+    "section_roles": ["hr", "engineering"],
+    "expected_citation": ["ankor-hr-performance#c1"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-engineering-deployment#c5"],
+    "notes": "đáp án: chu kỳ đánh giá nhân sự (hr). Mồi chéo vai engineering-deployment#c5 trùng 'đánh giá/hiệu quả' nhưng nói metric deploy."
+  },
+  {
+    "id": "s4-borea-pub-focus-time-morning",
+    "query": "sáng sớm có khung giờ nào không được phép họp hành",
+    "tenant": "borea",
+    "section_roles": ["public", "engineering"],
+    "expected_citation": ["borea-public-office-hours#c8"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-engineering-deployment#c7"],
+    "notes": "đáp án: Focus Time cấm họp buổi sáng (public). Mồi chéo vai engineering-deployment#c7 ('deploy ngoài giờ') trùng 'giờ/được/không'."
+  },
+  {
+    "id": "s4-ankor-eng-p1-ack-time",
+    "query": "khi nhận báo sự cố lớn thì bao lâu phải xác nhận và bắt tay xử lý",
+    "tenant": "ankor",
+    "section_roles": ["engineering", "hr"],
+    "expected_citation": ["ankor-engineering-oncall#c4"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-hr-grievance#c4"],
+    "notes": "đáp án: SLA phản hồi P1 (engineering). Mồi chéo vai hr-grievance#c4 ('tiếp nhận xác nhận' đơn) trùng 'xác nhận/xử lý'."
+  },
+  {
+    "id": "s4-borea-fin-tax-obligations",
+    "query": "công ty phải nộp những loại thuế nào cho nhà nước",
+    "tenant": "borea",
+    "section_roles": ["finance", "public"],
+    "expected_citation": ["borea-finance-tax#c1"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-public-holidays#c10"],
+    "notes": "đáp án: các sắc thuế phải nộp (finance). Mồi chéo vai public-holidays#c10 (tổng ngày nghỉ) trùng 'công ty/năm/nộp'."
+  },
+  {
+    "id": "s4-ankor-pub-gift-policy",
+    "query": "nhận quà từ đối tác trên mức cho phép thì xử lý sao",
+    "tenant": "ankor",
+    "section_roles": ["public", "finance"],
+    "expected_citation": ["ankor-public-code-of-conduct#c5"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-finance-budget#c5"],
+    "notes": "đáp án: quy định quà tặng (public). Mồi chéo vai finance-budget#c5 (hạn mức phê duyệt chi) trùng 'mức/cho phép'."
+  },
+  {
+    "id": "s4-borea-hr-annual-leave-entitlement",
+    "query": "nhân viên Borea được nghỉ phép bao nhiêu",
+    "tenant": "borea",
+    "section_roles": ["hr", "finance"],
+    "expected_citation": ["borea-hr-leave#c1"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-finance-travel#c9"],
+    "notes": "đáp án: 15 ngày phép/năm (hr). Mồi chéo vai finance-travel#c9 ('Bleisure' — công tác kết hợp nghỉ phép) trùng 'nhân viên/Borea/được/nghỉ phép' nhưng nói về công tác, không phải phép năm."
+  },
+  {
+    "id": "s4-borea-eng-passwordless-login",
+    "query": "đăng nhập mà không cần gõ mật khẩu thì dùng cách nào",
+    "tenant": "borea",
+    "section_roles": ["engineering", "public"],
+    "expected_citation": ["borea-engineering-security#c2"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-public-communication#c4"],
+    "notes": "đáp án: đăng nhập không mật khẩu WebAuthn (engineering). Mồi chéo vai public-communication#c4 (bảo mật email) trùng 'bảo mật/nội bộ'."
+  },
+  {
+    "id": "s4-ankor-hr-tech-interview-duration",
+    "query": "ứng viên kỹ thuật phải làm bài test trong bao lâu",
+    "tenant": "ankor",
+    "section_roles": ["hr", "engineering"],
+    "expected_citation": ["ankor-hr-recruitment#c5"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-engineering-security#c1"],
+    "notes": "đáp án: bài test kỹ năng ứng viên (hr). Mồi chéo vai engineering-security#c1 trùng 'kỹ thuật/test'."
+  },
+  {
+    "id": "s4-borea-pub-fire-drill-frequency",
+    "query": "toà nhà tổ chức diễn tập ứng phó sự cố bao lâu một lần",
+    "tenant": "borea",
+    "section_roles": ["public", "engineering"],
+    "expected_citation": ["borea-public-safety#c2"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-engineering-incident#c10"],
+    "notes": "đáp án: diễn tập PCCC (public). Mồi chéo vai engineering-incident#c10 ('Diễn tập sự cố' Chaos Day) trùng 'diễn tập/sự cố'."
+  },
+  {
+    "id": "s4-ankor-pub-holiday-overtime",
+    "query": "làm ngày lễ thì công ty thanh toán thêm cho nhân viên bao nhiêu",
+    "tenant": "ankor",
+    "section_roles": ["public", "finance"],
+    "expected_citation": ["ankor-public-holidays#c6"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-finance-travel#c2"],
+    "notes": "đáp án: lương 300% ngày lễ (public). Mồi chéo vai finance-travel#c2 (thanh toán công tác) trùng 'thanh toán/công ty'."
+  },
+  {
+    "id": "s4-ankor-fin-invoice-types",
+    "query": "công ty phát hành những loại hoá đơn nào cho khách",
+    "tenant": "ankor",
+    "section_roles": ["finance", "public"],
+    "expected_citation": ["ankor-finance-invoicing#c1"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-public-visitors#c9"],
+    "notes": "đáp án: loại hoá đơn xuất (finance). Mồi chéo vai public-visitors#c9 (sự cố khách) trùng 'khách/công ty'."
+  },
+  {
+    "id": "s4-borea-eng-reimbursement-docs",
+    "query": "được trả lại khoản tự chi cho công việc thì cần giấy tờ gì",
+    "tenant": "borea",
+    "section_roles": ["finance", "hr"],
+    "expected_citation": ["borea-finance-reimbursement#c3"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-hr-payroll#c8"],
+    "notes": "đáp án: chứng từ hoàn tiền (finance). Mồi chéo vai hr-payroll#c8 (phụ cấp) trùng 'chi/công việc'."
+  },
+  {
+    "id": "s4-ankor-eng-ssh-key-rotation",
+    "query": "khoá SSH bao lâu phải đổi lại một lần",
+    "tenant": "ankor",
+    "section_roles": ["engineering", "hr"],
+    "expected_citation": ["ankor-engineering-access#c6"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-hr-benefits#c7"],
+    "notes": "đáp án: SSH key rotation (engineering). Mồi chéo vai hr-benefits#c7 (quỹ 'khoá học') kéo nhầm vì 'khoá' đa nghĩa."
+  },
+  {
+    "id": "s4-borea-hr-performance-tracking",
+    "query": "Borea theo dõi kết quả làm việc nhân viên bằng công cụ nào",
+    "tenant": "borea",
+    "section_roles": ["hr", "engineering"],
+    "expected_citation": ["borea-hr-performance#c2"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-engineering-testing#c1"],
+    "notes": "đáp án: công cụ theo dõi KPI nhân sự (hr). Mồi chéo vai engineering-testing#c1 ('testing trophy' chiến lược) trùng 'theo dõi/kết quả/công cụ'."
+  },
+  {
+    "id": "s4-ankor-fin-travel-approval",
+    "query": "chi phí công tác nước ngoài phải được ai phê duyệt",
+    "tenant": "ankor",
+    "section_roles": ["finance", "hr"],
+    "expected_citation": ["ankor-finance-travel#c2"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-hr-training#c10"],
+    "notes": "đáp án: duyệt chi công tác ngoài nước (finance). Mồi chéo vai hr-training#c10 (hội thảo quốc tế cần CEO phê duyệt) trùng 'phê duyệt/công tác'."
+  },
+  {
+    "id": "s4-borea-pub-code-of-conduct-conflict",
+    "query": "nhân viên Borea đi làm cho đối thủ cạnh tranh trong thời gian còn ràng buộc thì có vi phạm không",
+    "tenant": "borea",
+    "section_roles": ["public", "hr"],
+    "expected_citation": ["borea-public-code-of-conduct#c4"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-hr-exit#c8"],
+    "notes": "đáp án: khai báo xung đột lợi ích, cổ phần ở đối thủ (public). Mồi chéo vai hr-exit#c8 (cam kết bảo mật: non-compete 12 tháng cho Manager+) trùng 'đối thủ/ràng buộc/thời gian' — non-compete sau nghỉ việc, không phải khai báo xung đột lợi ích khi đang làm."
+  },
+  {
+    "id": "s4-ankor-pub-anti-harassment-investigation",
+    "query": "khi có đơn tố cáo quấy rối ở Ankor thì ai tiến hành điều tra",
+    "tenant": "ankor",
+    "section_roles": ["public", "hr"],
+    "expected_citation": ["ankor-public-anti-harassment#c5"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-hr-grievance#c3"],
+    "notes": "đáp án: quy trình điều tra quấy rối (public). Mồi chéo vai hr-grievance#c3 (hội đồng xử lý khiếu nại) trùng 'điều tra/ai/tố cáo'."
+  },
+  {
+    "id": "s4-borea-eng-code-coverage-gate",
+    "query": "PR ở Borea không đạt mức phủ kiểm thử thì có merge được không",
+    "tenant": "borea",
+    "section_roles": ["engineering", "public"],
+    "expected_citation": ["borea-engineering-testing#c3"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-public-code-of-conduct#c2"],
+    "notes": "đáp án: gate coverage chặn merge (engineering). Mồi chéo vai public-code-of-conduct#c2 (tuân thủ quy định) trùng 'không/được/phải'."
+  },
+  {
+    "id": "s4-ankor-fin-petty-cash-vs-eng",
+    "query": "quỹ nhỏ trong phòng để chi những khoản phát sinh hàng ngày thuộc quy định nào",
+    "tenant": "ankor",
+    "section_roles": ["finance", "engineering"],
+    "expected_citation": ["ankor-finance-expense#c5"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-engineering-release#c9"],
+    "notes": "đáp án: petty cash (finance). Mồi chéo vai engineering-release#c9 (thông báo phát hành nội bộ) trùng 'quy định/thông báo'."
+  },
+  {
+    "id": "s4-borea-hr-probation-vs-eng",
+    "query": "trong giai đoạn đầu thử sức với công việc mới thì ai đánh giá kết quả",
+    "tenant": "borea",
+    "section_roles": ["hr", "engineering"],
+    "expected_citation": ["borea-hr-onboarding#c1"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-engineering-code-review#c1"],
+    "notes": "đáp án: đánh giá thử việc (hr). Mồi chéo vai engineering-code-review#c1 ('đánh giá chất lượng code') trùng 'đánh giá/kết quả'."
+  },
+  {
+    "id": "s4-ankor-pub-meeting-room-booking",
+    "query": "đặt phòng họp ở Ankor thì dùng hệ thống nào",
+    "tenant": "ankor",
+    "section_roles": ["public", "engineering"],
+    "expected_citation": ["ankor-public-office-hours#c8"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-engineering-access#c6"],
+    "notes": "đáp án: hệ thống đặt phòng họp (public). Mồi chéo vai engineering-access#c6 (SSH/VPN hệ thống nội bộ) trùng 'hệ thống/dùng'."
+  },
+  {
+    "id": "s4-borea-fin-capex-vs-hr",
+    "query": "khi mua máy tính mới cho nhân viên thì phải xin duyệt như thế nào",
+    "tenant": "borea",
+    "section_roles": ["finance", "hr"],
+    "expected_citation": ["borea-finance-budget#c5"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-hr-benefits#c5"],
+    "notes": "đáp án: CAPEX approval (finance). Mồi chéo vai hr-benefits#c5 (trang bị làm việc cho nhân viên) trùng 'mua/nhân viên/duyệt'."
+  },
+  {
+    "id": "s4-ankor-hr-paternity-vs-fin",
+    "query": "nghỉ thai sản cha tại Ankor có được hưởng lương đầy đủ không",
+    "tenant": "ankor",
+    "section_roles": ["hr", "finance"],
+    "expected_citation": ["ankor-hr-leave#c6"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-finance-approval-limits#c1"],
+    "notes": "đáp án: chế độ lương thai sản cha (hr). Mồi chéo vai finance-approval-limits#c1 (nguyên tắc phê duyệt chi chung) trùng 'được/đầy đủ'."
+  },
+  {
+    "id": "s4-borea-eng-log-retention-vs-fin",
+    "query": "Borea lưu dữ liệu vận hành hệ thống bao lâu để phục vụ kiểm toán",
+    "tenant": "borea",
+    "section_roles": ["engineering", "finance"],
+    "expected_citation": ["borea-engineering-monitoring#c7"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-finance-audit#c3"],
+    "notes": "đáp án: log retention (engineering). Mồi chéo vai finance-audit#c3 (yêu cầu lưu tài liệu kiểm toán) trùng 'lưu/kiểm toán/bao lâu'."
+  },
+  {
+    "id": "s4-ankor-pub-canteen-subsidy",
+    "query": "Ankor có trợ cấp suất ăn trưa cho nhân viên không",
+    "tenant": "ankor",
+    "section_roles": ["public", "hr"],
+    "expected_citation": ["ankor-public-office-hours#c7"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-hr-benefits#c3"],
+    "notes": "đáp án: chính sách canteen/suất ăn (public). Mồi chéo vai hr-benefits#c3 (phụ cấp ăn uống) trùng 'trợ cấp/suất ăn/nhân viên'."
+  },
+  {
+    "id": "s4-borea-hr-grievance-vs-eng",
+    "query": "khi nhân viên kỹ thuật vi phạm policy thì được xử lý theo bước nào tại Borea",
+    "tenant": "borea",
+    "section_roles": ["hr", "engineering"],
+    "expected_citation": ["borea-hr-grievance#c2"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-engineering-testing#c1"],
+    "notes": "đáp án: bước 1 — trao đổi không chính thức, quy trình khiếu nại HR (hr). Mồi chéo vai engineering-testing#c1 (vi phạm testing policy lần đầu → coaching session với manager) trùng 'nhân viên/vi phạm/policy/xử lý'."
+  },
+  {
+    "id": "s4-ankor-eng-code-freeze-holiday",
+    "query": "trước dịp Tết đội dev Ankor phải ngừng deploy từ khi nào",
+    "tenant": "ankor",
+    "section_roles": ["engineering", "hr"],
+    "expected_citation": ["ankor-engineering-deployment#c10"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-hr-grievance#c1"],
+    "notes": "đáp án: code freeze trước Tết (engineering). Mồi chéo vai hr-grievance#c1 (phạm vi khiếu nại) trùng 'từ khi nào/phải' (không còn giữ chủ đề Tết)."
+  },
+  {
+    "id": "s4-borea-pub-holiday-vs-fin",
+    "query": "Borea trả lương ra sao cho người làm việc vào ngày nghỉ Tết",
+    "tenant": "borea",
+    "section_roles": ["public", "finance"],
+    "expected_citation": ["borea-public-holidays#c6"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-finance-reimbursement#c6"],
+    "notes": "đáp án: phụ cấp làm ngày lễ Tết (public). Mồi chéo vai finance-reimbursement#c6 (lịch thanh toán hằng tuần) trùng 'trả/làm việc'."
+  },
+  {
+    "id": "s4-ankor-fin-tax-vs-pub",
+    "query": "Ankor phải nộp những loại phí và thuế nào khi ký hợp đồng với khách hàng",
+    "tenant": "ankor",
+    "section_roles": ["finance", "public"],
+    "expected_citation": ["ankor-finance-tax#c4"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-public-code-of-conduct#c8"],
+    "notes": "đáp án: thuế phát sinh từ hợp đồng (finance). Mồi chéo vai public-code-of-conduct#c8 (nghĩa vụ với khách hàng) trùng 'phải/hợp đồng/khách hàng'."
+  },
+  {
+    "id": "s4-borea-hr-backup-coverage",
+    "query": "khi nhân viên Borea nghỉ ốm dài ngày thì ai phụ trách công việc của họ",
+    "tenant": "borea",
+    "section_roles": ["hr", "engineering"],
+    "expected_citation": ["borea-hr-leave#c5"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-engineering-access#c2"],
+    "notes": "đáp án: bố trí nhân sự khi nghỉ dài ngày (hr). Mồi chéo vai engineering-access#c2 (auto-deprovision tài khoản khi nghỉ việc) trùng 'nghỉ/công việc'."
+  },
+  {
+    "id": "s4-ankor-eng-infra-backup-vs-fin",
+    "query": "dữ liệu Ankor được sao lưu để phục vụ kiểm toán hay để phục hồi thảm hoạ",
+    "tenant": "ankor",
+    "section_roles": ["engineering", "finance"],
+    "expected_citation": ["ankor-engineering-infra#c6"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-finance-audit#c4"],
+    "notes": "đáp án: DR/backup (engineering). Mồi chéo vai finance-audit#c4 (yêu cầu lưu trữ hồ sơ kiểm toán) trùng 'dữ liệu/sao lưu/kiểm toán'."
+  },
+  {
+    "id": "s4-borea-pub-conduct-vs-hr",
+    "query": "vi phạm nội quy ứng xử ở Borea thì bộ phận nào xử lý kỷ luật",
+    "tenant": "borea",
+    "section_roles": ["public", "hr"],
+    "expected_citation": ["borea-public-code-of-conduct#c3"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-hr-grievance#c9"],
+    "notes": "đáp án: cơ chế xử lý kỷ luật (public). Mồi chéo vai hr-grievance#c9 (chính sách Anti-Retaliation, kỷ luật trả thù) trùng 'xử lý/kỷ luật/bộ phận'."
+  },
+  {
+    "id": "s4-ankor-hr-training-vs-fin",
+    "query": "nhân viên nộp đơn hoàn ứng chi phí khoá học ngoài thì cần điền form gì trên hệ thống nào",
+    "tenant": "ankor",
+    "section_roles": ["hr", "finance"],
+    "expected_citation": ["ankor-hr-training#c3"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-finance-reimbursement#c4"],
+    "notes": "đáp án: nộp đơn đào tạo trên HR Portal (hr). Mồi chéo vai finance-reimbursement#c4 ('Quy trình nộp đơn' hoàn ứng chung trên SAP) trùng 'nhân viên/nộp/chi phí/hệ thống' — hệ thống hoàn ứng chung, không phải HR Portal đào tạo."
+  },
+  {
+    "id": "s4-borea-eng-release-vs-hr",
+    "query": "việc phát hành phần mềm mới của Borea có liên quan đến việc thưởng cho nhóm không",
+    "tenant": "borea",
+    "section_roles": ["engineering", "hr"],
+    "expected_citation": ["borea-engineering-release#c7"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-hr-exit#c8"],
+    "notes": "đáp án: KPI release gắn với hiệu suất nhóm (engineering). Mồi chéo vai hr-exit#c8 (NDA/non-compete sau nghỉ việc) trùng 'phát hành/mới/liên quan' (không còn giữ chủ đề thưởng)."
+  },
+  {
+    "id": "s4-ankor-pub-safety-vs-eng",
+    "query": "khi xảy ra sự cố cháy nổ tại Ankor thì đội kỹ thuật phải xử lý theo quy trình nào",
+    "tenant": "ankor",
+    "section_roles": ["public", "engineering"],
+    "expected_citation": ["ankor-public-safety#c3"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-engineering-incident#c5"],
+    "notes": "đáp án: sơ tán an toàn toà nhà (public). Mồi chéo vai engineering-incident#c5 (quy trình xử lý sự cố hệ thống) trùng 'sự cố/xử lý/quy trình'."
+  },
+  {
+    "id": "s4-borea-fin-reimbursement-vs-hr",
+    "query": "nhân viên Borea đặt khách sạn công tác tự trả trước thì báo cáo chi phí theo mẫu nào",
+    "tenant": "borea",
+    "section_roles": ["finance", "hr"],
+    "expected_citation": ["borea-finance-reimbursement#c5"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-hr-benefits#c7"],
+    "notes": "đáp án: mẫu báo cáo hoàn ứng công tác (finance). Mồi chéo vai hr-benefits#c7 (chính sách phụ cấp công tác) trùng 'nhân viên/chi phí/mẫu'."
+  },
+  {
+    "id": "s4-ankor-hr-exit-cert-vs-fin",
+    "query": "sau khi nghỉ việc Ankor cấp giấy tờ gì và nhân viên có phải tự chịu chi phí làm giấy không",
+    "tenant": "ankor",
+    "section_roles": ["hr", "finance"],
+    "expected_citation": ["ankor-hr-exit#c7"],
+    "stratum": "S4",
+    "decoy_hint": ["ankor-finance-travel#c10"],
+    "notes": "đáp án: sổ BHXH + giấy xác nhận thời gian đóng BHXH (hr) — sửa từ #c6 (thanh toán, không nói giấy tờ) sang #c7 cho khớp câu hỏi. Mồi chéo vai finance-travel#c10 (huỷ vé công tác: phí do công ty chịu trừ lý do cá nhân, cần giấy bác sĩ) trùng 'giấy/chịu/nghỉ việc' — đa nghĩa 'giấy' và 'chịu [phí/trách nhiệm]'."
+  },
+  {
+    "id": "s4-borea-pub-parking-vs-fin",
+    "query": "phí gửi xe tháng tại Borea được khấu trừ vào lương hay nhân viên tự trả",
+    "tenant": "borea",
+    "section_roles": ["public", "finance"],
+    "expected_citation": ["borea-public-parking#c3"],
+    "stratum": "S4",
+    "decoy_hint": ["borea-finance-travel#c9"],
+    "notes": "đáp án: cơ chế thu phí gửi xe (public). Mồi chéo vai finance-travel#c9 (công tác kết hợp nghỉ phép, vé công ty trả) trùng 'phí/tháng/tự trả'."
   }
 ]

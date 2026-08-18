@@ -223,5 +223,365 @@
     "expected_citation": ["borea-engineering-monitoring#c5"],
     "stratum": "S1",
     "notes": "trùng 'alert / mức'"
+  },
+  {
+    "id": "s1-ankor-hr-annual-leave-count",
+    "query": "nhân viên chính thức Ankor có bao nhiêu ngày phép năm",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-leave#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'nhân viên chính thức / ngày phép năm'"
+  },
+  {
+    "id": "s1-ankor-hr-sick-days",
+    "query": "nghỉ ốm mỗi năm được tối đa bao nhiêu ngày ở Ankor",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-leave#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'nghỉ ốm tối đa ngày/năm'"
+  },
+  {
+    "id": "s1-borea-hr-remote-days",
+    "query": "Borea cho phép làm việc từ xa bao nhiêu ngày trong tuần",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-remote-work#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'làm việc từ xa ngày/tuần'"
+  },
+  {
+    "id": "s1-ankor-eng-pr-large-sla",
+    "query": "SLA review PR lớn ở Ankor là bao lâu",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-code-review#c4"],
+    "stratum": "S1",
+    "notes": "trùng 'SLA review PR lớn'"
+  },
+  {
+    "id": "s1-borea-eng-pr-small-sla",
+    "query": "thời gian tối đa để review PR nhỏ ở Borea",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-code-review#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'review PR nhỏ tối đa'"
+  },
+  {
+    "id": "s1-ankor-fin-reimburse-deadline",
+    "query": "nộp yêu cầu hoàn ứng trong bao nhiêu ngày sau khi chi",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-reimbursement#c4"],
+    "stratum": "S1",
+    "notes": "trùng 'nộp yêu cầu hoàn ứng trong ngày'"
+  },
+  {
+    "id": "s1-borea-pub-dress-code-basic",
+    "query": "Borea có quy định trang phục đến văn phòng không",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-dress-code#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'quy định trang phục văn phòng'"
+  },
+  {
+    "id": "s1-ankor-eng-monitoring-downtime-alert",
+    "query": "hệ thống monitoring Ankor gửi cảnh báo sau mấy phút downtime",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-monitoring#c5"],
+    "stratum": "S1",
+    "notes": "trùng 'hệ thống/monitoring' — sửa expected từ #c3 (Logging, sai chủ đề) sang #c5 (Alerting: mức Critical/Warning/Info, routing qua PagerDuty)"
+  },
+  {
+    "id": "s1-borea-fin-travel-meal",
+    "query": "phụ cấp ăn uống ngày công tác nội địa Borea là bao nhiêu",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-travel#c5"],
+    "stratum": "S1",
+    "notes": "trùng 'phụ cấp ăn uống công tác nội địa' — sửa expected từ #c3 (vé máy bay, sai chủ đề) sang #c5 (Phụ cấp công tác: khoán 500k/ngày nội địa, ăn uống + chi vặt)"
+  },
+  {
+    "id": "s1-ankor-pub-office-open-time",
+    "query": "giờ làm việc chính thức ở Ankor bắt đầu lúc mấy giờ",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-office-hours#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'giờ làm việc / bắt đầu'"
+  },
+  {
+    "id": "s1-borea-hr-training-annual-budget",
+    "query": "Borea cấp bao nhiêu ngân sách đào tạo cho nhân viên mỗi năm",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-training#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'ngân sách đào tạo / năm'"
+  },
+  {
+    "id": "s1-ankor-fin-procurement-floor",
+    "query": "mua sắm trên bao nhiêu tiền thì phải qua đấu thầu Ankor",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-procurement#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'mua sắm / đấu thầu / ngưỡng'"
+  },
+  {
+    "id": "s1-borea-eng-deploy-time-window",
+    "query": "Borea deploy lên production trong khung giờ nào",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-deployment#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'deploy production / khung giờ'"
+  },
+  {
+    "id": "s1-ankor-pub-harassment-report-channel",
+    "query": "tố cáo quấy rối ở Ankor gửi đến đâu",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-anti-harassment#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'tố cáo quấy rối / gửi'"
+  },
+  {
+    "id": "s1-borea-hr-resignation-notice",
+    "query": "nghỉ việc ở Borea cần thông báo trước bao nhiêu ngày",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-exit#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'nghỉ việc thông báo trước ngày'"
+  },
+  {
+    "id": "s1-ankor-eng-mfa-required",
+    "query": "hệ thống Ankor bắt buộc xác thực hai bước không",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-security#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'xác thực hai bước / bắt buộc'"
+  },
+  {
+    "id": "s1-borea-fin-cfo-approval-cap",
+    "query": "CFO Borea được phê duyệt chi phí tối đa bao nhiêu",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-approval-limits#c4"],
+    "stratum": "S1",
+    "notes": "trùng 'CFO phê duyệt chi phí tối đa'"
+  },
+  {
+    "id": "s1-ankor-pub-visitor-badge-color",
+    "query": "khách thăm quan Ankor phải đeo thẻ màu gì",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-visitors#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'khách / thẻ màu'"
+  },
+  {
+    "id": "s1-borea-eng-oncall-weekly-pay",
+    "query": "phụ cấp trực on-call mỗi tuần ở Borea là bao nhiêu",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-oncall#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'phụ cấp on-call tuần'"
+  },
+  {
+    "id": "s1-ankor-hr-health-insurance-coverage",
+    "query": "bảo hiểm sức khoẻ Ankor chi trả những loại khám nào",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-benefits#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'bảo hiểm sức khoẻ / chi trả'"
+  },
+  {
+    "id": "s1-borea-fin-petty-cash",
+    "query": "quỹ tiền mặt nhỏ petty cash mỗi phòng ban Borea được bao nhiêu",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-expense#c5"],
+    "stratum": "S1",
+    "notes": "trùng 'petty cash / phòng ban'"
+  },
+  {
+    "id": "s1-ankor-hr-probation-period",
+    "query": "thời gian thử việc ở Ankor là bao lâu",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-onboarding#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'thử việc / thời gian'"
+  },
+  {
+    "id": "s1-borea-eng-incident-p1-ack",
+    "query": "sự cố P1 ở Borea phải acknowledge trong mấy phút",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-oncall#c4"],
+    "stratum": "S1",
+    "notes": "trùng 'P1 acknowledge phút'"
+  },
+  {
+    "id": "s1-ankor-pub-parking-motorbike",
+    "query": "phí gửi xe máy tháng tại Ankor là bao nhiêu",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-parking#c4"],
+    "stratum": "S1",
+    "notes": "trùng 'phí gửi xe máy / tháng'"
+  },
+  {
+    "id": "s1-borea-hr-sick-max-days",
+    "query": "Borea cho phép nghỉ ốm tối đa bao nhiêu ngày không cần giấy bác sĩ",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-leave#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'nghỉ ốm tối đa ngày không giấy'"
+  },
+  {
+    "id": "s1-ankor-eng-deployment-strategy",
+    "query": "Ankor dùng chiến lược triển khai nào để giảm rủi ro khi đưa code lên production",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-deployment#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'chiến lược triển khai / production'"
+  },
+  {
+    "id": "s1-borea-pub-dress-formal",
+    "query": "khi tiếp khách đối tác tại Borea thì phải ăn mặc như thế nào",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-dress-code#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'tiếp khách / trang phục / đối tác'"
+  },
+  {
+    "id": "s1-ankor-fin-budget-capex",
+    "query": "Ankor phân loại chi đầu tư dài hạn vào mục nào trong ngân sách",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-budget#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'chi đầu tư / CAPEX / ngân sách'"
+  },
+  {
+    "id": "s1-borea-hr-paternity-leave",
+    "query": "bố mới có con được nghỉ phép đặc biệt mấy ngày ở Borea",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-leave#c6"],
+    "stratum": "S1",
+    "notes": "trùng 'nghỉ thai sản bố / ngày'"
+  },
+  {
+    "id": "s1-ankor-eng-log-retention",
+    "query": "log hệ thống Ankor được lưu trữ trong bao lâu",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-monitoring#c3"],
+    "stratum": "S1",
+    "notes": "trùng 'log / được' — sửa expected từ #c7 (SLO, sai chủ đề) sang #c3 (Logging: 'Log retention: 30 ngày hot, 90 ngày cold')"
+  },
+  {
+    "id": "s1-borea-pub-canteen-hours",
+    "query": "canteen văn phòng Borea phục vụ đến mấy giờ",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-office-hours#c6"],
+    "stratum": "S1",
+    "notes": "trùng 'canteen / giờ / phục vụ'"
+  },
+  {
+    "id": "s1-ankor-hr-grievance-timeline",
+    "query": "Ankor xử lý khiếu nại nội bộ trong bao nhiêu ngày",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-grievance#c4"],
+    "stratum": "S1",
+    "notes": "trùng 'khiếu nại / xử lý / ngày'"
+  },
+  {
+    "id": "s1-borea-eng-release-freeze",
+    "query": "Borea dừng deploy trước các kỳ nghỉ lớn trong bao lâu",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-deployment#c10"],
+    "stratum": "S1",
+    "notes": "trùng 'dừng deploy / kỳ nghỉ lớn'"
+  },
+  {
+    "id": "s1-ankor-pub-national-holidays",
+    "query": "Ankor nghỉ những ngày lễ quốc gia nào trong năm",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-holidays#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'nghỉ lễ quốc gia / năm'"
+  },
+  {
+    "id": "s1-borea-fin-tax-tndn",
+    "query": "thuế thu nhập doanh nghiệp Borea bao nhiêu phần trăm",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-tax#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'thuế thu nhập doanh nghiệp / phần trăm'"
+  },
+  {
+    "id": "s1-ankor-eng-code-review-approval",
+    "query": "PR ở Ankor cần bao nhiêu approval mới được merge",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-code-review#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'PR / approval / merge'"
+  },
+  {
+    "id": "s1-borea-hr-annual-review-cycle",
+    "query": "Borea đánh giá hiệu suất nhân viên mấy lần trong năm",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-performance#c1"],
+    "stratum": "S1",
+    "notes": "trùng 'đánh giá hiệu suất / lần / năm'"
+  },
+  {
+    "id": "s1-ankor-pub-communication-slack",
+    "query": "Slack được dùng cho mục đích giao tiếp gì tại Ankor",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-communication#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'Slack / giao tiếp / mục đích'"
+  },
+  {
+    "id": "s1-borea-fin-reimbursement-cap",
+    "query": "Borea giới hạn hoàn ứng ăn uống mỗi bữa là bao nhiêu",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-reimbursement#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'giới hạn hoàn ứng ăn uống / bữa'"
+  },
+  {
+    "id": "s1-ankor-eng-infra-region",
+    "query": "Ankor chạy hạ tầng chính trên region nào của AWS",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-infra#c2"],
+    "stratum": "S1",
+    "notes": "trùng 'hạ tầng / region / AWS'"
   }
 ]

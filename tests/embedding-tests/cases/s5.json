@@ -169,5 +169,365 @@
     "expected_citation": [],
     "stratum": "S5",
     "notes": "ngoài corpus finance"
+  },
+  {
+    "id": "s5-ankor-hr-unlimited-leave",
+    "query": "Ankor có chính sách nghỉ phép không giới hạn số ngày không",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus hr Ankor không có unlimited PTO"
+  },
+  {
+    "id": "s5-borea-eng-metaverse",
+    "query": "hướng dẫn xây dựng ứng dụng trong môi trường metaverse tại Borea",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "chủ đề ngoài corpus engineering"
+  },
+  {
+    "id": "s5-ankor-fin-crypto-payroll",
+    "query": "Ankor có trả lương bằng tiền kỹ thuật số stablecoin không",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus finance"
+  },
+  {
+    "id": "s5-borea-pub-massage-room",
+    "query": "Borea có phòng massage thư giãn cho nhân viên sau giờ làm không",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus public"
+  },
+  {
+    "id": "s5-ankor-hr-fertility-treatment",
+    "query": "công ty có hỗ trợ chi phí điều trị hiếm muộn cho nhân viên không",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus hr Ankor"
+  },
+  {
+    "id": "s5-borea-fin-nft-investment",
+    "query": "quy trình phê duyệt đầu tư vào NFT và tài sản kỹ thuật số tại Borea",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus finance"
+  },
+  {
+    "id": "s5-ankor-pub-rooftop-garden",
+    "query": "quy định sử dụng khu vườn trên mái nhà của toà nhà Ankor",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus public"
+  },
+  {
+    "id": "s5-borea-hr-four-day-week",
+    "query": "Borea có áp dụng tuần làm việc 4 ngày không",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus hr Borea không có chính sách 4 ngày/tuần"
+  },
+  {
+    "id": "s5-ankor-eng-ai-chip-design",
+    "query": "quy trình thiết kế chip AI nội bộ tại đội engineering Ankor",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus engineering"
+  },
+  {
+    "id": "s5-borea-pub-corporate-jet",
+    "query": "quy định đặt chuyến bay riêng cho lãnh đạo cấp cao Borea",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus public"
+  },
+  {
+    "id": "s5-ankor-fin-venture-capital",
+    "query": "Ankor có quỹ đầu tư mạo hiểm nội bộ cho startup không",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus finance"
+  },
+  {
+    "id": "s5-borea-hr-adoption-leave",
+    "query": "Borea có chính sách nghỉ phép khi nhận con nuôi không",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus hr Borea không có adoption leave"
+  },
+  {
+    "id": "s5-ankor-pub-meditation-room",
+    "query": "Ankor có phòng thiền định cho nhân viên cần không gian yên tĩnh không",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus public"
+  },
+  {
+    "id": "s5-borea-eng-satellite-deployment",
+    "query": "quy trình triển khai phần mềm lên vệ tinh quỹ đạo thấp của Borea",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus engineering"
+  },
+  {
+    "id": "s5-ankor-hr-student-loan",
+    "query": "Ankor có hỗ trợ trả nợ vay học phí đại học cho nhân viên mới không",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus hr"
+  },
+  {
+    "id": "s5-borea-fin-carbon-credit",
+    "query": "quy trình mua bán tín chỉ carbon trong kế hoạch ESG của Borea",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus finance"
+  },
+  {
+    "id": "s5-ankor-pub-esports-team",
+    "query": "Ankor có đội thi đấu thể thao điện tử đại diện công ty không",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus public"
+  },
+  {
+    "id": "s5-borea-hr-bereavement-extended",
+    "query": "Borea có chính sách nghỉ phép tang chế kéo dài hơn 5 ngày không",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus hr Borea không đề cập chính sách này"
+  },
+  {
+    "id": "s5-ankor-eng-dna-sequencing",
+    "query": "hướng dẫn viết phần mềm phân tích trình tự DNA tại Ankor engineering",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus engineering"
+  },
+  {
+    "id": "s5-borea-pub-dog-friendly-office",
+    "query": "Borea có cho phép mang chó đến văn phòng vào thứ Sáu không",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus public Borea không có chính sách mang thú cưng"
+  },
+  {
+    "id": "s5-ankor-hr-stock-options",
+    "query": "Ankor có cấp quyền chọn mua cổ phiếu ESOP cho nhân viên không",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus hr Ankor không có chính sách ESOP"
+  },
+  {
+    "id": "s5-borea-eng-rust-guidelines",
+    "query": "quy chuẩn viết code Rust tại Borea là gì",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus engineering Borea không có hướng dẫn Rust"
+  },
+  {
+    "id": "s5-ankor-fin-factoring",
+    "query": "Ankor có chương trình bán khoản phải thu để lấy tiền mặt sớm không",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus finance — factoring/invoice discounting"
+  },
+  {
+    "id": "s5-borea-pub-bicycle-policy",
+    "query": "quy định gửi xe đạp trong toà nhà Borea như thế nào",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus public Borea không có chính sách xe đạp"
+  },
+  {
+    "id": "s5-ankor-hr-shadow-board",
+    "query": "Ankor có chương trình ban lãnh đạo bóng shadow board cho nhân viên trẻ không",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus hr"
+  },
+  {
+    "id": "s5-borea-fin-hedge-fund",
+    "query": "Borea có dùng quỹ phòng hộ hedge fund để bảo vệ dòng tiền không",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus finance"
+  },
+  {
+    "id": "s5-ankor-pub-rooftop-event",
+    "query": "thủ tục xin phép tổ chức sự kiện trên sân thượng toà nhà Ankor",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus public"
+  },
+  {
+    "id": "s5-borea-hr-sabbatical-leave",
+    "query": "Borea có chính sách nghỉ học thuật dài hạn sabbatical hưởng lương không",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus hr Borea không có sabbatical leave"
+  },
+  {
+    "id": "s5-ankor-eng-fpga-development",
+    "query": "hướng dẫn phát triển firmware trên FPGA tại đội kỹ thuật Ankor",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus engineering"
+  },
+  {
+    "id": "s5-borea-pub-art-installation",
+    "query": "quy trình xin phép trưng bày tác phẩm nghệ thuật trong không gian văn phòng Borea",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus public"
+  },
+  {
+    "id": "s5-ankor-fin-leasing",
+    "query": "Ankor có chương trình cho nhân viên thuê tài sản công ty với giá ưu đãi không",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus finance"
+  },
+  {
+    "id": "s5-borea-hr-childcare-voucher",
+    "query": "Borea có phát voucher giữ trẻ cho nhân viên có con nhỏ dưới 6 tuổi không",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus hr"
+  },
+  {
+    "id": "s5-ankor-pub-sauna-room",
+    "query": "quy định đặt chỗ phòng xông hơi trong khu vực thể thao của Ankor",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus public"
+  },
+  {
+    "id": "s5-borea-eng-embedded-linux",
+    "query": "quy trình build và deploy image cho thiết bị nhúng Linux của Borea",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus engineering"
+  },
+  {
+    "id": "s5-ankor-hr-relocation-allowance",
+    "query": "Ankor hỗ trợ chi phí chuyển nhà khi điều chuyển công tác nội địa không",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus hr Ankor không có chính sách này"
+  },
+  {
+    "id": "s5-borea-fin-insurance-captive",
+    "query": "Borea có công ty bảo hiểm nội bộ captive để tự bảo hiểm rủi ro không",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus finance"
+  },
+  {
+    "id": "s5-ankor-pub-podcast-studio",
+    "query": "quy định đặt lịch sử dụng phòng thu podcast tại Ankor",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus public"
+  },
+  {
+    "id": "s5-borea-hr-expat-package",
+    "query": "Borea có gói đãi ngộ riêng cho chuyên gia nước ngoài expatriate không",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus hr Borea không có expat package"
+  },
+  {
+    "id": "s5-ankor-eng-ml-platform",
+    "query": "nền tảng huấn luyện mô hình machine learning nội bộ của Ankor là gì",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus engineering"
+  },
+  {
+    "id": "s5-borea-pub-lactation-room",
+    "query": "Borea có phòng vắt sữa cho bà mẹ đang cho con bú trong văn phòng không",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus public Borea không đề cập phòng này"
   }
 ]

@@ -178,5 +178,374 @@
     "expected_citation": ["ankor-engineering-infra#c4"],
     "stratum": "S2",
     "notes": "paraphrase 'PostgreSQL 15 trên RDS Multi-AZ' = 'cơ sở dữ liệu dịch vụ đám mây'"
+  },
+  {
+    "id": "s2-ankor-hr-pip-timeframe",
+    "query": "bị đánh giá yếu thì được cho bao lâu để cải thiện",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-performance#c7"],
+    "stratum": "S2",
+    "notes": "paraphrase 'PIP 90 ngày cải thiện' = 'được cho bao lâu cải thiện'"
+  },
+  {
+    "id": "s2-borea-eng-alert-first-receiver",
+    "query": "khi hệ thống báo động thì ai nhận thông báo đầu tiên",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-monitoring#c6"],
+    "stratum": "S2",
+    "notes": "paraphrase 'PagerDuty gửi alert cho on-call' = 'hệ thống báo động ai nhận đầu tiên'"
+  },
+  {
+    "id": "s2-ankor-pub-daily-outfit",
+    "query": "kiểu đồ nào chấp nhận được khi lên công ty những hôm bình thường",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-dress-code#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'smart casual tiêu chuẩn thường ngày' = 'kiểu đồ chấp nhận được ngày thường'"
+  },
+  {
+    "id": "s2-borea-fin-invoice-issuance-window",
+    "query": "sau khi ký hợp đồng thì có bao lâu để xuất hoá đơn",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-invoicing#c3"],
+    "stratum": "S2",
+    "notes": "paraphrase 'hạn xuất hoá đơn sau giao dịch' = 'bao lâu để xuất hoá đơn'"
+  },
+  {
+    "id": "s2-ankor-eng-release-rhythm",
+    "query": "công ty ra mắt cập nhật sản phẩm với tần suất thế nào",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-release#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'lịch release sprint 2 tuần' = 'ra mắt cập nhật với tần suất nào'"
+  },
+  {
+    "id": "s2-borea-hr-rating-scale",
+    "query": "kết quả làm việc cả năm của nhân viên Borea chia thành mấy mức",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-performance#c3"],
+    "stratum": "S2",
+    "notes": "paraphrase 'thang xếp loại hiệu suất' = 'kết quả cả năm chia thành mấy mức'"
+  },
+  {
+    "id": "s2-ankor-pub-official-comms-channel",
+    "query": "trao đổi trong tổ chức nên thực hiện qua công cụ được công nhận nào",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-communication#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'email/Slack là kênh giao tiếp nội bộ chính' = 'trao đổi qua công cụ được công nhận nào'"
+  },
+  {
+    "id": "s2-borea-eng-cloud-provider",
+    "query": "hạ tầng đám mây Borea chạy trên nền tảng nào",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-infra#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'AWS primary / multi-region' = 'hạ tầng đám mây chạy trên nền tảng nào'"
+  },
+  {
+    "id": "s2-ankor-hr-unused-leave-rollover",
+    "query": "số buổi nghỉ dư sẽ ra sao nếu để dành đến giai đoạn sau",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-leave#c2"],
+    "stratum": "S2",
+    "notes": "paraphrase 'chuyển tối đa 5 ngày sang năm sau' = 'buổi nghỉ dư để dành đến giai đoạn sau'"
+  },
+  {
+    "id": "s2-borea-pub-company-purpose",
+    "query": "lý do tồn tại của tổ chức là nhằm mục đích gì",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-mission#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'sứ mệnh công ty' = 'lý do tồn tại nhằm mục đích gì'"
+  },
+  {
+    "id": "s2-ankor-fin-budget-reforecast",
+    "query": "khi tình hình kinh doanh thay đổi thì kế hoạch ngân sách điều chỉnh sao",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-budget#c6"],
+    "stratum": "S2",
+    "notes": "paraphrase 'ngân sách rolling forecast điều chỉnh quý' = 'kế hoạch ngân sách điều chỉnh sao'"
+  },
+  {
+    "id": "s2-borea-hr-complaint-response-time",
+    "query": "khiếu nại nhân sự thì bao lâu nhận được phản hồi",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-grievance#c4"],
+    "stratum": "S2",
+    "notes": "paraphrase 'thời hạn xử lý khiếu nại' = 'khiếu nại bao lâu nhận phản hồi'"
+  },
+  {
+    "id": "s2-ankor-eng-pr-test-requirement",
+    "query": "khi thêm tính năng lập trình, quy định bắt buộc đi kèm là gì",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-testing#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'unit test bắt buộc kèm mọi PR' = 'tính năng mới bắt buộc đi kèm gì'"
+  },
+  {
+    "id": "s2-borea-fin-min-vendor-quotes",
+    "query": "trước khi ký hợp đồng với nhà thầu cần so sánh mức giá của tối thiểu mấy bên",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-procurement#c3"],
+    "stratum": "S2",
+    "notes": "paraphrase 'ít nhất 3 báo giá khi đấu thầu' = 'so sánh giá tối thiểu mấy bên trước khi ký'"
+  },
+  {
+    "id": "s2-ankor-pub-fire-escape-route",
+    "query": "khi có chuông báo cháy ở Ankor thì phải thoát ra cửa nào",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-safety#c4"],
+    "stratum": "S2",
+    "notes": "paraphrase 'lối thoát hiểm sơ tán' = 'chuông báo cháy thoát ra cửa nào'"
+  },
+  {
+    "id": "s2-borea-eng-p2-response-sla",
+    "query": "sự cố mức 2 ở Borea phải phản hồi trong bao lâu",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-oncall#c5"],
+    "stratum": "S2",
+    "notes": "paraphrase 'P2 SLA acknowledge' = 'sự cố mức 2 phản hồi bao lâu'"
+  },
+  {
+    "id": "s2-ankor-hr-recruitment-interview-count",
+    "query": "ứng viên vào Ankor phải trải qua mấy vòng phỏng vấn",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-recruitment#c3"],
+    "stratum": "S2",
+    "notes": "paraphrase 'quy trình tuyển dụng các vòng' = 'phải trải qua mấy vòng phỏng vấn'"
+  },
+  {
+    "id": "s2-borea-pub-workplace-bullying",
+    "query": "tổ chức phản hồi ra sao khi một người bị ức hiếp trong công sở",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-anti-harassment#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'chính sách chống quấy rối bắt nạt' = 'phản hồi ra sao khi bị ức hiếp trong công sở'"
+  },
+  {
+    "id": "s2-ankor-fin-indirect-tax-rate",
+    "query": "Ankor thu thuế gián tiếp nào trên từng giao dịch bán hàng",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-tax#c3"],
+    "stratum": "S2",
+    "notes": "paraphrase 'VAT 10% trên doanh thu' = 'thuế gián tiếp trên bán hàng'"
+  },
+  {
+    "id": "s2-borea-hr-supplemental-health",
+    "query": "đơn vị hỗ trợ khoản khám sức khoẻ mở rộng nào dành riêng gia đình người lao động",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-benefits#c2"],
+    "stratum": "S2",
+    "notes": "paraphrase 'bảo hiểm sức khoẻ bổ sung tư nhân' = 'khám sức khoẻ mở rộng dành riêng gia đình người lao động'"
+  },
+  {
+    "id": "s2-ankor-fin-audit-scope",
+    "query": "bộ phận rà soát tài chính riêng của công ty xem xét các hạng mục gì",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-audit#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'phạm vi kiểm toán nội bộ hằng năm' = 'bộ phận rà soát tài chính riêng xem xét hạng mục gì'"
+  },
+  {
+    "id": "s2-borea-fin-petty-cash-request",
+    "query": "muốn mua đồ nhỏ tiền mặt cho phòng thì lấy ở đâu",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-expense#c5"],
+    "stratum": "S2",
+    "notes": "paraphrase 'petty cash phòng ban' = 'mua đồ nhỏ tiền mặt cho phòng'"
+  },
+  {
+    "id": "s2-ankor-hr-probation-tasks",
+    "query": "mới vào làm thì trong 2 tháng đầu phải làm gì để qua thử thách",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-onboarding#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'kỳ thử việc / tiêu chí đánh giá' = 'mới vào thì 2 tháng đầu làm gì'"
+  },
+  {
+    "id": "s2-borea-eng-rollback-trigger",
+    "query": "khi nào hệ thống tự động thu hồi bản deploy vừa lên",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-deployment#c5"],
+    "stratum": "S2",
+    "notes": "paraphrase 'rollback tự động khi error rate' = 'tự động thu hồi bản deploy'"
+  },
+  {
+    "id": "s2-ankor-pub-parking-reserve",
+    "query": "thủ tục nào giúp giữ một vị trí cố định để phương tiện tại trụ sở",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-parking#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'đăng ký suất đỗ xe' = 'thủ tục giữ vị trí cố định để phương tiện'"
+  },
+  {
+    "id": "s2-borea-hr-medical-cert",
+    "query": "vắng mặt vì bệnh quá bao lâu thì cần có xác nhận từ phía y tế",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-leave#c4"],
+    "stratum": "S2",
+    "notes": "paraphrase 'giấy bác sĩ khi nghỉ ốm >X ngày' = 'vắng vì bệnh bao lâu thì cần xác nhận y tế'"
+  },
+  {
+    "id": "s2-ankor-eng-blue-green",
+    "query": "Ankor tung bản mới ra dần dần hay đổi cả cụm server cùng lúc",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-deployment#c2"],
+    "stratum": "S2",
+    "notes": "paraphrase 'blue-green / canary deployment' = 'tung bản mới ra dần dần hay đổi cả cụm'"
+  },
+  {
+    "id": "s2-borea-pub-business-attire",
+    "query": "khi ghé thăm bên đối tác, đội ngũ nên chọn kiểu ăn vận nào",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-dress-code#c3"],
+    "stratum": "S2",
+    "notes": "paraphrase 'business attire khi gặp đối tác' = 'ghé thăm đối tác nên ăn vận kiểu nào'"
+  },
+  {
+    "id": "s2-ankor-fin-capital-expenditure",
+    "query": "mua sắm thiết bị giá trị lớn được hạch toán vào khoản gì",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-budget#c3"],
+    "stratum": "S2",
+    "notes": "paraphrase 'CAPEX vs OPEX' = 'thiết bị giá trị lớn hạch toán khoản gì'"
+  },
+  {
+    "id": "s2-borea-hr-dad-days-off",
+    "query": "chồng được tạm ngưng công việc bao lâu để lo cho vợ mới sinh tại Borea",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-leave#c5"],
+    "stratum": "S2",
+    "notes": "paraphrase 'nghỉ thai sản cha (14 ngày)' = 'chồng tạm ngưng việc bao lâu khi vợ mới sinh' — sửa expected từ #c6 (nghỉ cưới/tang, sai chủ đề) sang #c5 (Nghỉ thai sản: 'Nam nhân viên được 14 ngày nghỉ chăm sóc con')"
+  },
+  {
+    "id": "s2-ankor-eng-log-storage-period",
+    "query": "dữ liệu nhật ký hệ thống Ankor giữ được bao lâu trước khi xoá",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-monitoring#c7"],
+    "stratum": "S2",
+    "notes": "paraphrase 'log retention period' = 'dữ liệu nhật ký giữ bao lâu trước khi xoá'"
+  },
+  {
+    "id": "s2-borea-pub-lunch-service",
+    "query": "bếp ăn tại văn phòng Borea mở cửa trong khung giờ nào",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-office-hours#c6"],
+    "stratum": "S2",
+    "notes": "paraphrase 'giờ phục vụ canteen' = 'bếp ăn mở cửa khung giờ nào'"
+  },
+  {
+    "id": "s2-ankor-hr-complaint-handling",
+    "query": "một thắc mắc tôi gửi lên thì mất bao lâu mới thấy trả lời",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-grievance#c4"],
+    "stratum": "S2",
+    "notes": "paraphrase 'thời gian xử lý khiếu nại' = 'thắc mắc gửi lên mất bao lâu mới có trả lời'"
+  },
+  {
+    "id": "s2-borea-eng-no-deploy-period",
+    "query": "những dịp nào trong năm Borea cấm đội kỹ thuật đưa code lên production",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-deployment#c10"],
+    "stratum": "S2",
+    "notes": "paraphrase 'code freeze dịp Tết/lễ lớn' = 'dịp nào cấm đưa code lên production'"
+  },
+  {
+    "id": "s2-ankor-pub-public-holidays-list",
+    "query": "trong năm Ankor đóng cửa những ngày nào theo quy định nhà nước",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-holidays#c2"],
+    "stratum": "S2",
+    "notes": "paraphrase 'danh sách ngày lễ quốc gia' = 'đóng cửa những ngày nào theo nhà nước'"
+  },
+  {
+    "id": "s2-borea-fin-corporate-tax",
+    "query": "công ty Borea trích bao nhiêu phần trăm thu nhập nộp ngân sách nhà nước",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-tax#c2"],
+    "stratum": "S2",
+    "notes": "paraphrase 'thuế TNDN tỷ lệ' = 'trích bao nhiêu phần trăm nộp ngân sách nhà nước'"
+  },
+  {
+    "id": "s2-ankor-eng-merge-approvers",
+    "query": "mã nguồn mới cần bao nhiêu người xem và đồng ý trước khi ghép vào nhánh chính",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-code-review#c2"],
+    "stratum": "S2",
+    "notes": "paraphrase 'số approval để merge PR' = 'bao nhiêu người đồng ý trước khi ghép nhánh'"
+  },
+  {
+    "id": "s2-borea-hr-performance-frequency",
+    "query": "sếp gặp riêng từng người dưới quyền để bàn việc mấy bận trong một năm",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-performance#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'chu kỳ đánh giá hiệu suất' = 'sếp gặp người dưới quyền bàn việc mấy bận/năm'"
+  },
+  {
+    "id": "s2-ankor-pub-instant-messaging",
+    "query": "trao đổi tức thời giữa đồng nghiệp thực hiện qua công cụ gì",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-communication#c2"],
+    "stratum": "S2",
+    "notes": "paraphrase 'Slack là kênh nhắn tin nội bộ' = 'trao đổi tức thời giữa đồng nghiệp qua công cụ gì'"
+  },
+  {
+    "id": "s2-borea-fin-meal-expense-ceiling",
+    "query": "chi phí tiếp đãi đối tác từng lần Borea giới hạn không quá bao nhiêu tiền",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-reimbursement#c2"],
+    "stratum": "S2",
+    "notes": "paraphrase 'hạn mức hoàn ứng ăn uống/bữa' = 'tiếp đãi đối tác từng lần giới hạn bao nhiêu tiền'"
+  },
+  {
+    "id": "s2-ankor-eng-primary-cloud-region",
+    "query": "dịch vụ của Ankor đặt máy chủ chính ở vùng địa lý nào",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-infra#c2"],
+    "stratum": "S2",
+    "notes": "paraphrase 'AWS region chính' = 'máy chủ chính đặt ở vùng địa lý nào'"
   }
 ]
