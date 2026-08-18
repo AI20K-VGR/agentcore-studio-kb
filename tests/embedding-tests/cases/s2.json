@@ -1,0 +1,182 @@
+[
+  {
+    "id": "s2-borea-hr-wfh-office-days",
+    "query": "một tháng cần lên công ty mấy lần",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-remote-work#c2"],
+    "stratum": "S2",
+    "notes": "paraphrase 'đến văn phòng 2 ngày/tháng' = 'lên công ty mấy lần'"
+  },
+  {
+    "id": "s2-ankor-hr-wfh-equipment",
+    "query": "làm ở nhà thì công ty phát cho những gì",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-remote-work#c4"],
+    "stratum": "S2",
+    "notes": "paraphrase 'trang thiết bị WFH' = 'làm ở nhà phát gì'"
+  },
+  {
+    "id": "s2-borea-fin-approval-level",
+    "query": "khoản chi bao nhiêu thì sếp trực tiếp được ký",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-reimbursement#c4"],
+    "stratum": "S2",
+    "notes": "paraphrase 'phê duyệt theo hạn mức' = 'sếp được ký'"
+  },
+  {
+    "id": "s2-ankor-eng-secret-store",
+    "query": "chỗ nào giữ khoá bí mật của dịch vụ",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-access#c9"],
+    "stratum": "S2",
+    "notes": "paraphrase 'service account / Vault / credentials' = 'khoá bí mật dịch vụ'"
+  },
+  {
+    "id": "s2-borea-hr-onboarding-day1",
+    "query": "hôm đầu tiên đi làm sẽ làm những gì",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-onboarding#c2"],
+    "stratum": "S2",
+    "notes": "paraphrase 'Ngày đầu tiên onboarding' = 'hôm đầu đi làm'"
+  },
+  {
+    "id": "s2-ankor-pub-conduct-discipline",
+    "query": "cư xử không đúng mực có bị đuổi việc không",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-code-of-conduct#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'vi phạm quy tắc ứng xử → sa thải' = 'cư xử sai bị đuổi'"
+  },
+  {
+    "id": "s2-borea-eng-prod-login",
+    "query": "muốn vào máy chủ chạy thật thì xin quyền kiểu gì",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-access#c5"],
+    "stratum": "S2",
+    "notes": "paraphrase 'production access Teleport JIT' = 'vào máy chủ chạy thật xin quyền'"
+  },
+  {
+    "id": "s2-borea-pub-holiday-count",
+    "query": "công ty cho nghỉ những dịp riêng nào ngoài lễ nhà nước",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-holidays#c5"],
+    "stratum": "S2",
+    "notes": "paraphrase 'ngày nghỉ riêng của Borea' = 'dịp riêng ngoài lễ nhà nước'"
+  },
+  {
+    "id": "s2-ankor-eng-oncall-nightcall",
+    "query": "bị dựng dậy giữa đêm chữa sự cố thì hôm sau thế nào",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-oncall#c8"],
+    "stratum": "S2",
+    "notes": "paraphrase 'nghỉ bù sau trực đêm' = 'dựng dậy giữa đêm hôm sau'"
+  },
+  {
+    "id": "s2-ankor-hr-exit-notice",
+    "query": "rời công ty thì cần báo trước bao lâu",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-exit#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'thông báo nghỉ việc trước 30 ngày' = 'rời công ty báo trước'"
+  },
+  {
+    "id": "s2-borea-fin-travel-hotel",
+    "query": "chỗ ngủ khi đi xa vì việc hãng giới hạn bao nhiêu tiền",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-travel#c4"],
+    "stratum": "S2",
+    "notes": "paraphrase 'hạn mức khách sạn VNĐ/đêm' = 'chỗ ngủ đi xa giới hạn tiền'"
+  },
+  {
+    "id": "s2-ankor-pub-visitor-entry",
+    "query": "người ngoài muốn vào toà nhà cần thủ tục gì",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-visitors#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'khách đăng ký tại quầy lễ tân' = 'người ngoài vào toà nhà thủ tục'"
+  },
+  {
+    "id": "s2-borea-hr-salary-structure",
+    "query": "thu nhập định kỳ chia làm mấy phần",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-payroll#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'cơ cấu lương 80/10/10' = 'đồng lương chia mấy phần'"
+  },
+  {
+    "id": "s2-ankor-eng-deploy-freeze",
+    "query": "gần dịp lớn có ngừng đưa bản mới lên không",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-deployment#c10"],
+    "stratum": "S2",
+    "notes": "paraphrase 'code freeze trước Tết/lễ lớn' = 'ngừng đưa bản mới dịp lớn'"
+  },
+  {
+    "id": "s2-borea-eng-test-coverage",
+    "query": "bao phủ kiểm thử tối thiểu phải đạt mức nào",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-testing#c2"],
+    "stratum": "S2",
+    "notes": "paraphrase 'unit test coverage tối thiểu 90%' — overlap 'tối thiểu'"
+  },
+  {
+    "id": "s2-ankor-hr-training-budget",
+    "query": "hãng rót bao nhiêu đồng cho việc trau dồi kỹ năng",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-training#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'ngân sách đào tạo 10 triệu/năm' = 'hãng rót đồng trau dồi kỹ năng'"
+  },
+  {
+    "id": "s2-borea-pub-safety-fire",
+    "query": "toà nhà diễn tập cứu hoả mấy lần một năm",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-safety#c2"],
+    "stratum": "S2",
+    "notes": "paraphrase 'diễn tập PCCC hằng quý' — overlap 'diễn tập'"
+  },
+  {
+    "id": "s2-ankor-fin-invoice-format",
+    "query": "giấy tờ xuất cho bên mua theo quy chuẩn nào",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-invoicing#c1"],
+    "stratum": "S2",
+    "notes": "paraphrase 'hoá đơn điện tử Nghị định 123' = 'giấy tờ xuất bên mua quy chuẩn'"
+  },
+  {
+    "id": "s2-borea-hr-referral",
+    "query": "giới thiệu bạn bè vào hãng thành công thì nhận bao nhiêu",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-recruitment#c9"],
+    "stratum": "S2",
+    "notes": "paraphrase 'referral bonus 10/25/50 triệu' — overlap 'giới thiệu'"
+  },
+  {
+    "id": "s2-ankor-eng-infra-db",
+    "query": "cơ sở dữ liệu chạy trên dịch vụ đám mây nào",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-infra#c4"],
+    "stratum": "S2",
+    "notes": "paraphrase 'PostgreSQL 15 trên RDS Multi-AZ' = 'cơ sở dữ liệu dịch vụ đám mây'"
+  }
+]

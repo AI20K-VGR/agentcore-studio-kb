@@ -1,0 +1,173 @@
+[
+  {
+    "id": "s5-ankor-pub-pets",
+    "query": "được mang thú cưng vào văn phòng không",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus public Ankor không có chính sách thú cưng"
+  },
+  {
+    "id": "s5-ankor-hr-crypto-bonus",
+    "query": "công ty có trả thưởng bằng tiền điện tử không",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "không có chính sách thưởng crypto"
+  },
+  {
+    "id": "s5-borea-eng-quantum",
+    "query": "hướng dẫn lập trình cho máy tính lượng tử",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "chủ đề ngoài corpus engineering"
+  },
+  {
+    "id": "s5-ankor-fin-housing-loan",
+    "query": "công ty có cho vay tiền mua nhà trả góp không",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "không có chính sách vay mua nhà — negative hợp lý (khó hơn absurd)"
+  },
+  {
+    "id": "s5-borea-hr-early-retirement",
+    "query": "chính sách nghỉ hưu non trước tuổi thế nào",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "corpus hr Borea không có nghỉ hưu non"
+  },
+  {
+    "id": "s5-borea-pub-parking-heli",
+    "query": "quy định chỗ đỗ trực thăng cho lãnh đạo",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus public"
+  },
+  {
+    "id": "s5-ankor-pub-gym",
+    "query": "công ty có phòng gym miễn phí cho nhân viên không",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "không có chính sách phòng gym"
+  },
+  {
+    "id": "s5-borea-fin-stock-trading",
+    "query": "quy định mua bán cổ phiếu niêm yết của công ty",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "không có chính sách giao dịch cổ phiếu"
+  },
+  {
+    "id": "s5-ankor-eng-blockchain",
+    "query": "hướng dẫn tích hợp thanh toán bằng hợp đồng thông minh blockchain",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus engineering"
+  },
+  {
+    "id": "s5-borea-hr-daycare",
+    "query": "công ty có cung cấp nhà trẻ nội khu cho nhân viên có con nhỏ không",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus hr"
+  },
+  {
+    "id": "s5-ankor-fin-crypto-investment",
+    "query": "quy trình xin giải ngân vốn đầu tư vào thị trường tiền mã hoá",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus finance"
+  },
+  {
+    "id": "s5-borea-pub-nap-pods",
+    "query": "quy định đặt trước buồng ngủ trưa nap pods ở văn phòng",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus public"
+  },
+  {
+    "id": "s5-ankor-hr-sabbatical",
+    "query": "chính sách nghỉ phép dài hạn sabbatical trên 6 tháng hưởng lương cơ bản",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus hr"
+  },
+  {
+    "id": "s5-borea-eng-vr",
+    "query": "hướng dẫn thiết lập môi trường phát triển ứng dụng thực tế ảo vr",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus engineering"
+  },
+  {
+    "id": "s5-ankor-pub-sleeping-bags",
+    "query": "được mang túi ngủ cá nhân để ngủ lại qua đêm dưới gầm bàn không",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus public"
+  },
+  {
+    "id": "s5-borea-fin-charity-deduction",
+    "query": "quy trình đăng ký trích lương hằng tháng tự động cho quỹ từ thiện",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus finance"
+  },
+  {
+    "id": "s5-ankor-hr-dating",
+    "query": "chính sách về việc nhân viên cùng phòng ban hẹn hò với nhau",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus hr"
+  },
+  {
+    "id": "s5-borea-pub-cooking-class",
+    "query": "đăng ký tham gia lớp học nấu ăn miễn phí cuối tuần tại canteen thế nào",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus public"
+  },
+  {
+    "id": "s5-ankor-fin-car-loan",
+    "query": "quy định duyệt khoản vay ưu đãi mua ô tô trả góp cho nhân sự cấp cao",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": [],
+    "stratum": "S5",
+    "notes": "ngoài corpus finance"
+  }
+]

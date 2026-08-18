@@ -1,0 +1,325 @@
+# Golden-set Callisto 2.0 — 30 case có nhãn trên corpus 2.0 (docs/callisto-2.0/, 80 doc / 800 chunk).
+#
+# Bút DE (Nguyễn Đông Anh). Song song bộ 1.0 (callisto-golden-30-v1) — plans/callisto-2.0-cutover.md.
+# Nhãn TRÍCH từ retrieval thật qua scripts/annotate_golden_v2.py — KHÔNG gõ tay. Đã máy-kiểm:
+#   (1) mọi expected_citation truy-xuất-được trong scope; (2) expected GROUNDED trong chunk trích +
+#   DUY NHẤT trong (tenant, roles) theo đúng _contains_phrase của harness; (3) case âm fence chặn.
+# Rank-verify (search xếp expected top-k ngữ nghĩa) HOÃN sang parity gate (phụ thuộc embedding thật).
+#
+# Cặp chéo-tenant khác-số (leak-mimic): HB2-01/02·03/04·05/06·07/08·09/10·11/12·15/16.
+# Gồm 22 dương + 8 âm. Phủ 4 vai × 2 tenant; T1 cả hai chiều; T6 cả ankor lẫn borea.
+
+golden_set_ref: callisto-2.0-golden-30-v1
+
+cases:
+  # HB2-01: cặp HB2-02 (số ngày phép 12 vs 15)
+  - case_id: HB2-01
+    query: "Nhân viên chính thức được bao nhiêu ngày phép năm?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "12 ngày phép có lương"
+    expected_citation: ["ankor-hr-leave#c1"]
+    manual_label: pass
+
+  # HB2-02: cặp HB2-01 khác số
+  - case_id: HB2-02
+    query: "Nhân viên chính thức được bao nhiêu ngày phép năm?"
+    tenant: borea
+    section_roles: [hr]
+    expected_tenant: borea
+    expected_section_role: hr
+    expected: "15 ngày phép có lương"
+    expected_citation: ["borea-hr-leave#c1"]
+
+  # HB2-03: cặp HB2-04 (Tết 7 vs 9 ngày)
+  - case_id: HB2-03
+    query: "Tết Nguyên Đán nhân viên được nghỉ mấy ngày?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: public
+    expected: "nghỉ 7 ngày liên tục"
+    expected_citation: ["ankor-public-holidays#c1"]
+    manual_label: pass
+
+  # HB2-04: cặp HB2-03 khác số
+  - case_id: HB2-04
+    query: "Tết Nguyên Đán nhân viên được nghỉ mấy ngày?"
+    tenant: borea
+    section_roles: [public]
+    expected_tenant: borea
+    expected_section_role: public
+    expected: "nghỉ 9 ngày liên tục"
+    expected_citation: ["borea-public-holidays#c1"]
+
+  # HB2-05: cặp HB2-06 (nội trú 50 vs 100 triệu)
+  - case_id: HB2-05
+    query: "Bảo hiểm sức khoẻ có hạn mức nội trú bao nhiêu?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "50.000.000 VNĐ/năm cho nội trú"
+    expected_citation: ["ankor-hr-benefits#c1"]
+    manual_label: pass
+
+  # HB2-06: cặp HB2-05 khác số
+  - case_id: HB2-06
+    query: "Bảo hiểm sức khoẻ có hạn mức nội trú bao nhiêu?"
+    tenant: borea
+    section_roles: [hr]
+    expected_tenant: borea
+    expected_section_role: hr
+    expected: "100.000.000 VNĐ/năm nội trú"
+    expected_citation: ["borea-hr-benefits#c1"]
+    manual_label: pass
+
+  # HB2-07: cặp HB2-08 (SLA P1); đáp án ở #c4 (SLA), không phải #c1
+  - case_id: HB2-07
+    query: "Sự cố P1 cần bắt đầu xử lý trong bao lâu?"
+    tenant: ankor
+    section_roles: [engineering]
+    expected_tenant: ankor
+    expected_section_role: engineering
+    expected: "bắt đầu xử lý trong 15 phút"
+    expected_citation: ["ankor-engineering-oncall#c4"]
+
+  # HB2-08: cặp HB2-07 khác số; đáp án ở #c4
+  - case_id: HB2-08
+    query: "Sự cố P1 cần bắt đầu xử lý trong bao lâu?"
+    tenant: borea
+    section_roles: [engineering]
+    expected_tenant: borea
+    expected_section_role: engineering
+    expected: "engage trong 10 phút"
+    expected_citation: ["borea-engineering-oncall#c4"]
+    manual_label: pass
+
+  # HB2-09: cặp HB2-10 (báo trước 3 vs 5 ngày); đáp án ở #c4
+  - case_id: HB2-09
+    query: "Đơn xin nghỉ phép phải nộp trước bao lâu?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "trước ít nhất 3 ngày làm việc"
+    expected_citation: ["ankor-hr-leave#c4"]
+    manual_label: pass
+
+  # HB2-10: cặp HB2-09 khác số; đáp án ở #c4
+  - case_id: HB2-10
+    query: "Đơn xin nghỉ phép phải nộp trước bao lâu?"
+    tenant: borea
+    section_roles: [hr]
+    expected_tenant: borea
+    expected_section_role: hr
+    expected: "nộp trước 5 ngày làm việc"
+    expected_citation: ["borea-hr-leave#c4"]
+
+  # HB2-11: cặp HB2-12 (ngưỡng 5 vs 3 triệu)
+  - case_id: HB2-11
+    query: "Quy trình mua sắm áp dụng cho giao dịch từ bao nhiêu?"
+    tenant: ankor
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "từ 5.000.000 VNĐ trở lên"
+    expected_citation: ["ankor-finance-procurement#c1"]
+
+  # HB2-12: cặp HB2-11 khác số
+  - case_id: HB2-12
+    query: "Quy trình mua sắm áp dụng cho giao dịch từ bao nhiêu?"
+    tenant: borea
+    section_roles: [finance]
+    expected_tenant: borea
+    expected_section_role: finance
+    expected: "từ 3.000.000 VNĐ trở lên"
+    expected_citation: ["borea-finance-procurement#c1"]
+    manual_label: pass
+
+  # HB2-13: finance ankor; đáp án ở #c2 (hạn mức)
+  - case_id: HB2-13
+    query: "Chi phí ăn uống công tác nội thành được hoàn ứng tối đa bao nhiêu?"
+    tenant: ankor
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "200.000 VNĐ/bữa nội thành"
+    expected_citation: ["ankor-finance-reimbursement#c2"]
+
+  # HB2-14: finance ankor; đáp án ở #c2 (thời điểm xuất)
+  - case_id: HB2-14
+    query: "Hoá đơn được xuất trong bao nhiêu ngày làm việc?"
+    tenant: ankor
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "xuất trong 5 ngày làm việc"
+    expected_citation: ["ankor-finance-invoicing#c2"]
+
+  # HB2-15: cặp HB2-16 (2 lần/năm vs hằng quý)
+  - case_id: HB2-15
+    query: "Đánh giá hiệu suất diễn ra mấy lần một năm?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "hiệu suất 2 lần/năm"
+    expected_citation: ["ankor-hr-performance#c1"]
+
+  # HB2-16: cặp HB2-15 khác chu kỳ
+  - case_id: HB2-16
+    query: "Đánh giá hiệu suất diễn ra mấy lần một năm?"
+    tenant: borea
+    section_roles: [hr]
+    expected_tenant: borea
+    expected_section_role: hr
+    expected: "đánh giá hiệu suất hằng quý"
+    expected_citation: ["borea-hr-performance#c1"]
+    manual_label: pass
+
+  # HB2-17: hr ankor; đáp án ở #c2 (đăng tuyển)
+  - case_id: HB2-17
+    query: "Tin tuyển dụng phải đăng tối thiểu bao nhiêu ngày?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "tối thiểu 14 ngày"
+    expected_citation: ["ankor-hr-recruitment#c2"]
+
+  # HB2-18: engineering ankor; đáp án ở #c3 (phụ cấp)
+  - case_id: HB2-18
+    query: "Phụ cấp trực on-call ngày thường là bao nhiêu một tuần?"
+    tenant: ankor
+    section_roles: [engineering]
+    expected_tenant: ankor
+    expected_section_role: engineering
+    expected: "1.500.000 VNĐ/tuần trực ngày thường"
+    expected_citation: ["ankor-engineering-oncall#c3"]
+
+  # HB2-19: hr ankor; đáp án ở #c2 (ngày trả lương)
+  - case_id: HB2-19
+    query: "Lương được trả vào ngày mấy hằng tháng?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "trả vào ngày 5 hằng tháng"
+    expected_citation: ["ankor-hr-payroll#c2"]
+
+  # HB2-20: finance ankor; đáp án ở #c2 (cấp Team Lead)
+  - case_id: HB2-20
+    query: "Team Lead được phê duyệt chi tối đa bao nhiêu một giao dịch?"
+    tenant: ankor
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "dưới 10.000.000 VNĐ/giao dịch"
+    expected_citation: ["ankor-finance-approval-limits#c2"]
+
+  # HB2-21: hr ankor
+  - case_id: HB2-21
+    query: "Ngân sách đào tạo mỗi nhân viên một năm là bao nhiêu?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "10.000.000 VNĐ/năm cho đào tạo"
+    expected_citation: ["ankor-hr-training#c1"]
+
+  # HB2-22: public borea
+  - case_id: HB2-22
+    query: "Lễ Quốc khánh nhân viên được nghỉ mấy ngày?"
+    tenant: borea
+    section_roles: [public]
+    expected_tenant: borea
+    expected_section_role: public
+    expected: "3 ngày (1–3/9)"
+    expected_citation: ["borea-public-holidays#c2"]
+
+  # HB2-23: T1 chéo tenant ankor→borea
+  - case_id: HB2-23
+    query: "Ngân sách đào tạo của Borea là bao nhiêu?"
+    tenant: ankor
+    section_roles: [hr]
+    expected_tenant: borea
+    expected_section_role: hr
+    expected: "refusal"
+    expected_citation: []
+    manual_label: refuse
+
+  # HB2-24: T6 chéo vai (engineering hỏi hr)
+  - case_id: HB2-24
+    query: "Bảo hiểm sức khoẻ có hạn mức nội trú bao nhiêu?"
+    tenant: ankor
+    section_roles: [engineering]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "refusal"
+    expected_citation: []
+    manual_label: refuse
+
+  # HB2-25: T1 chéo tenant ankor→borea (engineering)
+  - case_id: HB2-25
+    query: "Sự cố P1 của Borea cần xử lý trong bao lâu?"
+    tenant: ankor
+    section_roles: [engineering]
+    expected_tenant: borea
+    expected_section_role: engineering
+    expected: "refusal"
+    expected_citation: []
+
+  # HB2-26: T6 chéo vai (public hỏi hr=lương)
+  - case_id: HB2-26
+    query: "Cơ cấu lương gồm những phần nào?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "refusal"
+    expected_citation: []
+    manual_label: refuse
+
+  # HB2-27: T6 chéo vai (public hỏi finance)
+  - case_id: HB2-27
+    query: "Team Lead được phê duyệt chi tối đa bao nhiêu?"
+    tenant: ankor
+    section_roles: [public]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "refusal"
+    expected_citation: []
+
+  # HB2-28: T1 ngược chiều borea→ankor
+  - case_id: HB2-28
+    query: "Quy trình mua sắm của Ankor áp dụng cho giao dịch từ bao nhiêu?"
+    tenant: borea
+    section_roles: [finance]
+    expected_tenant: ankor
+    expected_section_role: finance
+    expected: "refusal"
+    expected_citation: []
+
+  # HB2-29: T1 ngược chiều borea→ankor
+  - case_id: HB2-29
+    query: "Nhân viên Ankor được bao nhiêu ngày phép năm?"
+    tenant: borea
+    section_roles: [hr]
+    expected_tenant: ankor
+    expected_section_role: hr
+    expected: "refusal"
+    expected_citation: []
+
+  # HB2-30: T6 chéo vai phía borea (public hỏi lương=hr)
+  - case_id: HB2-30
+    query: "Cơ cấu lương của công ty gồm mấy phần?"
+    tenant: borea
+    section_roles: [public]
+    expected_tenant: borea
+    expected_section_role: hr
+    expected: "refusal"
+    expected_citation: []
+    manual_label: refuse

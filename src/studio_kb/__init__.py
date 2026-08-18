@@ -3,7 +3,10 @@
 Phase 5 (KB Fence): `kb.chunks` DDL + RLS fence lands in `schema.py`; `KbSearchService`
 (`search.py`) and `KbPipeline` (`pipeline.py`) ship as the stable public seam other packages/tests
 import against. At D17 (#110) `KbSearchService` is un-ratcheted — its body now delegates to the real
-`PgKbSearch` (see below); `KbPipeline` stays a spec-DE stub (`NotImplementedError` bodies).
+`PgKbSearch` (see below). Day 21 (#30): `KbPipeline` (`pipeline.py`) **được điền thân** — 5 method
+trên **corpus 2.0** (`doc_factory_v2`), uỷ quyền cắt/ghi vào logic có sẵn, không đụng đường
+`KbIngest`/`PgKbSearch` production. Lệch scope #30 có chủ ý (2.0 thay 1.0, làm cả 5 hàm) — lý do +
+kế hoạch gỡ 1.0 gửi AIE-1 ở `docs/design-notes/de-day21-kb-pipeline.md`.
 
 Sprint 1 (D4) thêm **bản tĩnh** để xâu kim end-to-end trước khi tầng Postgres chạy được:
 `load_callisto` cắt `docs/callisto/*.md` thành chunk, `StaticKbSearch` tìm trên đó và thoả
@@ -32,6 +35,7 @@ from __future__ import annotations
 
 from studio_kb.doc_factory import Chunk, load_callisto
 from studio_kb.embeddings import load_callisto_embeddings
+from studio_kb.pipeline import KbPipeline
 from studio_kb.postgres import KbIngest, PgKbSearch
 from studio_kb.search import KbSearchService
 from studio_kb.static_search import StaticKbSearch
@@ -39,6 +43,7 @@ from studio_kb.static_search import StaticKbSearch
 __all__ = [
     "Chunk",
     "KbIngest",
+    "KbPipeline",
     "KbSearchService",
     "PgKbSearch",
     "StaticKbSearch",
