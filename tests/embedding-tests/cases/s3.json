@@ -26,8 +26,8 @@
     "section_roles": ["hr"],
     "expected_citation": ["ankor-hr-leave#c3"],
     "stratum": "S3",
-    "decoy_hint": ["ankor-hr-leave#c4"],
-    "notes": "nghỉ ốm; 'đăng ký nghỉ' chia sẻ 'báo/phải'"
+    "decoy_hint": ["ankor-hr-grievance#c4"],
+    "notes": "nghỉ ốm; hr-grievance#c4 (tiếp nhận & xác nhận khiếu nại) chia sẻ 'báo/phải'"
   },
   {
     "id": "s3-borea-hr-onboarding-buddy",
@@ -198,5 +198,405 @@
     "stratum": "S3",
     "decoy_hint": ["ankor-hr-grievance#c1"],
     "notes": "đáp án: PIP cho người điểm thấp (90 ngày). Mồi cùng vai hr grievance#c1 trùng 'đánh giá/nhân viên/làm việc' ≥ đáp án nhưng là khiếu nại."
+  },
+  {
+    "id": "s3-ankor-eng-hotfix-process",
+    "query": "khi có lỗi nghiêm trọng thì bản vá khẩn được đưa lên theo quy trình nào",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-release#c8"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-engineering-deployment#c5"],
+    "notes": "đáp án: hotfix release ngoài chu kỳ. Mồi cùng vai deployment#c5 (rollback tự động) trùng 'lỗi/quy trình/đưa lên'."
+  },
+  {
+    "id": "s3-borea-fin-quarterly-forecast-due",
+    "query": "dự báo tài chính hằng quý phải nộp cho ban lãnh đạo trước hạn nào",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-forecast#c2"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-finance-budget#c8"],
+    "notes": "đáp án: hạn nộp dự báo quý. Mồi cùng vai budget#c8 (quỹ dự phòng + Innovation Fund theo quý) trùng 'tài chính/quý/nộp'."
+  },
+  {
+    "id": "s3-ankor-hr-week1-tasks",
+    "query": "trong tuần đầu vào công ty mới nhân viên phải hoàn thành những việc gì",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-onboarding#c3"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-hr-onboarding#c2"],
+    "notes": "đáp án: checklist tuần đầu. Mồi cùng vai onboarding#c2 (ngày đầu tiên) trùng 'vào công ty/tuần/phải làm'."
+  },
+  {
+    "id": "s3-borea-eng-ops-dashboard",
+    "query": "số liệu vận hành hệ thống Borea xem ở đâu",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-monitoring#c2"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-engineering-access#c10"],
+    "notes": "đáp án: dashboard Grafana/DataDog. Mồi cùng vai access#c10 (vi phạm quyền truy cập) trùng 'hệ thống/vận hành'."
+  },
+  {
+    "id": "s3-ankor-pub-core-values",
+    "query": "Ankor đề cao giá trị gì đối với khách hàng và nhân viên",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-mission#c3"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-public-code-of-conduct#c6"],
+    "notes": "đáp án: giá trị cốt lõi (khách hàng là trung tâm...). Mồi cùng vai code-of-conduct#c6 (quà tặng có 'giá trị' trên 500k cần duyệt) trùng 'giá trị/khách hàng/nhân viên' — đa nghĩa 'giá trị'."
+  },
+  {
+    "id": "s3-borea-hr-referral-payout-timing",
+    "query": "giới thiệu người vào Borea thành công thì tiền thưởng trả lúc nào",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-recruitment#c10"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-hr-recruitment#c9"],
+    "notes": "đáp án: thời điểm trả referral bonus. Mồi cùng vai recruitment#c9 (mức tiền thưởng) trùng 'thưởng/giới thiệu'."
+  },
+  {
+    "id": "s3-ankor-fin-external-audit-cycle",
+    "query": "kiểm toán độc lập bên ngoài diễn ra bao lâu một lần tại Ankor",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-audit#c2"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-finance-reimbursement#c1"],
+    "notes": "đáp án: tần suất kiểm toán ngoài. Mồi cùng vai reimbursement#c1 (phạm vi hoàn ứng) trùng 'kiểm toán/diễn ra/tại Ankor'."
+  },
+  {
+    "id": "s3-borea-pub-visitor-escort-rule",
+    "query": "khách đến Borea có cần người hộ tống trong toà nhà không",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-visitors#c3"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-public-visitors#c1"],
+    "notes": "đáp án: khách phải có nhân viên đi kèm. Mồi cùng doc #c1 (check-in khách) trùng 'khách/toà nhà'."
+  },
+  {
+    "id": "s3-ankor-eng-vuln-patch-sla",
+    "query": "vá lỗ hổng bảo mật nghiêm trọng phải hoàn tất trong bao lâu",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-security#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-engineering-security#c1"],
+    "notes": "đáp án: SLA vá lỗ hổng critical. Mồi cùng doc #c1 (nguyên tắc bảo mật) trùng 'bảo mật/nghiêm trọng/phải'."
+  },
+  {
+    "id": "s3-borea-hr-offsite-training-approval",
+    "query": "nhân viên muốn đi học khoá ngoài văn phòng thì xin phép như thế nào",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-training#c4"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-hr-training#c1"],
+    "notes": "đáp án: quy trình xin phê duyệt đào tạo bên ngoài. Mồi cùng vai training#c1 (ngân sách) trùng 'học/đi/nhân viên'."
+  },
+  {
+    "id": "s3-ankor-fin-opex-categories",
+    "query": "những khoản chi nào Ankor cho phép tính vào chi phí hoạt động",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-expense#c1"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-finance-budget#c8"],
+    "notes": "đáp án: danh mục chi phí hợp lệ. Mồi budget#c8 (quỹ dự phòng 5% ngân sách) trùng 'chi phí/được/Ankor'."
+  },
+  {
+    "id": "s3-borea-eng-semver-convention",
+    "query": "cách đặt tên phiên bản khi phát hành phần mềm Borea",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-release#c2"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-engineering-release#c1"],
+    "notes": "đáp án: quy ước đặt version tag. Mồi cùng vai release#c1 (continuous delivery, không release train) trùng 'phát hành/phiên bản'."
+  },
+  {
+    "id": "s3-ankor-pub-all-hands-cadence",
+    "query": "họp toàn công ty Ankor diễn ra theo tần suất nào",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-communication#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-public-office-hours#c5"],
+    "notes": "đáp án: all-hands meeting theo quý. Mồi office-hours#c5 (khung giờ họp) trùng 'họp/diễn ra'."
+  },
+  {
+    "id": "s3-borea-fin-receipt-attachment-format",
+    "query": "khi nộp chi phí thì chứng từ phải đính kèm dạng nào",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-expense#c4"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-finance-reimbursement#c3"],
+    "notes": "đáp án: yêu cầu chứng từ hợp lệ. Mồi reimbursement#c3 (giấy tờ hoàn tiền) trùng 'nộp/chi phí/chứng từ'."
+  },
+  {
+    "id": "s3-ankor-hr-offboard-handover-window",
+    "query": "trước khi nghỉ việc nhân viên Ankor phải bàn giao công việc trong bao lâu",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-exit#c3"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-hr-exit#c1"],
+    "notes": "đáp án: thời gian bàn giao khi off-board. Mồi cùng vai exit#c1 (thông báo nghỉ việc) trùng 'nghỉ việc/nhân viên/trước'."
+  },
+  {
+    "id": "s3-borea-eng-ci-integration-test",
+    "query": "integration test ở Borea được chạy khi nào trong pipeline",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-testing#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-engineering-testing#c1"],
+    "notes": "đáp án: thời điểm chạy integration test trong CI. Mồi cùng vai testing#c1 (chiến lược testing trophy) trùng 'test/pipeline/chạy'."
+  },
+  {
+    "id": "s3-ankor-pub-car-park-allocation",
+    "query": "nhân viên nào được Ankor ưu tiên chỗ đỗ xe tại bãi",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-parking#c2"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-public-parking#c6"],
+    "notes": "đáp án: ai được suất đỗ ô tô cố định. Mồi cùng doc #c6 (sạc xe điện, 'ưu tiên xe có pin dưới 20%') trùng 'ưu tiên/nhân viên/tại' nhưng là ưu tiên sạc, không phải chỗ đỗ."
+  },
+  {
+    "id": "s3-borea-hr-exit-interview-mandatory",
+    "query": "nhân viên Borea nghỉ việc có phải tham gia phỏng vấn thoát không",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-exit#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-hr-exit#c1"],
+    "notes": "đáp án: exit interview bắt buộc. Mồi exit#c1 (thông báo nghỉ) trùng 'nghỉ việc/nhân viên/phải'."
+  },
+  {
+    "id": "s3-ankor-fin-revenue-forecast-cycle",
+    "query": "Ankor lập dự báo doanh thu theo chu kỳ nào trong năm",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-forecast#c1"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-finance-budget#c1"],
+    "notes": "đáp án: chu kỳ dự báo rolling. Mồi budget#c1 (nguyên tắc lập ngân sách) trùng 'lập/doanh thu/năm'."
+  },
+  {
+    "id": "s3-borea-pub-first-aid-training",
+    "query": "ai được đào tạo sơ cứu để xử lý khi có người bị thương tại văn phòng Borea",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-safety#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-public-safety#c2"],
+    "notes": "đáp án: nhân viên sơ cứu được huấn luyện. Mồi safety#c2 (diễn tập PCCC) trùng 'đào tạo/văn phòng/xử lý'."
+  },
+  {
+    "id": "s3-ankor-fin-petty-cash-usage",
+    "query": "petty cash trong phòng ban Ankor được dùng để chi cho những gì",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-expense#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-finance-expense#c2"],
+    "notes": "đáp án: quy định sử dụng quỹ petty cash. Mồi cùng vai expense#c2 (ngân sách chi phí hằng tháng theo phòng ban) trùng 'chi/phòng ban'."
+  },
+  {
+    "id": "s3-borea-hr-probation-criteria",
+    "query": "đánh giá nhân viên thử việc Borea dựa trên tiêu chí nào",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-onboarding#c1"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-hr-performance#c2"],
+    "notes": "đáp án: tiêu chí đánh giá thử việc. Mồi hr-performance#c2 (tiêu chí đánh giá định kỳ) trùng 'đánh giá/tiêu chí'."
+  },
+  {
+    "id": "s3-ankor-eng-rollback-criteria",
+    "query": "Ankor tự động rollback khi chỉ số lỗi đạt ngưỡng bao nhiêu",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-deployment#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-engineering-deployment#c9"],
+    "notes": "đáp án: điều kiện tự rollback. Mồi cùng vai deployment#c9 (theo dõi metric 30 phút sau deploy) trùng 'ngưỡng/chỉ số/lỗi'."
+  },
+  {
+    "id": "s3-borea-pub-parking-registration",
+    "query": "muốn có chỗ đỗ xe máy cố định thì đăng ký ở đâu tại Borea",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-parking#c1"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-public-parking#c2"],
+    "notes": "đáp án: đăng ký dịch vụ qua app nội bộ. Mồi parking#c2 (phân bổ chỗ ô tô cố định qua lottery, công bố trên Borea Connect) trùng 'chỗ/cố định/đăng ký' — xe ô tô, không phải xe máy."
+  },
+  {
+    "id": "s3-ankor-hr-sick-notification",
+    "query": "nghỉ ốm đột xuất cần báo trước bao lâu và báo cho ai ở Ankor",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-leave#c3"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-hr-exit#c1"],
+    "notes": "đáp án: quy trình báo nghỉ ốm. Mồi cùng vai exit#c1 (thông báo nghỉ việc trước 30 ngày) trùng 'báo/nghỉ/cần'."
+  },
+  {
+    "id": "s3-borea-eng-canary-deployment",
+    "query": "khi đưa tính năng mới lên Borea thì traffic được chuyển dần hay ngay tức thì",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-deployment#c2"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-engineering-release#c3"],
+    "notes": "đáp án: chiến lược canary/blue-green. Mồi release#c3 (lịch phát hành) trùng 'đưa/mới/lên'."
+  },
+  {
+    "id": "s3-ankor-pub-meeting-room-etiquette",
+    "query": "khi dùng phòng họp xong ở Ankor cần làm gì trước khi ra",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-office-hours#c9"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-public-anti-harassment#c6"],
+    "notes": "đáp án: quy tắc sử dụng phòng họp. Mồi cùng vai anti-harassment#c6 (quy trình khiếu nại) trùng 'phòng' (Phòng Nhân sự, đa nghĩa với 'phòng họp')."
+  },
+  {
+    "id": "s3-borea-fin-capex-approval",
+    "query": "ai phải phê duyệt các khoản đầu tư tài sản dài hạn tại Borea",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-budget#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-finance-reimbursement#c6"],
+    "notes": "đáp án: quy trình phê duyệt CAPEX. Mồi cùng vai reimbursement#c6 (lịch thanh toán, express payment >10 triệu) trùng 'phê duyệt/duyệt'."
+  },
+  {
+    "id": "s3-ankor-hr-paternity-apply",
+    "query": "muốn nghỉ thai sản khi vợ sinh thì đăng ký như thế nào tại Ankor",
+    "tenant": "ankor",
+    "section_roles": ["hr"],
+    "expected_citation": ["ankor-hr-leave#c6"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-hr-leave#c5"],
+    "notes": "đáp án: đăng ký nghỉ thai sản cha. Mồi leave#c5 (nghỉ thai sản mẹ) trùng 'nghỉ/thai sản/đăng ký'."
+  },
+  {
+    "id": "s3-borea-eng-log-search",
+    "query": "khi cần tra cứu log để debug thì Borea dùng công cụ gì",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-monitoring#c8"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-engineering-access#c6"],
+    "notes": "đáp án: công cụ tra cứu log (Loki/ELK). Mồi cùng vai access#c6 (SSH qua Teleport, Cloudflare Access) trùng 'dùng/công cụ/hệ thống'."
+  },
+  {
+    "id": "s3-ankor-pub-canteen-menu",
+    "query": "thực đơn căng tin Ankor thay đổi theo chu kỳ nào",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-office-hours#c7"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-public-office-hours#c6"],
+    "notes": "đáp án: chu kỳ thay thực đơn canteen. Mồi office-hours#c6 (giờ mở canteen) trùng 'canteen/thay/theo'."
+  },
+  {
+    "id": "s3-borea-hr-grievance-steps",
+    "query": "nhân viên Borea muốn khiếu nại thì đi theo những bước nào",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-grievance#c2"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-hr-grievance#c1"],
+    "notes": "đáp án: các bước quy trình khiếu nại. Mồi grievance#c1 (phạm vi khiếu nại) trùng 'khiếu nại/bước/nhân viên'."
+  },
+  {
+    "id": "s3-ankor-eng-code-freeze-scope",
+    "query": "code freeze tại Ankor áp dụng cho những môi trường nào",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-deployment#c10"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-engineering-access#c1"],
+    "notes": "đáp án: phạm vi code freeze (production). Mồi cùng vai access#c1 (nguyên tắc Least Privilege) trùng 'áp dụng/môi trường'."
+  },
+  {
+    "id": "s3-borea-pub-holiday-makeup",
+    "query": "khi ngày lễ trùng cuối tuần Borea thì được nghỉ bù vào hôm nào",
+    "tenant": "borea",
+    "section_roles": ["public"],
+    "expected_citation": ["borea-public-holidays#c4"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-public-holidays#c3"],
+    "notes": "đáp án: ngày nghỉ bù lễ trùng cuối tuần. Mồi cùng doc #c3 (nghỉ lễ 30/4-1/5, nghỉ bù cho ca trực) trùng 'lễ/nghỉ/ngày'."
+  },
+  {
+    "id": "s3-ankor-fin-opex-report",
+    "query": "báo cáo chi phí vận hành Ankor gửi cho ban lãnh đạo theo tần suất nào",
+    "tenant": "ankor",
+    "section_roles": ["finance"],
+    "expected_citation": ["ankor-finance-expense#c3"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-finance-budget#c7"],
+    "notes": "đáp án: tần suất báo cáo chi phí vận hành. Mồi budget#c7 (cảnh báo vượt ngân sách) trùng 'báo cáo/chi phí/ban lãnh đạo'."
+  },
+  {
+    "id": "s3-borea-eng-code-review-checklist",
+    "query": "reviewer phải kiểm tra những điểm gì trong khi review code Borea",
+    "tenant": "borea",
+    "section_roles": ["engineering"],
+    "expected_citation": ["borea-engineering-code-review#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-engineering-testing#c1"],
+    "notes": "đáp án: checklist review code. Mồi testing#c1 (yêu cầu unit test) trùng 'kiểm tra/code/phải'."
+  },
+  {
+    "id": "s3-ankor-pub-national-holiday-work",
+    "query": "nếu phải vào làm ngày 2 tháng 9 thì Ankor tính lương thêm bao nhiêu",
+    "tenant": "ankor",
+    "section_roles": ["public"],
+    "expected_citation": ["ankor-public-holidays#c6"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-public-holidays#c2"],
+    "notes": "đáp án: phụ cấp làm ngày lễ quốc gia. Mồi holidays#c2 (danh sách lễ quốc gia) trùng 'ngày/Ankor/tháng'."
+  },
+  {
+    "id": "s3-borea-hr-sick-extended",
+    "query": "Borea xử lý thế nào nếu nhân viên nghỉ ốm kéo dài quá số ngày cho phép",
+    "tenant": "borea",
+    "section_roles": ["hr"],
+    "expected_citation": ["borea-hr-leave#c5"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-hr-leave#c3"],
+    "notes": "đáp án: xử lý nghỉ ốm vượt hạn. Mồi leave#c3 (số ngày nghỉ ốm tối đa) trùng 'nghỉ ốm/Borea/ngày'."
+  },
+  {
+    "id": "s3-ankor-eng-infra-backup",
+    "query": "Ankor sao lưu dữ liệu production với tần suất và phương thức nào",
+    "tenant": "ankor",
+    "section_roles": ["engineering"],
+    "expected_citation": ["ankor-engineering-infra#c6"],
+    "stratum": "S3",
+    "decoy_hint": ["ankor-engineering-infra#c4"],
+    "notes": "đáp án: chính sách backup. Mồi infra#c4 (database RDS) trùng 'dữ liệu/production/Ankor'."
+  },
+  {
+    "id": "s3-borea-fin-corporate-tax-deadline",
+    "query": "Borea nộp tờ khai thuế TNDN vào thời điểm nào trong năm",
+    "tenant": "borea",
+    "section_roles": ["finance"],
+    "expected_citation": ["borea-finance-tax#c4"],
+    "stratum": "S3",
+    "decoy_hint": ["borea-finance-tax#c2"],
+    "notes": "đáp án: hạn nộp tờ khai thuế. Mồi tax#c2 (tỷ lệ thuế TNDN) trùng 'thuế/Borea/năm'."
   }
 ]
