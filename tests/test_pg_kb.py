@@ -270,3 +270,45 @@ async def test_khong_dat_tenant_thi_khong_thay_gi(pool: object, embedding: objec
         cur = await conn.execute(sql.SQL("SELECT count(*) FROM kb.chunks"))
         row = await cur.fetchone()
     assert row[0] == 0
+
+
+class _GhiLaiEmbedding(BagOfWordsEmbedding):
+    """`BagOfWordsEmbedding` + ghi lại ĐÚNG danh sách chuỗi đã nhận, để assert được đường ghi đưa
+    chuỗi NÀO vào `EmbeddingService`."""
+
+    def __init__(self) -> None:
+        self.da_embed: list[str] = []
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        self.da_embed.extend(texts)
+        return await super().embed(texts)
+
+
+async def test_ingest_embed_embedding_input_va_luu_dung_chuoi_da_embed(pool: object) -> None:
+    """`KbIngest.ingest` phải embed `embedding_input`, VÀ lưu đúng chuỗi đó vào cột `embed_text`.
+
+    Song song với `test_pipeline.py::test_embed_invoke_dung_embedding_input_khong_dung_text` —
+    `KbIngest.ingest` là đường ghi THỨ HAI, độc lập với `KbPipeline`. Không có bài này thì đột biến
+    `ingest` về `.text` cho 0 test đỏ (đã đo), tức nửa đường ghi không được khoá.
+
+    Assert cả hai vế vì chúng hỏng độc lập: embed đúng chuỗi nhưng lưu `.text` vào cột sẽ làm
+    `re_index` (dựng `Chunk` TỪ DB) nhúng lại một chuỗi khác — vector đổi mà không `chunk_id` nào chết.
+    """
+    ghi = _GhiLaiEmbedding()
+    chunk = Chunk(
+        chunk_id="ankor-leave-001#c1",
+        text="## Nghỉ ốm\n30 ngày.",
+        tenant_id=ANKOR_ID,
+        section_role="public",
+        embed_text="Chính sách nghỉ phép\n## Nghỉ ốm\n30 ngày.",
+    )
+    assert await KbIngest(pool, ghi).ingest([chunk]) == 1  # type: ignore[arg-type]
+
+    assert ghi.da_embed == ["Chính sách nghỉ phép\n## Nghỉ ốm\n30 ngày."]
+
+    async with pool.connection() as conn, conn.transaction():  # type: ignore[attr-defined]
+        await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(ANKOR_ID),))
+        cur = await conn.execute("SELECT embed_text FROM kb.chunks WHERE chunk_id = %s", (chunk.chunk_id,))
+        row = await cur.fetchone()
+    assert row is not None
+    assert row[0] == chunk.embedding_input, "cột embed_text phải là ĐÚNG chuỗi đã đem embed"
