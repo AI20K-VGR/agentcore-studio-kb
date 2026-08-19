@@ -43,6 +43,12 @@ def available_providers() -> dict[str, object]:
     gemini = GeminiEmbedding()  # allow_network=False — chỉ đọc cache đã commit
     if len(gemini.cache):
         out[gemini.name] = gemini
+    else:
+        # NÓI RA khi bỏ một provider. Im lặng ở đây là fail-open: clone thiếu `cache/*.bin` sẽ in
+        # ra một bảng chỉ còn baseline mà TRÔNG VẪN BÌNH THƯỜNG, exit 0, không một dòng cảnh báo.
+        # Nhánh `except MissingVectorError` ở `main()` không với tới ca này vì provider đã bị loại
+        # từ trước khi kịp chấm.
+        print(f"CẢNH BÁO: bỏ {gemini.name} — cache rỗng/không mở được. Bảng dưới THIẾU provider này.")
     return out
 
 

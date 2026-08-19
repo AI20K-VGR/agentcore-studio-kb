@@ -1,4 +1,4 @@
-"""Cache vector theo `sha256(text)` — thứ làm bảng so provider TÁI LẬP ĐƯỢC TỪ `main` mà không cần
+"""Cache vector theo `sha256(model|dim|text)` — thứ làm bảng so provider TÁI LẬP ĐƯỢC TỪ `main` mà không cần
 API key (`kb#38` DoD, và INV-4 "CI chạy 100% recorded fixtures").
 
 ## Vì sao nhị phân, không phải JSON
@@ -97,6 +97,14 @@ class VectorCache:
                 f"cache hỏng: {self._bin.name} nặng {actual} byte, index khai "
                 f"{len(self._keys)} vector × {self.dim} chiều = {expected} byte (count={meta['count']})"
             )
+        # Chỉ số dòng phải là SONG ÁNH với 0..N-1. Hai phép kiểm trên (kích thước file, `count`)
+        # đều BẤT BIẾN dưới phép trùng chỉ số: sửa `index.json` cho hai khoá cùng trỏ dòng 0 thì
+        # `len(keys)`, `count` và `.bin` đều không đổi — cache mở được, hai khoá đọc ra CÙNG một
+        # vector, và một dòng mồ côi trong `.bin`. `index.json` là JSON >1000 dòng ĐÃ COMMIT mà mọi
+        # lần re-record sẽ nối thêm vào; một lần giải conflict merge bằng tay là đủ gây ra đúng
+        # trạng thái đó, và hậu quả là "mọi vector từ chỗ lệch trở đi thuộc về text khác".
+        if sorted(self._keys.values()) != list(range(len(self._keys))):
+            raise ValueError(f"cache hỏng: chỉ số dòng trong {self._index.name} không phải 0..N-1 (trùng hoặc thiếu)")
         with self._bin.open("rb") as fh:
             self._rows.fromfile(fh, len(self._keys) * self.dim)
         if sys.byteorder != _LE:  # pragma: no cover — CI/dev đều little-endian

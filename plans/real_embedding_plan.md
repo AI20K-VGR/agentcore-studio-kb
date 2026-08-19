@@ -181,6 +181,19 @@ mọi lần đổi dim sẽ âm thầm đổi vector của mọi chunk.
       blake2b 64 byte → từ ~768 chiều vector thành tuần hoàn, mọi chunk giống nhau. Nếu PR-2 đụng
       tới nó thì phải kèm công thức fixture mới, kẻo INV-4 (CI 100% fixtures) thành xanh-vô-nghĩa.
 
+## §5b. Ngưỡng chuyển cache sang artifact store (ghi để nhớ, chưa chặn gì)
+
+Mỗi lần re-record là một blob **8.9 MB mới nguyên** trong git history — nhị phân float32 gần như
+không delta được, nên git không nén chồng lên bản cũ. Nếu HNSW quay lại và phải đo ở 1536 thì thêm
+~6.7 MB nữa; thêm mỗi provider API là thêm một blob cùng cỡ.
+
+Ngưỡng đề xuất để rời git: **khi tổng `cache/` vượt ~50 MB, hoặc khi có lần re-record thứ ba.** Lúc
+đó chuyển sang artifact store (release asset / bucket) + commit **checksum** thay vì nội dung, và
+đổi `test_cache_da_commit_CO_MAT_va_phu_du_moi_text_harness_can` thành kiểm checksum + hướng dẫn
+tải. Hiện tại một blob 8.9 MB đổi lấy "tái lập được offline từ main" là đáng.
+
+Không chặn PR nào — ghi ở đây để người sau không phải tự phát hiện khi repo đã nặng.
+
 ## §6. Thứ tự
 
 ```

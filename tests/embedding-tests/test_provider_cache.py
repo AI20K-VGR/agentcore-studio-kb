@@ -17,6 +17,7 @@ import _harness as H
 import pytest
 from _vector_cache import VectorCache, cache_key
 from providers import GEMINI_DIM, GeminiEmbedding, MissingVectorError, l2_normalize
+from record_provider_cache import texts_to_record
 
 
 @pytest.fixture
@@ -77,6 +78,29 @@ def test_bin_lech_index_thi_bao_loi(tmp_path: Path) -> None:
         VectorCache("thu", model="m", dim=4, cache_dir=tmp_path)
 
 
+def test_hai_khoa_tro_cung_mot_dong_thi_bao_loi(tmp_path: Path) -> None:
+    """Chỉ số dòng phải là SONG ÁNH với 0..N-1.
+
+    Hai guard kia (kích thước file, `count`) đều BẤT BIẾN dưới phép trùng chỉ số — sửa `index.json`
+    cho hai khoá cùng trỏ dòng 0 thì `len(keys)`, `count`, `.bin` đều y nguyên, cache mở được, hai
+    khoá đọc ra CÙNG một vector và một dòng mồ côi trong `.bin`. Trigger không xa vời: `index.json`
+    là JSON >1000 dòng đã commit mà mọi lần re-record sẽ nối thêm vào; một lần giải conflict merge
+    bằng tay là đủ."""
+    cache = VectorCache("thu", model="m", dim=4, cache_dir=tmp_path)
+    cache.put("a", [1.0, 0.0, 0.0, 0.0])
+    cache.put("b", [0.0, 1.0, 0.0, 0.0])
+    cache.flush()
+
+    index_path = tmp_path / "thu.index.json"
+    meta = json.loads(index_path.read_text(encoding="utf-8"))
+    keys = list(meta["keys"])
+    meta["keys"][keys[1]] = meta["keys"][keys[0]]  # count, .bin, len(keys) đều KHÔNG đổi
+    index_path.write_text(json.dumps(meta), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="không phải 0..N-1"):
+        VectorCache("thu", model="m", dim=4, cache_dir=tmp_path)
+
+
 def test_put_khong_ghi_de(tmp_cache: VectorCache) -> None:
     """Khoá đã có thì BỎ QUA. Ghi đè âm thầm làm hai lần chạy cho hai kết quả mà `git diff` chỉ thấy
     blob nhị phân đổi — không cách nào review."""
@@ -117,9 +141,6 @@ def test_cache_da_commit_doc_duoc_va_dung_so_chieu() -> None:
     Bài này chốt nó ở phía dữ liệu: một lần re-record quên chuẩn hoá sẽ đỏ ở đây, chứ không lặng lẽ
     chờ tới ngày ai đó đổi `<=>` sang `<#>`."""
     provider = GeminiEmbedding()
-    if not len(provider.cache):
-        pytest.skip("chưa có cache đã commit — chạy record_provider_cache.py")
-
     assert provider.cache.dim == GEMINI_DIM
 
     # Lấy query THẬT của case đầu tiên, không phải một câu bịa: cache được ghi từ đúng tập này nên
@@ -138,11 +159,29 @@ def test_embed_giu_dung_thu_tu_va_khong_gap_doi_text_trung() -> None:
     `embed` dedupe trước khi hỏi cache/API (800 chunk corpus 2.0 có câu lặp). Dedupe mà quên dựng
     lại theo thứ tự gốc là lệch vector cho MỌI case sau đó — hỏng câm, số vẫn ra một bảng đẹp."""
     provider = GeminiEmbedding()
-    if not len(provider.cache):
-        pytest.skip("chưa có cache đã commit — chạy record_provider_cache.py")
-
     a, b = (c.query for c in H.load_cases()[:2])
     out = provider.embed([a, b, a])
     assert len(out) == 3
     assert out[0] == out[2] != out[1]
     assert out[0] == provider.embed([a])[0]
+
+
+def test_cache_da_commit_CO_MAT_va_phu_du_moi_text_harness_can() -> None:
+    """Cache đã commit PHẢI có mặt và PHẢI phủ đủ. `skip` ở đây chính là xanh-giả.
+
+    Đo được trước khi có bài này: bỏ `cache/gemini-embedding-001-d2048.bin` ra khỏi cây (clone
+    thiếu, fetch hỏng, hay một dòng `.gitignore`) ⇒ `pytest` cho **741 passed, 2 skipped, exit 0**
+    và `compare_providers.py` in ra một bảng chỉ còn `baseline-dim8`, exit 0, không một dòng cảnh
+    báo. Đúng hình dạng fail-open mà `MissingVectorError` sinh ra để chặn, chỉ dịch lên một tầng:
+    không phải "số của dim-8 dưới nhãn gemini", mà "gemini vắng mặt dưới một bảng trông bình thường".
+
+    Kiểm PHỦ ĐỦ chứ không phải chỉ đếm một con số cứng: khẳng định cache chứa đúng mọi text mà
+    `build_report` sẽ hỏi tới. Con số cứng sẽ mục ngay lần thêm case tiếp theo, còn phép phủ này
+    tự đúng theo bộ case hiện tại — và bắt được cả ca cache CÓ mặt nhưng ghi thiếu giữa chừng.
+    """
+    cache = GeminiEmbedding().cache
+    assert len(cache), "cache đã commit KHÔNG mở được — kiểm `cache/*.bin` có trong cây làm việc không"
+
+    can = list(dict.fromkeys(texts_to_record()))
+    thieu = [t for t in can if cache.get(t) is None]
+    assert not thieu, f"cache thiếu {len(thieu)}/{len(can)} text harness cần, vd: {thieu[0][:60]!r}"

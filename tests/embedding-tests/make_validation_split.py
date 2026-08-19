@@ -1,4 +1,4 @@
-"""Sinh `cases/validation-split.json` — tách 33% validation, phân tầng, tất định.
+"""Sinh `validation-split.json` (cạnh `_harness.py`, NGOÀI `cases/`) — tách 33% validation, phân tầng, tất định.
 
     uv run --python 3.14 python packages/kb/tests/embedding-tests/make_validation_split.py
 

@@ -112,7 +112,18 @@ class GeminiEmbedding:
                     f"Chạy `record_provider_cache.py` với {API_KEY_ENV} để ghi cache."
                 )
             self._fetch_into_cache(missing)
-        return [vec for t in texts if (vec := self._cache.get(t)) is not None]
+        # Dựng thẳng rồi NỔ nếu thiếu — không lọc `None`. Bản lọc trả về list ngắn hơn và lệch
+        # pha thay vì báo lỗi: caller sẽ gán vector của text i cho text i+1 trở đi. Hôm nay chưa
+        # với tới được (thiếu ⇒ raise hoặc fetch ở trên), nhưng thứ duy nhất cứu caller là
+        # `zip(..., strict=True)` bên `build_report` — tức may, không phải thiết kế. Đây đúng chỗ
+        # `MissingVectorError` được dựng làm cửa chặn cứng, nên nó phải chặn ở đây luôn.
+        out: list[list[float]] = []
+        for text in texts:
+            vector = self._cache.get(text)
+            if vector is None:  # pragma: no cover — bất biến, giữ làm cửa chặn chứ không phải nhánh sống
+                raise MissingVectorError(f"vector biến mất khỏi cache ngay sau khi ghi: {text[:60]!r}")
+            out.append(vector)
+        return out
 
     def _fetch_into_cache(self, texts: list[str]) -> None:
         for start in range(0, len(texts), _BATCH):

@@ -1,4 +1,4 @@
-"""Khoá tính toàn vẹn của `cases/validation-split.json` (kb#38, sai sót phương pháp #2).
+"""Khoá tính toàn vẹn của `validation-split.json` (kb#38, sai sót phương pháp #2).
 
 File split là một artifact ĐÓNG BĂNG, commit vào repo — nên nó trôi khỏi bộ case theo đúng kiểu
 hỏng câm: thêm/xoá case thì split cũ vẫn đọc được, vẫn chia ra hai tập trông hợp lệ, chỉ là case

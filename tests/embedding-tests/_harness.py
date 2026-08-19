@@ -109,8 +109,9 @@ def load_cases() -> tuple[Case, ...]:
 # mình sẽ công bố ⇒ con số công bố đẹp hơn thực tế một cách có hệ thống, và không còn tập độc lập
 # nào để phát hiện.
 #
-# Split ĐÓNG BĂNG trong `cases/validation-split.json`, KHÔNG tính lại lúc chạy. Tính lại thì thêm
-# một case là đảo cả hai tập — tham số tune trên val cũ bỗng được chấm trên val mới mà không ai hay.
+# Split ĐÓNG BĂNG trong `validation-split.json` (NGOÀI `cases/` — xem `SPLIT_PATH`), KHÔNG tính
+# lại lúc chạy. Tính lại thì thêm một case là đảo cả hai tập — tham số tune trên val cũ bỗng
+# được chấm trên val mới mà không ai hay.
 # Sinh một lần bằng `make_validation_split.py`; `test_validation_split.py` khoá tính toàn vẹn.
 
 
