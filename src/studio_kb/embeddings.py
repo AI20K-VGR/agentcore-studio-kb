@@ -75,7 +75,7 @@ from studio_kb.schema import EMBEDDING_DIM
 # `golden/` chứ không phải `tests/fixtures/`: file này là dữ liệu chung cho cả workspace (stub của
 # AIE-1, ingest của `db_plan.md`), không phải phụ kiện của một suite test. Nằm cạnh `smoke-10.yaml`
 # vì cùng loại — artifact do DE gán nhãn và các quadrant khác tiêu thụ.
-FIXTURE_PATH = Path(__file__).resolve().parents[2] / "golden" / "embeddings-callisto-v0.json"
+FIXTURE_PATH = Path(__file__).resolve().parent / "golden" / "embeddings-callisto-v0.json"
 
 FIXTURE_REF = "callisto-embeddings-v0"
 

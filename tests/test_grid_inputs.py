@@ -24,7 +24,7 @@ from studio_kb.doc_factory import load_callisto, resolve_tenant_id
 from studio_kb.grid_queries import GRID_CASES, GridCase, render_yaml
 from studio_kb.static_search import StaticKbSearch
 
-_YAML_PATH = Path(__file__).resolve().parents[1] / "golden" / "callisto-grid-queries-v0.yaml"
+_YAML_PATH = Path(__file__).resolve().parents[1] / "src" / "studio_kb" / "golden" / "callisto-grid-queries-v0.yaml"
 
 # top_k rộng để ĐẾM hết ứng viên trong scope (StaticKbSearch cắt còn top_k), không phải đo rank.
 _COUNT_K = 50

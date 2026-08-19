@@ -26,7 +26,7 @@ from studio_kb.golden_set_v2 import EDGE_AXES_V2, GOLDEN_CASES_V2, GOLDEN_SET_RE
 from studio_kb.static_search import StaticKbSearch
 
 _CORPUS = Path(__file__).resolve().parents[1] / "docs" / "callisto-2.0"
-_GOLDEN = Path(__file__).resolve().parents[1] / "golden" / "callisto-2.0-golden-30-v1.yaml"
+_GOLDEN = Path(__file__).resolve().parents[1] / "src" / "studio_kb" / "golden" / "callisto-2.0-golden-30-v1.yaml"
 
 _POS = [c for c in GOLDEN_CASES_V2 if not c.is_refusal]
 _NEG = [c for c in GOLDEN_CASES_V2 if c.is_refusal]

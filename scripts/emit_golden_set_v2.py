@@ -12,7 +12,7 @@ from pathlib import Path
 
 from studio_kb.golden_set_v2 import GOLDEN_CASES_V2, GOLDEN_SET_REF_V2, render_yaml
 
-_OUT_PATH = Path(__file__).resolve().parents[1] / "golden" / "callisto-2.0-golden-30-v1.yaml"
+_OUT_PATH = Path(__file__).resolve().parents[1] / "src" / "studio_kb" / "golden" / "callisto-2.0-golden-30-v1.yaml"
 
 
 def main() -> None:

@@ -32,7 +32,7 @@ from studio_kb.doc_factory import load_callisto
 from studio_kb.embeddings import FIXTURE_PATH, build_fixture, dump_fixture
 from studio_kb.golden_set import GOLDEN_CASES, render_yaml
 
-_GOLDEN_PATH = Path(__file__).resolve().parents[1] / "golden" / "callisto-golden-30-v1.yaml"
+_GOLDEN_PATH = Path(__file__).resolve().parents[1] / "src" / "studio_kb" / "golden" / "callisto-golden-30-v1.yaml"
 
 
 def main() -> None:
