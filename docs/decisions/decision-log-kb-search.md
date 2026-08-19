@@ -49,6 +49,9 @@ canonical_location: PENDING (Q-2)
 > (`postgres.py:144,205` · `pipeline.py:54`); `LlmStepExecutor` nhận qua DI rồi **không gọi**
 > (`executors.py:236` tự khai "unused here"). Provider embedding chỉ ảnh hưởng **thứ hạng của
 > `kb.search`**, nên đây là chỗ ở đúng của nó (lập luận đầy đủ: `plans/real_embedding_plan.md` §0).
+>
+> **Note gửi lane khác** (chỗ AIE-1/SWE phải nối vào, kèm số dòng):
+> [`../design-notes/de-day22-embedding-provider.md`](../design-notes/de-day22-embedding-provider.md).
 
 | # | Quyết | Lý do | Trạng thái / người ký |
 |---|---|---|---|

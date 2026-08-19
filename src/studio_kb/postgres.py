@@ -84,6 +84,14 @@ WHERE tenant_id = %s
 ORDER BY embedding <=> %s::vector
 LIMIT %s
 """
+"""Toán tử PHẢI là `<=>` (cosine distance), **không được** đổi sang `<#>` (inner product) cho nhanh.
+
+`<=>` tự chia cho tích hai norm nên thứ hạng đúng kể cả khi vector CHƯA chuẩn hoá; `<#>` thì không.
+Đây không phải lo xa: provider mặc định `gemini-embedding-001` (DL-22.1) chạy ở 2048 chiều, mà docs
+Google nói rõ chỉ có bản 3072 gốc mới được chuẩn hoá sẵn — cắt Matryoshka xuống 2048 trả về vector
+chưa chuẩn hoá. `GeminiEmbedding.embed()` đã L2-normalize trước khi ghi cache như lớp phòng thủ thứ
+nhất, nhưng một provider tương lai quên bước đó cộng với `<#>` ở đây sẽ cho thứ hạng sai **hoàn toàn
+im lặng** — không exception, không test đỏ, chỉ là kết quả tệ đi."""
 
 
 def _vector_literal(values: Sequence[float]) -> str:
