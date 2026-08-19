@@ -17,7 +17,7 @@ import _harness as H
 import pytest
 from _vector_cache import VectorCache, cache_key
 from providers import GEMINI_DIM, GeminiEmbedding, MissingVectorError, l2_normalize
-from record_provider_cache import texts_to_record
+from record_provider_cache import golden_v2_texts, harness_texts, texts_to_record
 
 
 @pytest.fixture
@@ -166,7 +166,7 @@ def test_embed_giu_dung_thu_tu_va_khong_gap_doi_text_trung() -> None:
     assert out[0] == provider.embed([a])[0]
 
 
-def test_cache_da_commit_CO_MAT_va_phu_du_moi_text_harness_can() -> None:
+def test_cache_da_commit_CO_MAT_va_phu_du_moi_text_DA_KHAI() -> None:
     """Cache đã commit PHẢI có mặt và PHẢI phủ đủ. `skip` ở đây chính là xanh-giả.
 
     Đo được trước khi có bài này: bỏ `cache/gemini-embedding-001-d2048.bin` ra khỏi cây (clone
@@ -176,8 +176,11 @@ def test_cache_da_commit_CO_MAT_va_phu_du_moi_text_harness_can() -> None:
     không phải "số của dim-8 dưới nhãn gemini", mà "gemini vắng mặt dưới một bảng trông bình thường".
 
     Kiểm PHỦ ĐỦ chứ không phải chỉ đếm một con số cứng: khẳng định cache chứa đúng mọi text mà
-    `build_report` sẽ hỏi tới. Con số cứng sẽ mục ngay lần thêm case tiếp theo, còn phép phủ này
+    `texts_to_record()` khai. Con số cứng sẽ mục ngay lần thêm case tiếp theo, còn phép phủ này
     tự đúng theo bộ case hiện tại — và bắt được cả ca cache CÓ mặt nhưng ghi thiếu giữa chừng.
+
+    `texts_to_record()` nay là HỢP của nhiều bề mặt (`harness_texts` + `golden_v2_texts`), rộng hơn
+    thứ `build_report` hỏi tới — nên tên bài nói "text ĐÃ KHAI", không nói "text harness cần".
     """
     cache = GeminiEmbedding().cache
     assert len(cache), "cache đã commit KHÔNG mở được — kiểm `cache/*.bin` có trong cây làm việc không"
@@ -185,3 +188,46 @@ def test_cache_da_commit_CO_MAT_va_phu_du_moi_text_harness_can() -> None:
     can = list(dict.fromkeys(texts_to_record()))
     thieu = [t for t in can if cache.get(t) is None]
     assert not thieu, f"cache thiếu {len(thieu)}/{len(can)} text harness cần, vd: {thieu[0][:60]!r}"
+
+
+def test_cache_phu_query_golden_2_0_va_vector_da_chuan_hoa() -> None:
+    """Query của golden-set 2.0 PHẢI embed được offline — bài này là hàng rào cho khoảng trống AIE-2
+    báo ở kb#40.
+
+    Trạng thái trước khi có bài này (đo, không suy đoán): 22 query phân biệt của
+    `GOLDEN_CASES_V2`, **0 có trong cache**, trùng 0 với query của bộ 300 case. Nên mọi đường chấm
+    golden 2.0 qua `gemini-embedding-001` — provider ĐÃ CHỐT — đều nổ `MissingVectorError`. Đó là
+    fail-closed chạy đúng thiết kế (`record_provider_cache` bản đầu tự khai "không hơn"), nhưng
+    giới hạn ấy không được viết ở đâu cả nên chỉ lộ ra khi có người đâm vào.
+
+    Kiểm cả **chuẩn hoá L2** trên đúng nhóm vector mới, không chỉ sự có mặt:
+    `test_cache_da_commit_doc_duoc_va_dung_so_chieu` chỉ lấy mẫu 20 query đầu của bộ benchmark, nên
+    một lần re-record đi vòng qua `GeminiEmbedding.embed` (bỏ `l2_normalize`) sẽ để lại 22 vector
+    chưa chuẩn hoá mà không bài nào thấy.
+    """
+    provider = GeminiEmbedding()  # allow_network=False — chỉ đọc cache đã commit
+    queries = list(dict.fromkeys(golden_v2_texts()))
+    assert queries, "golden 2.0 rỗng — sai đường lấy case, không phải cache thiếu"
+
+    thieu = [q for q in queries if provider.cache.get(q) is None]
+    assert not thieu, (
+        f"cache thiếu {len(thieu)}/{len(queries)} query golden 2.0, vd: {thieu[0][:60]!r} — "
+        "chạy `record_provider_cache.py` rồi commit lại `cache/`"
+    )
+
+    for query, vector in zip(queries, provider.embed(queries), strict=True):
+        assert len(vector) == GEMINI_DIM, query
+        assert sum(x * x for x in vector) == pytest.approx(1.0, abs=1e-4), query
+
+
+def test_texts_to_record_la_hop_cua_dung_hai_be_mat() -> None:
+    """`texts_to_record` = `harness_texts` + `golden_v2_texts`, không thiếu bề mặt nào.
+
+    Tách hàm ra rồi quên nối vào `texts_to_record` thì bài phủ-đủ ở trên vẫn xanh (nó chấm theo
+    chính `texts_to_record`) trong khi cache lại thiếu đúng phần vừa tách — hỏng câm. Bài này khoá
+    phép hợp đó.
+    """
+    hop = set(texts_to_record())
+    assert set(harness_texts()) <= hop
+    assert set(golden_v2_texts()) <= hop
+    assert hop == set(harness_texts()) | set(golden_v2_texts())
