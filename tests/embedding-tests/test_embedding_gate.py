@@ -92,3 +92,56 @@ def test_gate_theo_tang(stratum: str, embedding_provider: object, report: dict[s
             else f"cần vượt baseline {base:.4f} theo margin {margin} "
             f"(chiều {H.METRIC_DIRECTION[metric]}) — chưa đủ tốt hơn dim-8 ở tầng này"
         )
+
+
+# ── ngưỡng tuyệt đối phải DẪN TỪ VALIDATION, không phải từ tập báo cáo ────────
+
+
+def test_nguong_decoy_fall_dan_tu_validation_khong_phai_tap_bao_cao() -> None:
+    """`ABSOLUTE_MAX["decoy_fall"]` đang commit phải PHỦ được ngưỡng dẫn từ validation.
+
+    Đây là gạch DoD cuối của `kb#38` mà kb tự làm được (sai sót phương pháp #2). Ngưỡng 0.35 của
+    bản trước quét trên chính 300 case dùng để báo cáo — fit tham số vào nhiễu của tập mình sẽ công
+    bố. Bài này chốt hai điều mà một hằng số trần trụi không nói được:
+
+    1. **Không nhấp nháy**: ngưỡng commit ≥ ngưỡng dẫn ra. Thấp hơn nghĩa là một provider LÀNH MẠNH
+       vẫn có thể rớt gate vì nhiễu lấy mẫu chứ không vì chất lượng — đúng thứ `Z=2·SE` sinh ra để
+       tránh.
+    2. **Không phải số tuỳ ý**: chênh lệch chỉ được là phép làm tròn lên. Nới thoải mái thì gate còn
+       tồn tại trên giấy nhưng không chặn gì — cách hỏng ngược lại, và im lặng hơn.
+
+    Bài này KHÔNG kiểm chất lượng retrieval; nó kiểm **phép chọn tham số có hợp lệ hay không**.
+    """
+    from tune_decoy_threshold import TUNE_PART, derive
+
+    assert TUNE_PART == "validation", (
+        f"ngưỡng đang được tune trên {TUNE_PART!r} — tune trên tập báo cáo là tái phạm kb#38 sai sót #2"
+    )
+
+    dan_ra, rows = derive()
+    assert rows, "không đo được provider nào — phép lấy max rỗng thì ngưỡng vô nghĩa"
+
+    commit = H.ABSOLUTE_MAX["decoy_fall"]
+    assert commit >= dan_ra, f"ngưỡng commit {commit} THẤP hơn mức dẫn từ validation {dan_ra:.4f} — gate sẽ nhấp nháy"
+    assert commit - dan_ra < 0.02, (
+        f"ngưỡng commit {commit} cao hơn mức dẫn ra {dan_ra:.4f} tới {commit - dan_ra:.4f} — "
+        f"chênh lệch chỉ được là làm tròn lên, không phải một con số nới tuỳ ý"
+    )
+
+
+def test_phep_dan_nguong_chi_doc_case_validation() -> None:
+    """`derive()` chỉ được nhìn case validation.
+
+    `TUNE_PART == "validation"` mới là khai báo; bài này kiểm HÀNH VI: số case mà phép dẫn dựa vào
+    phải đúng bằng cỡ tập validation, và mọi id phải nằm trong đó. Đổi `build_report(p, TUNE_PART)`
+    thành `build_report(p)` (mặc định `"all"`) sẽ lọt qua bài trên nhưng đỏ ở đây.
+    """
+    from tune_decoy_threshold import TUNE_PART, derive, gated_strata
+
+    _, rows = derive()
+    val_ids = H.load_validation_ids()
+    for stratum in gated_strata():
+        n_val = sum(1 for c in H.cases_for(TUNE_PART) if c.stratum == stratum and c.decoy_hint)
+        got = {n for _, s, _, n in rows if s == stratum}
+        assert got == {n_val}, f"{stratum}: phép dẫn dựa trên n={got}, cỡ validation là {n_val}"
+    assert all(c.id in val_ids for c in H.cases_for(TUNE_PART))
