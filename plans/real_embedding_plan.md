@@ -105,21 +105,21 @@ hoá cho thứ hạng sai **âm thầm**.
 
 Mục tiêu: đóng `kb#38` (số tái lập được từ `main`), chưa đụng schema. Rollback độc lập.
 
-- [ ] Class `GeminiEmbedding` riêng, chỉ cần `async embed(texts) -> list[list[float]]`.
+- [x] Class `GeminiEmbedding` riêng, chỉ cần `async embed(texts) -> list[list[float]]`.
       **Không phải method trên `GeminiProvider`** (§1.4).
-- [ ] Đặt tại `tests/embedding-tests/` — là test code nên không vi phạm `.importlinter`, và không
+- [x] Đặt tại `tests/embedding-tests/` — là test code nên không vi phạm `.importlinter`, và không
       kéo `google-genai` vào dependency của kb package.
-- [ ] `tests/embedding-tests/compare_providers.py` — script so provider, gọi qua đúng
+- [x] `tests/embedding-tests/compare_providers.py` — script so provider, gọi qua đúng
       `conftest.py::embedding_provider` (đúng chữ trong `kb#38`), không viết bản "tương đương".
-- [ ] Cache theo `sha256(text)` **commit kèm** → chạy lại 0 API call, CI không bao giờ quay ra
+- [x] Cache theo `sha256(text)` **commit kèm** → chạy lại 0 API call, CI không bao giờ quay ra
       ngoài. Đây vừa là INV-4 vừa là gạch "tái lập được từ main" của `kb#38`.
-- [ ] `google-genai` import lazy. **Thiếu `STUDIO_GEMINI_API_KEY` ⇒ skip có lý do**, tuyệt đối
+- [x] Gọi qua `urllib` (không thêm dep). **Thiếu `STUDIO_GEMINI_API_KEY` ⇒ skip có lý do**, tuyệt đối
       không âm thầm rơi về dim-8 — đó là cách CI xanh trong khi đang đo nhầm provider.
-- [ ] Tách **validation set** khỏi 300 case báo cáo, TRƯỚC khi tune bất kỳ ngưỡng nào
+- [x] Tách **validation set** khỏi 300 case báo cáo, TRƯỚC khi tune bất kỳ ngưỡng nào
       (`kb#38` gạch 3; hiện `cases/` vẫn chỉ có `s1..s5.json`).
-- [ ] **Giữ `output_dimensionality=2048`** (§2) → số provider API trong report **không phải đo
+- [x] **Giữ `output_dimensionality=2048`** (§2) → số provider API trong report **không phải đo
       lại**. Việc còn lại là làm chúng *tái lập được*, không phải làm lại chúng. Xem §4.
-- [ ] Cập nhật `embedding_report.md`: bổ sung **mục "cách chạy"** (report hiện không có) + ghi rõ
+- [x] Cập nhật `embedding_report.md`: bổ sung **mục "cách chạy"** (report hiện không có) + ghi rõ
       2048 giờ là con số đã chốt, kèm lý do bỏ HNSW.
 - [ ] Viết **DEC chốt provider mặc định** — theo §0, đây là việc kb tự làm được.
 

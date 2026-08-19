@@ -11,6 +11,78 @@ cho `hash-512`, và `gemini-embedding-001` đo lại ở `output_dimensionality=
 per-tầng + gate. **Hai provider BỔ SUNG** (`gemini-embedding-2`, `qwen3-embedding-8b`) đo sau qua
 OpenRouter — kết quả ở §Provider bổ sung, cùng harness/corpus/case nên so trực tiếp được.
 
+## §Tái lập — cách chạy lại mọi con số ở mục này (kb#38)
+
+Phản hồi đóng PR#33: *"script chấm không nằm trong repo → không ai review được, không ai chạy lại
+được."* Mục này là phần **đã khép** phản hồi đó. Mọi số trong §Tái lập chạy lại được từ `main`,
+**offline, không API key, không tốn tiền**:
+
+```
+uv run --python 3.14 python packages/kb/tests/embedding-tests/compare_providers.py
+uv run --python 3.14 python packages/kb/tests/embedding-tests/compare_providers.py --part all
+```
+
+Vector của `gemini-embedding-001` đọc từ `cache/gemini-embedding-001-d2048.bin` (1088 vector
+float32 = 8.9 MB, đã commit). Ghi lại cache — bước DUY NHẤT ra mạng — cần `OPEN_ROUTER_API_KEY`:
+
+```
+uv run --python 3.14 python packages/kb/tests/embedding-tests/record_provider_cache.py
+```
+
+`compare_providers.py` gọi thẳng `H.build_report`/`H.stratum_metric` — **đúng hai hàm** mà fixture
+`report` (`conftest.py`) và `test_embedding_gate.py` dùng, không có bản sao công thức nào.
+`test_compare_providers.py::test_so_khop_fixture_report` so từng case giữa hai đường; lệch một case
+là CI đỏ.
+
+### Tách validation / test
+
+`validation-split.json` — **98 case validation / 202 case test**, phân tầng 33%, seed `20260819`,
+sinh bằng `make_validation_split.py` và ĐÓNG BĂNG trong repo. Mọi tham số/ngưỡng phải tune trên
+`validation`; bảng dưới đây báo cáo trên `test`. Đây là gạch 3 của `kb#38` (sai sót phương pháp #2:
+ngưỡng `decoy_fall` 0.35 ở §Gate được chọn bằng cách quét trên chính tập báo cáo — **số 0.35 đó vẫn
+chưa được chọn lại trên validation**, xem §Còn để mở).
+
+### Bảng tái lập được — `--part test` (202 case)
+
+| metric | `baseline-dim8` | `gemini-embedding-001` @2048 |
+|---|---:|---:|
+| Hit@1 | 0.0247 | **0.5370** |
+| Hit@3 | 0.1049 | **0.6790** |
+| Hit@5 | 0.1420 | **0.8025** |
+| MRR@5 | 0.0618 | **0.6288** |
+| Decoy Fall (S3+S4) | 0.0390 | **0.0649** |
+
+### Phát hiện: đo lại qua OpenRouter KHÔNG ra đúng số đo tay
+
+Chạy cùng pipeline trên cả 300 case (`--part all`) để so trực tiếp với bảng đo tay ở §Macro:
+
+| metric | đo tay (Google trực tiếp) | tái lập (OpenRouter) | lệch |
+|---|---:|---:|---:|
+| Hit@1 | 0.5726 | 0.5519 | −0.021 |
+| Hit@3 | 0.7137 | 0.7012 | −0.013 |
+| Hit@5 | 0.7801 | 0.8050 | **+0.025** |
+| MRR@5 | 0.6492 | 0.6391 | −0.010 |
+| Decoy Fall | 0.0783 | 0.0870 | +0.009 |
+
+**`baseline-dim8` thì khớp TUYỆT ĐỐI cả 5 metric tới 4 chữ số** (0.0207 · 0.0954 · 0.1245 · 0.0557 ·
+0.0435). Đó là phép khử biến quan trọng: đường harness giống hệt nhau, nên chênh lệch nằm hoàn toàn
+ở **chính vector Gemini**, không phải ở cách chấm.
+
+Nguyên nhân khả dĩ, chưa tách bạch được: hai đường phục vụ khác nhau (free-tier Google trực tiếp vs
+OpenRouter→Google), hoặc bản thân API không tất định. KHÔNG phải do chuẩn hoá (cosine bất biến với
+tỉ lệ) và khó do float32 (lệch tới 2 điểm là quá lớn cho sai số làm tròn).
+
+Mọi chênh lệch trên đều **dưới ngưỡng ~6 điểm (2 SE)** mà chính báo cáo này đặt ra ở mục dưới, nên
+không cái nào đọc được là "khác biệt thật". Nhưng đó chính là điều đáng ghi: **không có pipeline tái
+lập được thì không thể biết một bảng số dao động bao nhiêu giữa hai lần chạy** — và bản báo cáo
+trước đã dùng chênh lệch cỡ này để xếp hạng provider.
+
+### Giới hạn còn lại của mục này
+
+`bge-m3` và `multilingual-e5-large` **KHÔNG** có trong bảng tái lập: chúng cần
+`sentence-transformers`+`torch`, mà kb cố ý không kéo hai package đó vào dependency. Số của chúng ở
+các mục dưới vẫn là **số đo tay**, chưa khép được phản hồi của PR#33.
+
 ## Sai số cần biết TRƯỚC khi đọc mọi bảng
 
 n = **241 case** cho S1–S4 (S5 không có Hit@k). Sai số chuẩn của một tỉ lệ quanh 0.70 là
@@ -644,6 +716,11 @@ vô ích** — chỉ tốn thêm một tầng tính toán.
 Đây là thử nghiệm ngoài luồng (không nằm trong `_harness.py`/CI), không phải khuyến nghị production.
 
 ## Còn để mở
+
+0. **Ngưỡng `decoy_fall` 0.35 chưa được chọn lại trên validation set.** Nó vẫn là con số quét trên
+   chính 300 case dùng để báo cáo (§Gate) — đúng sai sót phương pháp #2 của `kb#38`. Split đã có
+   (`validation-split.json`, 98 case), việc còn lại là chọn lại ngưỡng CHỈ trên tập đó rồi báo cáo
+   trên `test`. Ưu tiên cao nhất trong danh sách này vì nó là gạch DoD đang mở.
 
 Xếp theo đòn bẩy — việc đầu tiên là thứ dữ liệu ở §Trần theo K chỉ thẳng vào.
 

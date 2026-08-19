@@ -44,6 +44,7 @@ _HERE = Path(__file__).resolve().parent
 CORPUS_ROOT = _HERE.parents[1] / "docs" / "callisto-2.0"
 CASES_DIR = _HERE / "cases"
 BASELINE_PATH = _HERE / "baseline-dim8.json"
+SPLIT_PATH = _HERE / "validation-split.json"  # NGOÀI `cases/` — `load_cases` glob `cases/*.json`
 
 # top-k cho hit@k/MRR. ĐÚNG BẰNG `top_k` recipe production dựng ra (`workbench/builder.py:219,292`
 # — node `kb-retrieve` hardcode `"top_k": 3`), nên "trúng" ở đây nghĩa là LLM THẬT SỰ nhìn thấy chunk
@@ -100,6 +101,39 @@ def load_cases() -> tuple[Case, ...]:
                 )
             )
     return tuple(sorted(cases, key=lambda c: c.id))
+
+
+# ── tách validation / test ───────────────────────────────────────────────────
+# Vì sao phải tách (kb#38, sai sót phương pháp #2): ngưỡng gate `decoy_fall` 0.35 của bản báo cáo
+# trước được chọn bằng cách quét trên CHÍNH 300 case dùng để báo cáo. Fit tham số vào nhiễu của tập
+# mình sẽ công bố ⇒ con số công bố đẹp hơn thực tế một cách có hệ thống, và không còn tập độc lập
+# nào để phát hiện.
+#
+# Split ĐÓNG BĂNG trong `cases/validation-split.json`, KHÔNG tính lại lúc chạy. Tính lại thì thêm
+# một case là đảo cả hai tập — tham số tune trên val cũ bỗng được chấm trên val mới mà không ai hay.
+# Sinh một lần bằng `make_validation_split.py`; `test_validation_split.py` khoá tính toàn vẹn.
+
+
+@lru_cache(maxsize=1)
+def load_validation_ids() -> frozenset[str]:
+    """Tập id thuộc validation (đọc từ file đóng băng). Thiếu file ⇒ lỗi rõ, không âm thầm coi là rỗng
+    — validation rỗng nghĩa là mọi tham số lại được tune trên tập báo cáo, đúng thứ split này ngăn."""
+    if not SPLIT_PATH.exists():
+        raise FileNotFoundError(f"chưa có {SPLIT_PATH.name} — chạy `make_validation_split.py` để sinh")
+    return frozenset(json.loads(SPLIT_PATH.read_text(encoding="utf-8"))["validation"])
+
+
+def cases_for(part: str = "test") -> tuple[Case, ...]:
+    """Case của một phần: `"validation"` (tune tham số) · `"test"` (báo cáo số cuối) · `"all"`.
+
+    Mặc định `"test"` chứ không `"all"`: mặc định an toàn phải là tập KHÔNG bị tune trên nó."""
+    if part not in ("validation", "test", "all"):
+        raise ValueError(f"part phải là 'validation'/'test'/'all', không phải {part!r}")
+    if part == "all":
+        return load_cases()
+    val = load_validation_ids()
+    want_in = part == "validation"
+    return tuple(c for c in load_cases() if (c.id in val) is want_in)
 
 
 # ── vector / cosine ──────────────────────────────────────────────────────────
@@ -228,13 +262,17 @@ def score_case(case: Case, results: list[tuple[str, float]]) -> CaseResult:
     return CaseResult(case.id, case.stratum, ids, top_score, hit_at(1), hit_at(3), hit_at(5), mrr5, decoy_fall)
 
 
-def build_report(provider: object) -> dict[str, CaseResult]:
-    """Chấm TOÀN BỘ case một lần cho provider → {case_id: CaseResult}. Order-independent. Retrieve
-    luôn ở `MAX_K` — hit@1/hit@3 cắt từ CÙNG danh sách này, không retrieve lại ở k khác."""
+def build_report(provider: object, part: str = "all") -> dict[str, CaseResult]:
+    """Chấm case một lần cho provider → {case_id: CaseResult}. Order-independent. Retrieve luôn ở
+    `MAX_K` — hit@1/hit@3 cắt từ CÙNG danh sách này, không retrieve lại ở k khác.
+
+    `part` mặc định `"all"` chứ KHÔNG phải `"test"` — ngược với `cases_for()`, và có chủ đích:
+    `baseline-dim8.json` được record trên cả 300 case, nên đổi mặc định ở đây là làm lệch gate hiện
+    có một cách âm thầm. Chỗ nào cần tách tập (so provider, tune ngưỡng) thì truyền tường minh."""
     retriever, _ = build_retriever(provider)
     from studio_kb.doc_factory import resolve_tenant_id
 
-    cases = load_cases()
+    cases = cases_for(part)
     qvecs = to_vectors(provider, [c.query for c in cases]) if cases else []
     out: dict[str, CaseResult] = {}
     for case, qv in zip(cases, qvecs, strict=True):
