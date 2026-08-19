@@ -20,7 +20,7 @@ riêng, khớp bảng chữ ký sống trong từng contract (`§0.2`):
 | Decision-log | Contract | Quyết |
 |---|---|---|
 | [`decision-log-trace-event.md`](decision-log-trace-event.md) | `trace-event.v0` | DL-11.1 (`ts`) · DL-11.2 (`cost` một-nguồn) · DL-11.3 (`node_type` enum) · DL-11.4 (carrier) · DL-11.7 (`obs.costs` hoãn) |
-| [`decision-log-kb-search.md`](decision-log-kb-search.md) | `kb.search.v0` | DL-11.5 (Q-G slug→UUID) · DL-11.6 (stub) · DL-13.1 (`KbSearchService` ctor = `(pool, embedding)`, un-ratchet D17) |
+| [`decision-log-kb-search.md`](decision-log-kb-search.md) | `kb.search.v0` | DL-11.5 (Q-G slug→UUID) · DL-11.6 (stub) · DL-13.1 (`KbSearchService` ctor = `(pool, embedding)`, un-ratchet D17) · **DL-22.1** (provider mặc định = `gemini-embedding-001`) · DL-22.2 (bỏ HNSW ⇒ 2048 hợp lệ) · DL-22.3 (ngưỡng quy mô quay lại index) · DL-22.4 (CI offline qua cache · bề mặt phủ) |
 | [`decision-log-doc-factory.md`](decision-log-doc-factory.md) | doc-factory / corpus (không phải contract) | DL-12.1 (corpus mọc tại chỗ 5→42 doc) · DL-12.2 (vocab giữ 4 vai) · DL-12.3 (embeddings re-record) · DL-12.4 (SC-05 loại-trừ) · DL-12.5 (golden Handbook tách file) |
 
 **Hai quyết schema-drift KHÔNG thuộc riêng contract nào** → canon ở

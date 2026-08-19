@@ -77,9 +77,10 @@ Hai vế của quyết định này khoá vào nhau: **bỏ HNSW là thứ làm 
 
 ### Đánh đổi đã nhận, không phải bỏ qua
 
-- [ ] **Xác nhận seq scan chấp nhận được** — đo p95 của `<=>` trên `vector(2048)` × 800 dòng. Đây là
-      **kiểm chứng quyết định đã chốt**, không phải cổng để chốt lại. Nếu p95 xấu bất ngờ (> ~50ms)
-      thì mở lại §2, nhưng dự kiến ở mức micro-giây → mili-giây.
+- [x] **Xác nhận seq scan chấp nhận được** — ĐO XONG 19/08: **p50 2.03ms · p95 4.24ms · max 8.07ms**
+      (800 dòng `vector(2048)`, stack test 5433 sau khi `ALTER` sang 2048, `EXPLAIN` xác nhận Seq
+      Scan, 60 truy vấn). Cả 800 dòng cùng một `section_role` ⇒ ca **xấu nhất về độ chọn lọc của
+      filter**, tức chặn trên bảo thủ. Dưới xa mốc ~50ms ⇒ §2 không phải mở lại.
 - [ ] **Ghi rõ ngưỡng quy mô làm quyết định này hết đúng.** Bỏ HNSW đúng ở 800 chunk; ở ~10⁵–10⁶
       chunk thì seq scan sập và phải quay lại index — lúc đó trần 2000 quay lại, và 2048 sẽ phải hạ
       xuống 1536. Viết ngưỡng đó vào docstring `schema.py` để người sau không phải suy lại.
@@ -113,6 +114,11 @@ Mục tiêu: đóng `kb#38` (số tái lập được từ `main`), chưa đụn
       `conftest.py::embedding_provider` (đúng chữ trong `kb#38`), không viết bản "tương đương".
 - [x] Cache theo `sha256(text)` **commit kèm** → chạy lại 0 API call, CI không bao giờ quay ra
       ngoài. Đây vừa là INV-4 vừa là gạch "tái lập được từ main" của `kb#38`.
+- [x] **Bề mặt cache — nới sau phản hồi AIE-2 (`kb#40`)**: bản đầu chỉ phủ thứ `build_report` hỏi tới
+      ⇒ 22/22 query golden-set 2.0 vắng mặt ⇒ mọi đường chấm golden 2.0 qua provider đã chốt nổ
+      `MissingVectorError` (fail-closed đúng thiết kế, nhưng giới hạn không được viết ở đâu). Nay
+      `record_provider_cache` tách `harness_texts()` + `golden_v2_texts()`; **cố ý không phủ** golden
+      1.0 + grid `GQ-` (chạy trên corpus 1.0 mà cache không giữ vector chunk 1.0 nào).
 - [x] Gọi qua `urllib` (không thêm dep). **Thiếu `STUDIO_GEMINI_API_KEY` ⇒ skip có lý do**, tuyệt đối
       không âm thầm rơi về dim-8 — đó là cách CI xanh trong khi đang đo nhầm provider.
 - [x] Tách **validation set** khỏi 300 case báo cáo, TRƯỚC khi tune bất kỳ ngưỡng nào
@@ -121,7 +127,10 @@ Mục tiêu: đóng `kb#38` (số tái lập được từ `main`), chưa đụn
       lại**. Việc còn lại là làm chúng *tái lập được*, không phải làm lại chúng. Xem §4.
 - [x] Cập nhật `embedding_report.md`: bổ sung **mục "cách chạy"** (report hiện không có) + ghi rõ
       2048 giờ là con số đã chốt, kèm lý do bỏ HNSW.
-- [ ] Viết **DEC chốt provider mặc định** — theo §0, đây là việc kb tự làm được.
+- [x] Viết **DEC chốt provider mặc định** — `docs/decisions/decision-log-kb-search.md` §D22
+      (DL-22.1 provider · DL-22.2 bỏ HNSW · DL-22.3 ngưỡng quy mô · DL-22.4 CI offline + bề mặt
+      cache), index nội bộ `docs/decisions/decision-log.md` đã trỏ tới. Theo §0 đây là việc kb tự
+      làm được; **chờ AIE-1 ack**, không chặn.
 
 ## §4. Số provider API trong report — GIỮ, không đo lại
 
