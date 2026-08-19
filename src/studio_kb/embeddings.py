@@ -79,9 +79,22 @@ FIXTURE_PATH = Path(__file__).resolve().parent / "golden" / "embeddings-callisto
 
 FIXTURE_REF = "callisto-embeddings-v0"
 
+FIXTURE_DIM = 8
+"""Chiều của fixture ĐÃ GHI — **cố ý tách khỏi `schema.EMBEDDING_DIM`** (DL-22.5).
+
+Trước D22 hai con số là một. Khi cột `kb.chunks.embedding` lên `vector(2048)` cho embedding thật,
+gộp tiếp thì `build_fixture()` sẽ phát lại đúng 140 chunk của corpus 1.0 dưới dạng 2048 ô bag-of-words
+— một file ~5.7 MB nói **đúng cùng một điều** mà bản 8 chiều đang nói, chỉ tốn hơn. Fixture này là
+**bản ghi của thế giới dim-8/1.0**: giá trị của nó là replay được đúng thứ đã ghi, không phải bám
+theo chiều production.
+
+Ràng buộc còn lại: `derive_vector` mặc định vẫn theo `EMBEDDING_DIM` (adapter ingest sống —
+`CallistoEmbedding` & các `_CallistoEmbedding` ở apps/studio — gọi nó KHÔNG truyền `dim`, và chúng
+phải khớp cột). Nên chỗ nào sinh/đọc fixture PHẢI truyền `dim=FIXTURE_DIM` tường minh.
+"""
+
 _DERIVATION = (
-    "bag-of-words: blake2b(token) băm vào EMBEDDING_DIM ô, chuẩn hoá L2 "
-    "— tổng hợp deterministic, KHÔNG phải output model"
+    "bag-of-words: blake2b(token) băm vào FIXTURE_DIM ô, chuẩn hoá L2 — tổng hợp deterministic, KHÔNG phải output model"
 )
 
 
@@ -122,10 +135,12 @@ def build_fixture() -> dict[str, object]:
     chunks = sorted(load_callisto(), key=lambda c: c.chunk_id)
     return {
         "fixture_ref": FIXTURE_REF,
-        "dim": EMBEDDING_DIM,
+        "dim": FIXTURE_DIM,
         "derivation": _DERIVATION,
         "corpus_ref": "docs/callisto/ — 42 doc / 140 chunk (Callisto Handbook, D12)",
-        "vectors": {chunk.chunk_id: derive_vector(chunk.embedding_input) for chunk in chunks},
+        # `dim=FIXTURE_DIM` tường minh: mặc định của `derive_vector` bám `EMBEDDING_DIM` (cột),
+        # còn fixture bám chiều đã ghi của chính nó. Bỏ tham số này = file phình theo cột.
+        "vectors": {chunk.chunk_id: derive_vector(chunk.embedding_input, dim=FIXTURE_DIM) for chunk in chunks},
     }
 
 

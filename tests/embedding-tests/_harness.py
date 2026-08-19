@@ -23,7 +23,7 @@ from typing import cast
 from uuid import UUID
 
 from studio_kb.doc_factory_v2 import load_corpus_v2
-from studio_kb.embeddings import derive_vector
+from studio_kb.embeddings import FIXTURE_DIM, derive_vector
 
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
@@ -159,12 +159,19 @@ def cosine(a: Sequence[float], b: Sequence[float]) -> float:
 
 
 class BaselineDim8:
-    """Provider mặc định = bag-of-words dim-8 `derive_vector` (baseline hiện tại của spine)."""
+    """Provider mặc định = bag-of-words **dim-8** `derive_vector` (baseline của spine trước D22).
+
+    `dim=FIXTURE_DIM` truyền TƯỜNG MINH, không dùng mặc định của `derive_vector`. Mặc định đó bám
+    `schema.EMBEDDING_DIM` — nay là 2048 (D22, cột đã đổi cho embedding thật). Để nó trôi theo thì
+    lớp này tự mâu thuẫn với chính tên nó, và tệ hơn: `baseline-dim8.json` cùng mọi con số trong
+    `embedding_report.md` được đo ở dim-8, nên một baseline âm thầm hoá 2048 sẽ làm mọi so sánh
+    "provider mới vs baseline" đổi mốc mà không ai thấy — gate vẫn chạy, chỉ là đang so với thứ
+    khác. Đây là **mốc đã ghi**, nó phải đứng yên đúng chỗ nó được ghi."""
 
     name = "baseline-dim8"
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        return [derive_vector(t) for t in texts]
+        return [derive_vector(t, dim=FIXTURE_DIM) for t in texts]
 
 
 # ── retrieval in-memory (lọc TRƯỚC rồi xếp hạng — cùng ngữ nghĩa PgKbSearch) ─

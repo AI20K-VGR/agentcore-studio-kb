@@ -20,8 +20,15 @@ sai, embedding tốt/xấu không phân biệt được. Mọi case dương ở 
 chunk cùng `tenant`+`section_role`** cạnh tranh (token-overlap > 0), nên thứ hạng THẬT SỰ phụ thuộc chất
 lượng embedding. Ví dụ nặng nhất: `ankor-remote-001#c1` (0.846) chỉ hơn `#c2` (0.769) **0.077** ở điểm
 token của `StaticKbSearch` (xấp xỉ cấu trúc mà embedding phải tách) — đúng "thiếu headroom" F-8. Đây là
-các case để #96 đo trục embedding thứ 2 có phân biệt tốt hơn không; **trục đó phải giữ `EMBEDDING_DIM=8`**
-vì `kb.chunks` là `vector(8)` và `PgKbSearch` là nơi DUY NHẤT embedding ảnh hưởng ranking.
+các case để #96 đo trục embedding thứ 2 có phân biệt tốt hơn không; `PgKbSearch` là nơi DUY NHẤT
+embedding ảnh hưởng ranking.
+
+**Cập nhật D22.** Câu ở đây trước viết *"trục đó phải giữ `EMBEDDING_DIM=8` vì `kb.chunks` là
+`vector(8)`"*. Cột nay là `vector(2048)` (DL-22.1/22.2) nên ràng buộc đó hết hiệu lực — và nó vốn là
+**văn xuôi, không phải phép kiểm**: `tests/test_grid_inputs.py` chấm nhãn bằng `StaticKbSearch`
+(token-overlap) và không assert số chiều nào. Đổi cột KHÔNG làm bộ `GQ-` mất hiệu lực, không phải
+re-annotate. Thứ thật sự phải đọc lại là **ngưỡng so sánh**: nhãn giữ nguyên, còn số recall/precision
+đo trên embedding mới thì không đặt cạnh vòng đo dim-8 được.
 
 ## Nhãn KHÔNG gõ tay
 
