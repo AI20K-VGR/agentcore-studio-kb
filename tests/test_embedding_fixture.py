@@ -16,11 +16,13 @@ trong plan D7.
 
 from __future__ import annotations
 
+import inspect
 import json
 import math
 
 from studio_kb.doc_factory import load_callisto
 from studio_kb.embeddings import (
+    FIXTURE_DIM,
     FIXTURE_PATH,
     FIXTURE_REF,
     derive_vector,
@@ -45,14 +47,20 @@ def test_fixture_covers_exactly_the_corpus() -> None:
 
 
 def test_every_vector_has_the_pinned_width() -> None:
-    """Mọi vector đúng `schema.EMBEDDING_DIM` chiều.
+    """Mọi vector đúng `embeddings.FIXTURE_DIM` chiều.
 
-    `kb.chunks.embedding` khai `vector(EMBEDDING_DIM)` và có index HNSW cosine trên đó. Vector lệch
-    chiều sẽ bị Postgres từ chối lúc `KbPipeline.index` — đỏ đúng chỗ nhưng muộn, sau khi đã dựng
-    Docker và chạy ingest. Bắt ở đây rẻ hơn nhiều bậc.
+    **Đổi mốc so từ `EMBEDDING_DIM` sang `FIXTURE_DIM` ở D22 — có chủ đích, không phải sửa test cho
+    xanh.** Đến D22 hai hằng số là một, nên bài này so với `EMBEDDING_DIM` cũng đúng. Khi cột lên
+    `vector(2048)` cho embedding thật, gộp tiếp có nghĩa là re-record 140 chunk corpus 1.0 thành
+    ~5.7 MB bag-of-words 2048 ô — nói lại đúng điều bản 8 chiều đang nói. Fixture là **bản ghi của
+    thế giới dim-8/1.0**; nó không bám chiều production (DL-22.5).
+
+    Điều bài này canh không đổi: file không được chứa vector lệch chiều so với chiều nó tự khai.
+    Ràng buộc "vector nạp vào `kb.chunks` phải khớp cột" nay do
+    `test_derive_vector_mac_dinh_van_bam_cot` canh — xem lý do ở đó.
     """
     widths = {len(vector) for vector in load_callisto_embeddings().values()}
-    assert widths == {EMBEDDING_DIM}
+    assert widths == {FIXTURE_DIM}
 
 
 def test_van_ban_rong_van_ra_vector_hop_le_dung_chieu() -> None:
@@ -76,15 +84,40 @@ def test_van_ban_rong_van_ra_vector_hop_le_dung_chieu() -> None:
 
 
 def test_declared_dim_matches_the_pinned_constant() -> None:
-    """`dim` ghi trong file khớp `EMBEDDING_DIM`, và `fixture_ref` đúng tên bộ.
+    """`dim` ghi trong file khớp `FIXTURE_DIM`, và `fixture_ref` đúng tên bộ.
 
     Khác test trên: test kia so **dữ liệu** (độ dài mảng thật), test này so **phần khai báo**. File
     có thể chứa 25 vector 8 chiều nhưng đầu file ghi `"dim": 16` — lúc đó người đọc file tin nhầm,
     và ai đọc `dim` để cấp phát/kiểm tra sẽ sai. Một file tự mâu thuẫn phải đỏ.
     """
     raw = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
-    assert raw["dim"] == EMBEDDING_DIM
+    assert raw["dim"] == FIXTURE_DIM
     assert raw["fixture_ref"] == FIXTURE_REF
+
+
+def test_derive_vector_mac_dinh_van_bam_cot() -> None:
+    """Mặc định của `derive_vector` PHẢI bằng `EMBEDDING_DIM` — răng thay cho phép so mà
+    `test_every_vector_has_the_pinned_width` vừa nhả ra ở D22.
+
+    Đây là phần **không** được tách khỏi cột. Năm chỗ nạp vector sống vào `kb.chunks` đều gọi
+    `derive_vector(text)` **không truyền `dim`**:
+
+      - `apps/studio/src/studio_app/providers/factory.py::CallistoEmbedding` (production)
+      - `apps/studio/tests/test_gate2_verdict_from_live_spine.py::_CallistoEmbedding`
+      - `apps/studio/tests/test_kb_search_live_readiness.py::_CallistoEmbedding`
+      - `apps/studio/tests/test_spine_scored_from_postgres.py::_CallistoEmbedding`
+      - `apps/studio/scripts/e2e_smoke_eval.py::_CallistoEmbedding`
+
+    Ghim mặc định thành một hằng số rời (ví dụ `= FIXTURE_DIM`) sẽ làm cả năm chỗ ghi vector 8
+    chiều vào cột `vector(2048)`. Bốn trong năm nằm ở lane khác, và `.importlinter` chặn kb import
+    ngược lên `studio_app` nên không test nào của kb với tới chúng — bài này là chỗ gần nhất canh
+    được, ngay tại nguồn.
+
+    Quét đột biến: đổi chữ ký thành `dim: int = FIXTURE_DIM` thì mọi bài khác trong file vẫn xanh
+    (fixture đã tự ghim `dim=FIXTURE_DIM`), chỉ bài này đỏ.
+    """
+    assert inspect.signature(derive_vector).parameters["dim"].default == EMBEDDING_DIM
+    assert len(derive_vector("khớp cột, không phải khớp fixture")) == EMBEDDING_DIM
 
 
 def test_file_on_disk_still_matches_what_the_generator_produces() -> None:

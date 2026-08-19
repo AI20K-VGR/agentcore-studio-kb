@@ -1,6 +1,6 @@
 {
   "corpus_ref": "docs/callisto/ — 42 doc / 140 chunk (Callisto Handbook, D12)",
-  "derivation": "bag-of-words: blake2b(token) băm vào EMBEDDING_DIM ô, chuẩn hoá L2 — tổng hợp deterministic, KHÔNG phải output model",
+  "derivation": "bag-of-words: blake2b(token) băm vào FIXTURE_DIM ô, chuẩn hoá L2 — tổng hợp deterministic, KHÔNG phải output model",
   "dim": 8,
   "fixture_ref": "callisto-embeddings-v0",
   "vectors": {

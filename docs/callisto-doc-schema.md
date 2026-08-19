@@ -118,11 +118,18 @@ lọc `section_role` phải được test riêng, không dựa vào RLS đỡ h�
 
 | Index | Cột | Dùng khi |
 |---|---|---|
-| `kb_chunks_embedding_hnsw_idx` | `embedding` (cosine) | xếp hạng độ tương đồng |
 | `kb_chunks_tenant_id_idx` | `tenant_id` | lọc tenant trước khi xếp hạng |
+| ~~`kb_chunks_embedding_hnsw_idx`~~ | — | **đã bỏ ở D22** (DL-22.2), xem dưới |
 
-Hai index này phản ánh đúng thứ tự truy vấn bắt buộc: **lọc trước, xếp hạng và cắt `top_k` sau** —
-cả hai trong **cùng một câu SQL**.
+Thứ tự truy vấn bắt buộc không đổi: **lọc trước, xếp hạng và cắt `top_k` sau** — trong **cùng một
+câu SQL**. Chỉ khác là vế xếp hạng nay chạy **seq scan chính xác** thay vì ANN xấp xỉ.
+
+**Vì sao bỏ index vector** (đầy đủ ở `plans/real_embedding_plan.md` §2, tóm tắt ở `schema.py`):
+ở 800 chunk brute force chỉ là 800 phép cosine (đo được p95 4.24ms trên `vector(2048)`); HNSW là
+**xấp xỉ** nên nó thêm một nguồn mất recall mà harness eval — vốn tính cosine chính xác — không mô
+phỏng, làm số báo cáo đẹp hơn thực tế một cách vô hình; và trần 2000 chiều của HNSW chặn thẳng
+`EMBEDDING_DIM = 2048`. **Ngưỡng đảo lại quyết định:** ~10⁵–10⁶ chunk — lúc đó seq scan sập, index
+quay lại, và chiều phải hạ xuống 1536.
 
 ---
 

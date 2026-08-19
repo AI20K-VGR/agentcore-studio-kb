@@ -179,32 +179,70 @@ script, lane AIE-1) · apps/studio (`FakeEmbedding.dim`).
 
 ### §5.1 — kb (schema + fixture + migration)
 
-- [ ] **Bỏ HNSW**: xoá `CREATE INDEX ... USING hnsw` (`schema.py:53-54`) + sửa dòng bảng
-      `callisto-doc-schema.md:121`. Kèm docstring nêu **ngưỡng quy mô** làm quyết định này hết đúng
-      (§2). Migration phải `DROP INDEX IF EXISTS` cho DB đã tồn tại, không chỉ ngừng tạo mới.
-- [ ] `EMBEDDING_DIM = 8` → **2048**. Sửa comment `schema.py:29-32` — comment cũ bảo pin cùng
+- [x] **Bỏ HNSW** — xong (PR `de/kb-dim-2048`). `DROP INDEX IF EXISTS` có thật, và có test canh
+      (`test_schema_migration.py`): gieo đột biến "ngừng CREATE nhưng không DROP" → đỏ.
+- [x] `EMBEDDING_DIM = 8` → **2048** — xong. Comment mới liệt đủ 4 chỗ khai lại bằng tay. (cũ: sửa comment `schema.py:29-32`) — comment cũ bảo pin cùng
       `FakeEmbedding.dim` nhưng **không nhắc engine**, là thiếu. Comment mới phải liệt cả 3 nơi:
       `packages/engine/tests/test_embedding_service_contract.py::EXPECTED_DIM` ·
       `packages/engine/tests/fixtures/embedding/smoke-01.json` ·
       `apps/studio/src/studio_app/providers/fakes.py::FakeEmbedding.dim`.
-- [ ] Migration cột: `DROP INDEX IF EXISTS kb_chunks_embedding_hnsw_idx` →
-      `ALTER COLUMN embedding TYPE vector(2048)` → re-embed qua `re_index`. **Không dựng lại index.**
-      Idempotent như `ALTER ... IF NOT EXISTS` của #39.
-- [ ] Đo p95 `<=>` trên `vector(2048)` × 800 dòng SAU migration, ghi số vào §2 (gạch đầu tiên của
-      "Đánh đổi đã nhận").
-- [ ] **Fan-out của `derive_vector(text, dim=EMBEDDING_DIM)`** — đổi default là đổi hết những chỗ
-      này, liệt kê sẵn để không phát hiện giữa chừng:
+- [x] Migration cột — xong, **nhưng khác plan**: không `re_index`, mà `TRUNCATE` + nạp lại
+      (PR-3). Hai lý do phát hiện lúc làm: (a) `re_index` embed lại bằng provider ĐANG tiêm, mà ở
+      PR-1 provider vẫn là dim-8 → chỉ đổi rác từ 8 chiều sang 2048 chiều; (b) `FORCE ROW LEVEL
+      SECURITY` fence cả owner nên `DELETE` xoá **0 dòng trong im lặng** (đã đo `DELETE 0`) —
+      `TRUNCATE` là đường duy nhất sạch được. Khối `DO $$` **có điều kiện** (`cur_dim <> ...`) để
+      `ensure_all_schemas` chạy mỗi lần boot không wipe corpus; có test riêng canh đúng vế này.
+- [x] Đo p95 — đã đo từ trước và đã ghi vào §2 (p50 2.03ms · p95 4.24ms · max 8.07ms). Đo LẠI
+      trên dữ liệu thật thuộc PR-3 (800 chunk vector Gemini), không phải PR-1.
+- [x] **Fan-out của `derive_vector(...)`** — kiểm xong, và kết luận **ngược với lo ngại ban đầu**:
+      KHÔNG chỗ nào phải sửa. Cả 5 chỗ gọi `derive_vector(text)` **không truyền `dim`**, nên chúng
+      tự bám cột khi hằng số đổi. Đó chính là lý do mặc định PHẢI tiếp tục bám `EMBEDDING_DIM`
+      (ghim nó thành hằng số rời sẽ làm cả 5 ghi 8 chiều vào cột 2048 — 4 chỗ nằm ở lane khác).
+      Có test canh bất biến này (`test_derive_vector_mac_dinh_van_bam_cot`). Danh sách:
   - `apps/studio/providers/factory.py::CallistoEmbedding`
   - `packages/kb/scripts/ingest_callisto.py` (+ `ingest_callisto_v2.py`)
   - `scripts/e2e_smoke_eval.py::_CallistoEmbedding`
-- [ ] **Regenerate `golden/embeddings-callisto-v0.json`** — fixture dim-8 recorded
-      (`embeddings.py:78 FIXTURE_PATH`), có `test_embedding_fixture.py` soi. Re-pin dim làm nó vô
-      hiệu ⇒ regenerate là **một phần của migration**, không phải việc dọn sau.
-- [ ] Re-record `baseline-dim8.json` + xem lại `GATED_METRICS`: baseline đang neo vào dim-8. Đổi
-      provider mặc định thì gate "tương đối so dim-8" còn nghĩa gì không — quyết định tường minh,
-      đừng để trôi.
+- [x] **KHÔNG regenerate `golden/embeddings-callisto-v0.json`** — **đảo quyết định so với plan**
+      (DL-22.5). Plan giả định fixture phải bám cột. Nhưng fixture là **bản ghi của thế giới
+      dim-8/1.0**: phát lại 140 chunk 1.0 ở 2048 ô cho ra file ~5.7 MB nói đúng cùng một điều bản 8
+      chiều đang nói — đúng thứ §5b cảnh báo về blob nhị phân trong git. Thay vào đó tách
+      `embeddings.FIXTURE_DIM = 8` khỏi `schema.EMBEDDING_DIM`; fixture giữ nguyên byte (chỉ đổi 1
+      dòng chuỗi `derivation`). `build_fixture` phải truyền `dim=FIXTURE_DIM` TƯỜNG MINH — có đột
+      biến canh.
+- [x] **KHÔNG re-record `baseline-dim8.json`** — cùng lý do như fixture. `BaselineDim8` nay ghim
+      `dim=FIXTURE_DIM` tường minh: nó là **mốc đã đo**, phải đứng yên đúng chỗ nó được ghi, nếu
+      không mọi so sánh "provider mới vs baseline" đổi mốc mà gate vẫn xanh. Lúc chưa ghim, đổi
+      hằng số làm 6 bài harness đỏ ngay — đó là chuông, không phải phiền toái.
+- [ ] Còn mở: xem lại `GATED_METRICS` khi provider thật vào (PR-2/PR-4) — gate "tương đối so dim-8"
+      còn nghĩa gì không. Quyết định tường minh, đừng để trôi.
 
-### §5.2 — engine (stub + test + script + contract, lane AIE-1)
+### §5.1b — PR-3: nạp lại corpus 2.0 bằng vector THẬT (gạch plan cũ thiếu)
+
+Sau PR-1, `kb.chunks` **rỗng** (migration `TRUNCATE`). Plan cũ giả định `re_index` embed lại tại
+chỗ; không dùng được, vì `re_index` chạy qua provider đang tiêm — ở PR-1 vẫn là dim-8.
+
+- [x] `ingest_callisto_v2.py` — xong. Đi xa hơn dự kiến: `_FixtureEmbedding` bị **xoá hẳn**, không
+      hạ xuống làm dự phòng. Sau PR-1 nó vẫn sinh vector 2048 chiều (mặc định `derive_vector` bám
+      cột) nên cột NHẬN, không lỗi nào nổ ⇒ 800 dòng bag-of-words dưới nhãn `gemini-embedding-001`
+      mà `count(*)`/`vector_dims()` không phân biệt được. Mặc định nay là provider thật.
+- [x] Lệch sync/async — đã bắc cầu phía kb bằng `CachedGeminiEmbedding` (`asyncio.to_thread`).
+      **Vẫn phải báo AIE-1** cho PR-2: `GeminiEmbedding.embed` là `def` đồng bộ, còn
+      `EmbeddingService` đòi `async embed`; đường truy vấn (`/chat`, `/runs`, `/publish`) cần bề mặt
+      async riêng, không dùng lại được lớp bắc cầu của ingest.
+- [x] `purge_tenants()` — **DELETE theo từng tenant sau `_bind_tenant`**, không `TRUNCATE`. Đo
+      trên DB thật: `studio_app` TRUNCATE → `permission denied`; DELETE không ràng buộc tenant →
+      RLS khớp 0 dòng, xoá 0 dòng im lặng; DELETE có ràng buộc → `DELETE 1`. `ingest_all` giữ
+      `purge=False` (bảo toàn idempotency đang được canh), CLI bật `purge=True`.
+- [x] Nghiệm thu — CLI chạy thật 2.1s: **800 / 2048** (1 giá trị chiều duy nhất, 0 vector NULL),
+      ankor 400 · borea 400, `ankor-access-001#c1` còn **0**, index HNSW còn **0**. Thêm một phép
+      độc lập: **tỉ lệ ô bằng 0 = 0.0000** — vector đặc, còn bag-of-words 2048 ô sẽ ~99% là 0.
+
+**Còn mở sau PR-3** (không thuộc lane DE):
+- PR-2 (AIE-1) — nối provider thật vào 3 route truy vấn; cần bề mặt `async embed`.
+- PR-4 (AIE-2) — đổi `golden_set_ref` mặc định + đo lại, kèm nhãn thước đo `2.0 · Pg · gemini@2048`.
+- Ngưỡng gate 0.9 / 0.95 — AIE-1 chốt (kit#170), DEC-D20-03 cấm hạ ngưỡng để demo xanh.
+
+## §5.2 — engine (stub + test + script + contract, lane AIE-1)
 
 **`.importlinter` cấm engine import kb.** Mọi hằng số dim ở engine là khai lại bằng tay. Liệt kê
 đầy đủ các chỗ phải sửa (grep `= 8` + `== 8` + `"EMBEDDING_DIM"` trong `packages/engine`):

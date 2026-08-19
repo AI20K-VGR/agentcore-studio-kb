@@ -154,7 +154,7 @@ class KbIngest:
                 raise ValueError(f"embed() trả {len(vectors)} vector cho {len(batch)} chunk")
             for vector in vectors:
                 if len(vector) != EMBEDDING_DIM:
-                    # Fail-fast: cột là `vector(8)`, sai chiều thì Postgres cũng từ chối — nhưng báo
+                    # Fail-fast: cột là `vector(EMBEDDING_DIM)`, sai chiều thì Postgres cũng từ chối — nhưng báo
                     # ở đây chỉ ra ngay thủ phạm là EmbeddingService, không phải câu INSERT.
                     raise ValueError(f"embedding sai chiều: {len(vector)} != {EMBEDDING_DIM}")
 

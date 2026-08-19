@@ -24,7 +24,7 @@ fail-closed on the list it is handed. That is why #114 scopes T6 to "mức đầ
 Embedding wiring (B1, decided 2026-08-11):
 `PgKbSearch(pool, embedding)` needs an embedding to embed the query; `KbSearchService(pool)` (T3
 composition, `apps/studio`) constructs with the pool only. So `embedding` is OPTIONAL: when `None`,
-this self-provisions a deterministic dim-8 bag-of-words stub over `studio_kb.embeddings.
+this self-provisions a deterministic bag-of-words stub over `studio_kb.embeddings.
 derive_vector` — the SAME vector space the corpus is seeded in (`KbIngest`/T3's `_CallistoEmbedding`
 both use `derive_vector`), so `KbSearchService(pool)` retrieves real hits and T3 self-XPASSes with
 AIE-1 changing no call-site (QĐ-U1). The `None` path logs a WARNING — it is not silent.
@@ -56,8 +56,9 @@ _log = logging.getLogger(__name__)
 
 
 class _BagOfWordsEmbedding:
-    """Default `EmbeddingService` when none is injected — deterministic dim-8 bag-of-words over
-    `derive_vector`. NOT a semantic model: same SSOT space as `KbIngest`/T3 seeding, so query and
+    """Default `EmbeddingService` when none is injected — deterministic bag-of-words over
+    `derive_vector`, at `schema.EMBEDDING_DIM` width (the column's, since `derive_vector`'s default
+    tracks it — D22). NOT a semantic model: same SSOT space as `KbIngest`/T3 seeding, so query and
     seeded chunks live in one cosine space. Production replaces this via the factory (see module
     docstring)."""
 
@@ -77,7 +78,7 @@ class KbSearchService:
             # fixture-grade ranking, so say so. The tenant/role FENCE is unaffected either way.
             _log.warning(
                 "KbSearchService constructed without an EmbeddingService — using the deterministic "
-                "dim-8 bag-of-words stub (derive_vector). Ranking is fixture-grade, not semantic; "
+                "bag-of-words stub (derive_vector). Ranking is fixture-grade, not semantic; "
                 "inject a real EmbeddingService for production retrieval quality."
             )
             embedding = _BagOfWordsEmbedding()
