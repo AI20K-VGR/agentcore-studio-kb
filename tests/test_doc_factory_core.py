@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from uuid import uuid4
 
 from studio_kb import doc_factory, doc_factory_core, doc_factory_v2
 
@@ -58,3 +59,26 @@ def test_core_does_not_import_either_docfactory_variant() -> None:
     imports = _module_level_imports(Path(doc_factory_core.__file__))
     assert "studio_kb.doc_factory" not in imports
     assert "studio_kb.doc_factory_v2" not in imports
+
+
+# ── embed-view: `embedding_input` là chuỗi DUY NHẤT được đem embed ────────────
+def test_embedding_input_mac_dinh_bang_text() -> None:
+    """`Chunk` không khai `embed_text` (corpus 1.0, hoặc chunk dựng lại từ DB cũ) → embed đúng `text`.
+
+    Đây là điều kiện để thêm embed-view KHÔNG làm 1.0 đổi vector: `doc_factory` (1.0) dựng `Chunk`
+    bằng keyword, không truyền `embed_text`, nên phải rơi về `text` y như trước."""
+    c = doc_factory_core.Chunk(chunk_id="d#c1", text="## A\nnội dung", tenant_id=uuid4(), section_role="hr")
+    assert c.embed_text == ""
+    assert c.embedding_input == "## A\nnội dung"
+
+
+def test_embedding_input_uu_tien_embed_text_khi_co() -> None:
+    c = doc_factory_core.Chunk(
+        chunk_id="d#c1",
+        text="## A\nnội dung",
+        tenant_id=uuid4(),
+        section_role="hr",
+        embed_text="Tiêu đề\n## A\nnội dung",
+    )
+    assert c.embedding_input == "Tiêu đề\n## A\nnội dung"
+    assert c.text == "## A\nnội dung", "thêm embed_text KHÔNG được đụng vào text"

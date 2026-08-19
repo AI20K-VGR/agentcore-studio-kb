@@ -120,3 +120,108 @@ def test_than_heading_rong_raise(tmp_path: Path) -> None:
     _doc(tmp_path / "ankor", "hr-mixed.md", [("Có nội dung", "ok"), ("Rỗng", "")])
     with pytest.raises(ValueError):
         load_corpus_v2(tmp_path)
+
+
+# ── embed-view: text ĐEM EMBED khác text LƯU (fix "#c1 tổng quan nuốt truy vấn") ─
+#
+# Vì sao tách hai chuỗi thay vì sửa `text`: `text` là thứ golden-set 2.0 chấm grounded lên
+# (`_contains_phrase(chunk.text, expected)`) và là thứ `StaticKbSearch` xếp hạng. Đổi nó = phải
+# re-trace toàn bộ nhãn. `embed_text` chỉ đi vào vector, không ai chấm nhãn lên nó.
+def _doc_co_tieu_de(dir_path: Path, filename: str, tieu_de: str, sections: list[tuple[str, str]]) -> None:
+    """Như `_doc` nhưng có dòng tiêu đề tài liệu '# ...' ở đầu — thứ `_cut_document` vứt đi (`:48`)."""
+    dir_path.mkdir(parents=True, exist_ok=True)
+    body = "\n\n".join(f"## {title}\n{b}" for title, b in sections)
+    (dir_path / filename).write_text(f"# {tieu_de}\n\n{body}", encoding="utf-8")
+
+
+def test_embed_text_mang_tieu_de_doc_con_text_thi_khong(tmp_path: Path) -> None:
+    """MỌI chunk phải mang chủ đề cấp-tài-liệu khi đem embed — hết cảnh chỉ `#c1` độc quyền giữ nó.
+
+    Đồng thời `text` KHÔNG được đổi: nhãn golden 2.0 chấm trên `text`, đổi là trôi nhãn."""
+    _doc_co_tieu_de(
+        tmp_path / "ankor",
+        "hr-leave.md",
+        "Chính sách nghỉ phép",
+        [("Số ngày phép năm", "12 ngày."), ("Nghỉ ốm", "Tối đa 30 ngày/năm.")],
+    )
+    chunks = sorted(load_corpus_v2(tmp_path), key=lambda c: c.chunk_id)
+
+    for c in chunks:
+        assert "Chính sách nghỉ phép" in c.embed_text, f"{c.chunk_id}: embed_text thiếu tiêu đề doc"
+        assert "Chính sách nghỉ phép" not in c.text, f"{c.chunk_id}: tiêu đề doc rò vào text → trôi nhãn golden"
+    # `text` giữ đúng hình dạng cũ, byte-identical với trước khi có embed-view.
+    assert chunks[0].text == "## Số ngày phép năm\n12 ngày."
+    assert chunks[1].text == "## Nghỉ ốm\nTối đa 30 ngày/năm."
+    # thân riêng của mục vẫn còn trong embed_text (tiêu đề THÊM VÀO, không thay thế).
+    assert "Tối đa 30 ngày/năm." in chunks[1].embed_text
+
+
+def test_embed_text_cat_boilerplate_lap_trong_scope(tmp_path: Path) -> None:
+    """Câu lặp ≥3 chunk trong CÙNG scope (tenant, role) bị cắt khỏi `embed_text`, còn nguyên ở `text`.
+
+    Đây là câu 'thủ tục chung' không nói gì về mục nó đứng, nhưng vẫn góp từ vựng vào vector — và tệ
+    hơn, có thể cấp nhầm bằng chứng (vd boilerplate chứa '30 ngày' cho câu hỏi về nghỉ ốm)."""
+    boiler = "Chính sách được cập nhật hằng năm."
+    _doc_co_tieu_de(
+        tmp_path / "ankor",
+        "hr-leave.md",
+        "Nghỉ phép",
+        [("A", f"Nội dung A.\n{boiler}"), ("B", f"Nội dung B.\n{boiler}"), ("C", f"Nội dung C.\n{boiler}")],
+    )
+    chunks = load_corpus_v2(tmp_path)
+    assert len(chunks) == 3
+    for c in chunks:
+        assert boiler in c.text, f"{c.chunk_id}: text phải GIỮ boilerplate (nhãn golden chấm trên text)"
+        assert boiler not in c.embed_text, f"{c.chunk_id}: embed_text vẫn dính boilerplate"
+        assert "Nội dung" in c.embed_text, f"{c.chunk_id}: cắt nhầm cả nội dung thật"
+
+
+def test_boilerplate_khong_cat_khi_duoi_nguong(tmp_path: Path) -> None:
+    """Chốt NGƯỠNG: lặp 2 chunk là CHƯA đủ để coi là boilerplate — chống cắt oan câu nội dung thật.
+
+    Không có bài này thì hạ ngưỡng xuống 2 (hoặc 1) vẫn xanh, mà ngưỡng 1 thì cắt sạch mọi thứ."""
+    lap2 = "Câu này chỉ lặp hai lần."
+    _doc_co_tieu_de(
+        tmp_path / "ankor",
+        "hr-leave.md",
+        "Nghỉ phép",
+        [("A", f"Nội dung A.\n{lap2}"), ("B", f"Nội dung B.\n{lap2}"), ("C", "Nội dung C.")],
+    )
+    for c in load_corpus_v2(tmp_path):
+        assert lap2 in c.embed_text or "Nội dung C." in c.text
+
+
+def test_boilerplate_dem_theo_SCOPE_khong_phai_toan_corpus(tmp_path: Path) -> None:
+    """Cùng một câu lặp 3 lần ở vai `hr` nhưng chỉ 1 lần ở vai `finance` → chỉ cắt bên `hr`.
+
+    Fence lọc theo (tenant, role) TRƯỚC khi xếp hạng, nên chunk `finance` không bao giờ cạnh tranh
+    với chunk `hr`; đếm gộp toàn corpus sẽ cắt oan câu vốn đặc trưng trong scope của nó."""
+    cau = "Thông báo trước 2 tuần."
+    _doc_co_tieu_de(
+        tmp_path / "ankor", "hr-leave.md", "Nghỉ phép", [("A", f"a.\n{cau}"), ("B", f"b.\n{cau}"), ("C", f"c.\n{cau}")]
+    )
+    _doc_co_tieu_de(tmp_path / "ankor", "finance-budget.md", "Ngân sách", [("D", f"d.\n{cau}")])
+    by_role = {c.chunk_id: c for c in load_corpus_v2(tmp_path)}
+    assert cau not in by_role["ankor-hr-leave#c1"].embed_text, "hr: lặp 3 → phải cắt"
+    assert cau in by_role["ankor-finance-budget#c1"].embed_text, "finance: lặp 1 → KHÔNG được cắt"
+
+
+def test_tieu_de_doc_KHONG_bi_chinh_bo_loc_boilerplate_xoa(tmp_path: Path) -> None:
+    """Hồi quy: tiêu đề tài liệu lặp ở MỌI chunk của doc (10 mục ⇒ 10 lần ≥ ngưỡng 3), nên bộ lọc
+    boilerplate sẽ ăn mất chính thứ vừa nhồi vào nếu nó không được miễn trừ.
+
+    Bài `test_embed_text_mang_tieu_de_doc_...` KHÔNG bắt được: doc ở đó chỉ có 2 mục → lặp 2 lần →
+    dưới ngưỡng. Phải ≥3 mục mới lộ. (Đo thật lúc phát hiện: 138/800 chunk giữ được tiêu đề thay vì
+    800/800.)"""
+    _doc_co_tieu_de(
+        tmp_path / "ankor",
+        "hr-leave.md",
+        "Chính sách nghỉ phép",
+        [(f"Mục {i}", f"Nội dung riêng {i}.") for i in range(1, 6)],
+    )
+    chunks = load_corpus_v2(tmp_path)
+    assert len(chunks) == 5
+    for c in chunks:
+        assert "Chính sách nghỉ phép" in c.embed_text, (
+            f"{c.chunk_id}: tiêu đề doc bị bộ lọc boilerplate xoá — embed-view mất tác dụng"
+        )

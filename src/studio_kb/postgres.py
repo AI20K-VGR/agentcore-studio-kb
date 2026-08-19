@@ -59,14 +59,21 @@ from studio_kb.schema import EMBEDDING_DIM
 Pool = AsyncConnectionPool[AsyncConnection[Any]]
 
 _UPSERT = """
-INSERT INTO kb.chunks (chunk_id, tenant_id, section_role, text, embedding)
-VALUES (%s, %s, %s, %s, %s::vector)
+INSERT INTO kb.chunks (chunk_id, tenant_id, section_role, text, embed_text, embedding)
+VALUES (%s, %s, %s, %s, %s, %s::vector)
 ON CONFLICT (chunk_id) DO UPDATE SET
     tenant_id    = EXCLUDED.tenant_id,
     section_role = EXCLUDED.section_role,
     text         = EXCLUDED.text,
+    embed_text   = EXCLUDED.embed_text,
     embedding    = EXCLUDED.embedding
 """
+"""`embed_text` lưu ĐÚNG chuỗi đã đem embed (`Chunk.embedding_input`), không phải một biến thể.
+
+Bất biến: **cột `embed_text` luôn là đầu vào đã sinh ra cột `embedding` cạnh nó.** Nhờ vậy
+`KbPipeline.re_index` — vốn dựng lại `Chunk` TỪ DB — tái lập được đúng vector: tiêu đề tài liệu và
+việc đã cắt boilerplate không suy lại được từ `text` của một dòng đơn lẻ. Không lưu cột này thì mỗi
+vòng re-index âm thầm đổi vector của mọi chunk mà không `chunk_id` nào chết."""
 
 _SEARCH = """
 SELECT chunk_id, text, 1 - (embedding <=> %s::vector) AS score, tenant_id, section_role
@@ -134,7 +141,7 @@ class KbIngest:
 
         written = 0
         for tenant_id, batch in by_tenant.items():
-            vectors = await self._embedding.embed([c.text for c in batch])
+            vectors = await self._embedding.embed([c.embedding_input for c in batch])
             if len(vectors) != len(batch):
                 raise ValueError(f"embed() trả {len(vectors)} vector cho {len(batch)} chunk")
             for vector in vectors:
@@ -148,7 +155,14 @@ class KbIngest:
                 for chunk, vector in zip(batch, vectors, strict=True):
                     await conn.execute(
                         _UPSERT,
-                        (chunk.chunk_id, chunk.tenant_id, chunk.section_role, chunk.text, _vector_literal(vector)),
+                        (
+                            chunk.chunk_id,
+                            chunk.tenant_id,
+                            chunk.section_role,
+                            chunk.text,
+                            chunk.embedding_input,
+                            _vector_literal(vector),
+                        ),
                     )
                     written += 1
         return written

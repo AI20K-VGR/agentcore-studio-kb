@@ -45,7 +45,17 @@ CORPUS_ROOT = _HERE.parents[1] / "docs" / "callisto-2.0"
 CASES_DIR = _HERE / "cases"
 BASELINE_PATH = _HERE / "baseline-dim8.json"
 
-TOP_K = 10  # top-k cho recall@k/MRR — cùng bậc top_k thực nghiệm wire 2.0
+# top-k cho hit@k/MRR. ĐÚNG BẰNG `top_k` recipe production dựng ra (`workbench/builder.py:219,292`
+# — node `kb-retrieve` hardcode `"top_k": 3`), nên "trúng" ở đây nghĩa là LLM THẬT SỰ nhìn thấy chunk
+# đúng. Trước đây là 10 với chú thích "cùng bậc top_k thực nghiệm wire 2.0" — sai: không call-site
+# production nào dùng 10 (builder=3, `KbRetrieveExecutor` fallback=5), nên recall@10 tính điểm cho cả
+# những lần chunk đúng xếp hạng 4–10 mà production không bao giờ đưa vào prompt.
+TOP_K = 3
+# Độ sâu retrieve dùng để tính hit@5/MRR@5 — luôn lấy 5, rồi hit@1/hit@3 cắt từ CHÍNH danh sách này
+# (không retrieve lại), nên thứ hạng nhất quán giữa ba con số. TOP_K=3 khớp `builder.py:219,292`
+# (mặc định production); MAX_K=5 khớp fallback của `KbRetrieveExecutor` (`search.py`) — cả hai đều
+# là call-site thật, không phải số chọn tuỳ ý cho "ngữ cảnh".
+MAX_K = 5
 STRATA = ("S1", "S2", "S3", "S4", "S5")
 
 
@@ -158,37 +168,69 @@ class InMemoryRetriever:
 def build_retriever(provider: object) -> tuple[InMemoryRetriever, dict[str, str]]:
     """Embed toàn corpus 2.0 bằng provider → retriever + {chunk_id: text} (để test integrity soi token)."""
     chunks = load_corpus_v2(CORPUS_ROOT)
-    vectors = to_vectors(provider, [c.text for c in chunks])
+    # `embedding_input` (không phải `.text`) — CÙNG chuỗi mà đường ghi thật embed (`pipeline.py::
+    # embed_invoke`). Nếu harness embed `.text` còn production embed `embedding_input` thì mọi con số
+    # ở đây đo một hệ thống không tồn tại.
+    vectors = to_vectors(provider, [c.embedding_input for c in chunks])
     indexed = [Indexed(c.chunk_id, c.tenant_id, c.section_role, tuple(v)) for c, v in zip(chunks, vectors, strict=True)]
     texts = {c.chunk_id: c.text for c in chunks}
     return InMemoryRetriever(indexed), texts
 
 
 # ── metric ───────────────────────────────────────────────────────────────────
+# Sáu con số, MỘT nghĩa cố định mỗi con số (không đổi nghĩa theo tầng như bản `recall`/`clean` cũ):
+#
+#   hit1/hit3/hit5   — chunk cần thiết CÓ nằm trong top-1/3/5 không (1.0/0.0; None nếu tầng không có
+#                       `expected_citation` — chỉ S5).
+#   mrr5             — 1/hạng của chunk đúng đầu tiên trong top-5; 0.0 nếu trượt hẳn; None ở S5.
+#   decoy_fall       — hạng #1 CÓ phải đúng chunk `decoy_hint` (bẫy DE gán tay) không (1.0/0.0);
+#                       None nếu case không khai `decoy_hint` (S1/S2/S5 — hiện tại luôn None).
+#   max_cosine_mean  — trung bình cosine của hạng #1 mỗi case. LUÔN có giá trị kể cả S5 (không có
+#                       "trúng" để đo, nhưng vẫn có điểm cosine cao nhất để đo độ tự tin).
+#
+# `decoy_fall` hẹp hơn tên gọi: nó chỉ bắt "hạng #1 trúng ĐÚNG chunk DE đã gán nhãn là bẫy", KHÔNG
+# phải "hạng #1 sai bất kỳ chunk nào". `test_dataset_case.py` chỉ kiểm decoy_hint là chunk thật cùng
+# tenant — KHÔNG kiểm nó là đối thủ trùng-token mạnh nhất, nên số DFR thấp không tự động nghĩa là
+# "ít bị nhiễu", có thể là nhãn decoy chưa phải bẫy mạnh nhất.
+
+
 @dataclass(frozen=True)
 class CaseResult:
     case_id: str
     stratum: str
-    retrieved: tuple[str, ...]
-    top_score: float  # cosine của hit#1 (S5: đo 'độ tự tin trả nhầm')
-    recall_at_k: float  # non-S5: |expected ∩ retrieved|/|expected|. S5: 1 - top_score ('độ sạch', cao=tốt)
-    reciprocal_rank: float  # 1/hạng expected đầu; 0 nếu trượt (không dùng cho S5)
+    retrieved: tuple[str, ...]  # top-MAX_K chunk_id, sắp giảm dần theo cosine
+    top_score: float
+    hit1: float | None
+    hit3: float | None
+    hit5: float | None
+    mrr5: float | None
+    decoy_fall: float | None
 
 
 def score_case(case: Case, results: list[tuple[str, float]]) -> CaseResult:
+    """Chấm một case trên top-`MAX_K` kết quả (`results`) → 6 con số cố định nghĩa, xem khối comment
+    phía trên. `expected_citation` rỗng (S5) ⇒ hit*/mrr5 = None (không có gì để 'trúng')."""
     ids = tuple(cid for cid, _ in results)
     top_score = results[0][1] if results else 0.0
     expected = set(case.expected_citation)
-    if not expected:  # S5 negative: cùng chiều recall (cao=tốt) = mức KHÔNG tự tin trả nhầm.
-        return CaseResult(case.id, case.stratum, ids, top_score, 1.0 - top_score, 0.0)
-    hit = expected & set(ids)
-    recall = len(hit) / len(expected)
-    rr = next((1.0 / rank for rank, cid in enumerate(ids, 1) if cid in expected), 0.0)
-    return CaseResult(case.id, case.stratum, ids, top_score, recall, rr)
+
+    decoy_fall = None
+    if case.decoy_hint:
+        decoy_fall = 1.0 if ids and ids[0] in set(case.decoy_hint) else 0.0
+
+    if not expected:
+        return CaseResult(case.id, case.stratum, ids, top_score, None, None, None, None, decoy_fall)
+
+    def hit_at(k: int) -> float:
+        return 1.0 if expected & set(ids[:k]) else 0.0
+
+    mrr5 = next((1.0 / rank for rank, cid in enumerate(ids, 1) if cid in expected), 0.0)
+    return CaseResult(case.id, case.stratum, ids, top_score, hit_at(1), hit_at(3), hit_at(5), mrr5, decoy_fall)
 
 
 def build_report(provider: object) -> dict[str, CaseResult]:
-    """Chấm TOÀN BỘ case một lần cho provider → {case_id: CaseResult}. Order-independent."""
+    """Chấm TOÀN BỘ case một lần cho provider → {case_id: CaseResult}. Order-independent. Retrieve
+    luôn ở `MAX_K` — hit@1/hit@3 cắt từ CÙNG danh sách này, không retrieve lại ở k khác."""
     retriever, _ = build_retriever(provider)
     from studio_kb.doc_factory import resolve_tenant_id
 
@@ -196,16 +238,92 @@ def build_report(provider: object) -> dict[str, CaseResult]:
     qvecs = to_vectors(provider, [c.query for c in cases]) if cases else []
     out: dict[str, CaseResult] = {}
     for case, qv in zip(cases, qvecs, strict=True):
-        results = retriever.search(qv, resolve_tenant_id(case.tenant), case.section_roles, TOP_K)
+        results = retriever.search(qv, resolve_tenant_id(case.tenant), case.section_roles, MAX_K)
         out[case.id] = score_case(case, results)
     return out
 
 
-def stratum_recall(report: dict[str, CaseResult], stratum: str) -> float:
-    vals = [r.recall_at_k for r in report.values() if r.stratum == stratum]
-    return sum(vals) / len(vals) if vals else 0.0
+def _stratum_mean(report: dict[str, CaseResult], stratum: str, field: str) -> float | None:
+    vals = [v for r in report.values() if r.stratum == stratum and (v := getattr(r, field)) is not None]
+    return sum(vals) / len(vals) if vals else None
 
 
-def stratum_mrr(report: dict[str, CaseResult], stratum: str) -> float:
-    vals = [r.reciprocal_rank for r in report.values() if r.stratum == stratum and stratum != "S5"]
-    return sum(vals) / len(vals) if vals else 0.0
+def stratum_metric(report: dict[str, CaseResult], stratum: str, metric: str) -> float | None:
+    """Trung bình một trong 6 metric cho một tầng; `None` nếu tầng đó không có case nào áp dụng được
+    metric này (vd `hit1` ở S5, `decoy_fall` ở S1/S2/S5)."""
+    if metric == "max_cosine_mean":
+        vals = [r.top_score for r in report.values() if r.stratum == stratum]
+        return sum(vals) / len(vals) if vals else None
+    return _stratum_mean(report, stratum, metric)
+
+
+ALL_METRICS = ("hit1", "hit3", "hit5", "mrr5", "decoy_fall", "max_cosine_mean")
+
+# Chiều 'tốt hơn' của từng metric. higher: ứng viên phải VƯỢT baseline+margin. lower: ứng viên phải
+# THẤP HƠN baseline-margin — `decoy_fall`/`max_cosine_mean` càng thấp càng ít bị nhiễu/ít tự tin ẩu.
+METRIC_DIRECTION: dict[str, str] = {
+    "hit1": "higher",
+    "hit3": "higher",
+    "hit5": "higher",
+    "mrr5": "higher",
+    "decoy_fall": "lower",
+    "max_cosine_mean": "lower",
+}
+
+# Metric nào THỰC SỰ bị gate (ứng viên không vượt ⇒ CI đỏ) ở từng tầng. Metric còn lại trong
+# `ALL_METRICS` vẫn được ghi vào baseline để tham khảo/freshness nhưng KHÔNG chặn CI.
+#
+# S1–S4: hit*/mrr5 (có `expected_citation`). S3/S4 thêm `decoy_fall` (chỉ hai tầng này khai
+# `decoy_hint`). S5: KHÔNG hit*/mrr5 (không có `expected_citation` — vô nghĩa) — gate duy nhất là
+# `max_cosine_mean` thấp, ĐÚNG LÀ gate 'clean' cũ, chỉ bỏ phép nghịch đảo `1-top_sim` cho dễ đọc.
+GATED_METRICS: dict[str, tuple[str, ...]] = {
+    "S1": ("hit1", "hit3", "hit5", "mrr5"),
+    "S2": ("hit1", "hit3", "hit5", "mrr5"),
+    "S3": ("hit1", "hit3", "hit5", "mrr5", "decoy_fall"),
+    "S4": ("hit1", "hit3", "hit5", "mrr5", "decoy_fall"),
+    "S5": ("max_cosine_mean",),
+}
+
+# Metric gate bằng NGƯỠNG TUYỆT ĐỐI, KHÔNG so tương đối với baseline dim-8.
+#
+# Vì sao `decoy_fall` phải nằm ngoài cơ chế "vượt baseline + margin": **dim-8 thắng metric này một
+# cách TẦM THƯỜNG.** Nó xếp hạng gần như ngẫu nhiên trên toàn corpus, nên hạng #1 của nó hiếm khi
+# trúng đúng chunk decoy đã gán nhãn — thấp vì KHÔNG HIỂU GÌ ĐỂ BỊ BẪY, không phải vì chống bẫy giỏi.
+# Đo được: dim-8 `decoy_fall` = 0.0435 (macro S3+S4), chỉ ~5.7× mức xếp-hạng-ngẫu-nhiên-thuần
+# (1/|scope| ≈ 0.0076), trong khi mọi model ngữ nghĩa nằm ở 0.078–0.165 vì chúng ĐỦ hiểu để bị
+# near-miss decoy kéo lên hạng #1.
+#
+# Hệ quả số học của bản cũ: gate đòi `got <= base - margin` = `0.0667 - 0.10 = -0.033` (S3) và
+# `0.0182 - 0.10 = -0.082` (S4) — **NGƯỠNG ÂM, không tỉ lệ nào đạt được**. Mọi provider trượt đúng 2
+# ô này vì số học, không vì chất lượng (đo được trên cả 7 provider). Đó là gate hỏng, không phải
+# gate nghiêm.
+#
+# Ngưỡng 0.35 lấy từ dữ liệu, không phải cảm tính: giá trị cao nhất quan sát được ở một provider
+# CHẠY ĐƯỢC là 0.2333 (S3, `hash1024` và `bge-m3`); với n=60 ở tầng S3 thì SE ≈ 0.055, nên
+# 0.2333 + 2·SE ≈ 0.343. Chọn 0.35 để một model tệ-ngang-`bge-m3` vẫn qua chắc chắn (không nhấp
+# nháy vì nhiễu lấy mẫu), nhưng vẫn bắt được thứ thật sự bệnh — vd 1/2 số truy vấn rơi vào bẫy.
+#
+# ĐỌC KÈM: metric này KHÔNG dùng để CHỌN model được (model càng ngẫu nhiên càng "thắng"). Nó là
+# thanh chắn an toàn một chiều: bắt provider bị bẫy một cách bệnh hoạn, KHÔNG xếp hạng provider tốt.
+ABSOLUTE_MAX: dict[str, float] = {"decoy_fall": 0.35}
+
+
+def gate_verdict(metric: str, got: float, baseline: float, margin: float | None) -> bool:
+    """Ứng viên có QUA gate của một metric không. Hai chế độ, chọn theo `ABSOLUTE_MAX`:
+
+    - **tuyệt đối** (metric ∈ `ABSOLUTE_MAX`): `got <= ngưỡng`; `baseline`/`margin` bị BỎ QUA hoàn
+      toàn. Dùng khi baseline dim-8 không phải mốc có ý nghĩa cho metric đó (xem `ABSOLUTE_MAX`).
+    - **tương đối** (còn lại): theo `METRIC_DIRECTION` — `higher` đòi `got >= baseline + margin`,
+      `lower` đòi `got <= baseline - margin`.
+
+    `margin` chỉ được phép `None` khi metric gate tuyệt đối; thiếu margin ở chế độ tương đối là lỗi
+    cấu hình, raise chứ không âm thầm cho qua.
+    """
+    ceiling = ABSOLUTE_MAX.get(metric)
+    if ceiling is not None:
+        return got <= ceiling
+    if margin is None:
+        raise ValueError(f"metric {metric!r} gate tương đối nhưng thiếu margin")
+    if METRIC_DIRECTION[metric] == "higher":
+        return got >= baseline + margin
+    return got <= baseline - margin

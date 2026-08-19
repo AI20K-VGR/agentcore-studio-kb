@@ -58,9 +58,23 @@ class Chunk:
     `tenant_id` là **UUID** (D-13), phân giải từ slug front-matter qua `resolve_tenant_id`. Slug gốc
     KHÔNG mất — nó vẫn nằm trong `chunk_id` (`"ankor-leave-001#c1"`) làm nhãn hiển thị, đúng chủ ý
     D-13 (chunk_id là con trỏ bền qua re-index, giữ nguyên).
+
+    `text` là thứ **hiển thị/chấm nhãn**: golden-set 2.0 kiểm grounded bằng `_contains_phrase(
+    chunk.text, expected)` và `StaticKbSearch` xếp hạng trên nó. `embed_text` là thứ **đem embed** —
+    tách đôi để cải thiện retrieval (nhồi tiêu đề tài liệu, cắt boilerplate) mà KHÔNG đụng vào
+    `text`, vì đổi `text` là phải re-trace toàn bộ nhãn golden. Rỗng ⇒ rơi về `text` (corpus 1.0 và
+    chunk dựng lại từ dòng DB cũ đều không khai nó, phải giữ hành vi cũ nguyên vẹn).
     """
 
     chunk_id: str
     text: str
     tenant_id: UUID
     section_role: str
+    embed_text: str = ""
+
+    @property
+    def embedding_input(self) -> str:
+        """Chuỗi DUY NHẤT được phép đưa vào `EmbeddingService`. Mọi đường ghi vector đọc qua đây —
+        không chỗ nào tự chọn giữa `text`/`embed_text`, kẻo hai đường ghi ra hai vector khác nhau
+        cho cùng một chunk (xem `KbPipeline.re_index`)."""
+        return self.embed_text or self.text

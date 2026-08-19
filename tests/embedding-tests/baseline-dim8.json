@@ -1,39 +1,116 @@
 {
-  "margin": {
-    "S1": 0.02,
-    "S2": 0.1,
-    "S3": 0.1,
-    "S4": 0.1,
-    "S5": 0.05
+  "absolute_max": {
+    "decoy_fall": 0.35
   },
-  "note": "mốc tương đối đóng băng — ứng viên phải vượt recall + margin[tầng]. S5 recall = 1-top_sim (cao=sạch).",
+  "gated_metrics": {
+    "S1": [
+      "hit1",
+      "hit3",
+      "hit5",
+      "mrr5"
+    ],
+    "S2": [
+      "hit1",
+      "hit3",
+      "hit5",
+      "mrr5"
+    ],
+    "S3": [
+      "hit1",
+      "hit3",
+      "hit5",
+      "mrr5",
+      "decoy_fall"
+    ],
+    "S4": [
+      "hit1",
+      "hit3",
+      "hit5",
+      "mrr5",
+      "decoy_fall"
+    ],
+    "S5": [
+      "max_cosine_mean"
+    ]
+  },
+  "margin": {
+    "S1": {
+      "hit1": 0.02,
+      "hit3": 0.02,
+      "hit5": 0.02,
+      "mrr5": 0.02
+    },
+    "S2": {
+      "hit1": 0.1,
+      "hit3": 0.1,
+      "hit5": 0.1,
+      "mrr5": 0.1
+    },
+    "S3": {
+      "hit1": 0.1,
+      "hit3": 0.1,
+      "hit5": 0.1,
+      "mrr5": 0.1
+    },
+    "S4": {
+      "hit1": 0.1,
+      "hit3": 0.1,
+      "hit5": 0.1,
+      "mrr5": 0.1
+    },
+    "S5": {
+      "max_cosine_mean": 0.05
+    }
+  },
+  "max_k": 5,
+  "note": "mốc đóng băng — ứng viên phải vượt các metric trong gated_metrics[tầng] + margin[tầng]. Metric ngoài gated_metrics chỉ để tham khảo, không chặn CI. Metric trong absolute_max gate bằng NGƯỠNG TUYỆT ĐỐI (got <= ngưỡng), bỏ qua baseline+margin.",
   "provider": "baseline-dim8",
   "strata": {
     "S1": {
-      "mrr": 0.190714,
-      "n": 25,
-      "recall": 0.44
+      "decoy_fall": null,
+      "hit1": 0.030769,
+      "hit3": 0.123077,
+      "hit5": 0.153846,
+      "max_cosine_mean": 0.921348,
+      "mrr5": 0.07359,
+      "n": 65
     },
     "S2": {
-      "mrr": 0.075,
-      "n": 20,
-      "recall": 0.15
+      "decoy_fall": null,
+      "hit1": 0.016393,
+      "hit3": 0.04918,
+      "hit5": 0.065574,
+      "max_cosine_mean": 0.921784,
+      "mrr5": 0.031421,
+      "n": 61
     },
     "S3": {
-      "mrr": 0.098948,
-      "n": 20,
-      "recall": 0.3
+      "decoy_fall": 0.066667,
+      "hit1": 0.016667,
+      "hit3": 0.133333,
+      "hit5": 0.166667,
+      "max_cosine_mean": 0.936909,
+      "mrr5": 0.068611,
+      "n": 60
     },
     "S4": {
-      "mrr": 0.081746,
-      "n": 15,
-      "recall": 0.4
+      "decoy_fall": 0.018182,
+      "hit1": 0.018182,
+      "hit3": 0.072727,
+      "hit5": 0.109091,
+      "max_cosine_mean": 0.949442,
+      "mrr5": 0.047576,
+      "n": 55
     },
     "S5": {
-      "mrr": 0.0,
-      "n": 19,
-      "recall": 0.072814
+      "decoy_fall": null,
+      "hit1": null,
+      "hit3": null,
+      "hit5": null,
+      "max_cosine_mean": 0.933339,
+      "mrr5": null,
+      "n": 59
     }
   },
-  "top_k": 10
+  "top_k": 3
 }

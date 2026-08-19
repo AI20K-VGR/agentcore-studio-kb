@@ -40,9 +40,15 @@ CREATE TABLE IF NOT EXISTS kb.chunks (
     tenant_id UUID NOT NULL,
     section_role TEXT NOT NULL,
     text TEXT NOT NULL,
+    embed_text TEXT,
     embedding vector({EMBEDDING_DIM}),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- `CREATE TABLE IF NOT EXISTS` ở trên KHÔNG thêm cột vào bảng đã tồn tại, nên DB cũ phải được vá
+-- riêng — không có dòng này thì mọi môi trường đã chạy trước đây sẽ đỏ ở `_UPSERT` với "column
+-- embed_text does not exist". NULL cho dòng cũ là đúng: `re_index` rơi về `text` y như trước.
+ALTER TABLE kb.chunks ADD COLUMN IF NOT EXISTS embed_text TEXT;
 
 CREATE INDEX IF NOT EXISTS kb_chunks_embedding_hnsw_idx
     ON kb.chunks USING hnsw (embedding vector_cosine_ops);
