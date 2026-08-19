@@ -16,7 +16,7 @@ from pathlib import Path
 
 from studio_kb.grid_queries import GRID_CASES, GRID_SET_REF, render_yaml
 
-_OUT_PATH = Path(__file__).resolve().parents[1] / "golden" / "callisto-grid-queries-v0.yaml"
+_OUT_PATH = Path(__file__).resolve().parents[1] / "src" / "studio_kb" / "golden" / "callisto-grid-queries-v0.yaml"
 
 
 def main() -> None:

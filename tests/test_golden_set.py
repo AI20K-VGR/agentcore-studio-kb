@@ -27,7 +27,7 @@ from studio_kb.doc_factory import Chunk, load_callisto, resolve_tenant_id
 from studio_kb.golden_set import EDGE_AXES, GOLDEN_CASES, MANUAL_LABEL_VALUES, render_yaml
 from studio_kb.static_search import StaticKbSearch
 
-_GOLDEN = Path(__file__).resolve().parents[1] / "golden" / "callisto-golden-30-v1.yaml"
+_GOLDEN = Path(__file__).resolve().parents[1] / "src" / "studio_kb" / "golden" / "callisto-golden-30-v1.yaml"
 _EXPECTED_REF = "callisto-golden-30-v1"
 
 
