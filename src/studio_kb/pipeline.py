@@ -25,7 +25,7 @@ from studio_kb.doc_factory_v2 import _cut_document
 from studio_kb.postgres import _UPSERT, Pool, _bind_tenant, _vector_literal
 from studio_kb.schema import EMBEDDING_DIM
 
-_SELECT_TENANT = "SELECT chunk_id, section_role, text FROM kb.chunks WHERE tenant_id = %s"
+_SELECT_TENANT = "SELECT chunk_id, section_role, text, embed_text FROM kb.chunks WHERE tenant_id = %s"
 _DELETE_TENANT = "DELETE FROM kb.chunks WHERE tenant_id = %s"
 
 
@@ -51,7 +51,7 @@ class KbPipeline:
 
         Fail-fast tại đây: cột là `vector(EMBEDDING_DIM)` nên Postgres cũng từ chối ở `index`, nhưng
         báo sớm chỉ thẳng thủ phạm là `EmbeddingService`, không phải câu INSERT."""
-        vectors = await self._embedding.embed([c.text for c in chunks])
+        vectors = await self._embedding.embed([c.embedding_input for c in chunks])
         if len(vectors) != len(chunks):
             raise ValueError(f"embed() trả {len(vectors)} vector cho {len(chunks)} chunk")
         for vector in vectors:
@@ -78,7 +78,14 @@ class KbPipeline:
                 for chunk, vector in batch:
                     await conn.execute(
                         _UPSERT,
-                        (chunk.chunk_id, chunk.tenant_id, chunk.section_role, chunk.text, _vector_literal(vector)),
+                        (
+                            chunk.chunk_id,
+                            chunk.tenant_id,
+                            chunk.section_role,
+                            chunk.text,
+                            chunk.embedding_input,
+                            _vector_literal(vector),
+                        ),
                     )
 
     async def consent_purge(self, tenant_id: UUID) -> int:
@@ -99,7 +106,13 @@ class KbPipeline:
             cursor = await conn.execute(_SELECT_TENANT, (tenant_id,))
             rows = await cursor.fetchall()
 
-        chunks = [Chunk(chunk_id=r[0], text=r[2], tenant_id=tenant_id, section_role=r[1]) for r in rows]
+        # `embed_text` ĐỌC LẠI TỪ DB (r[3]) chứ không suy lại: tiêu đề tài liệu không nằm trong
+        # `text` của bất kỳ dòng nào, và việc đã-cắt-boilerplate cần thống kê cả scope — một dòng
+        # đơn lẻ không tái tạo được. Dòng cũ (trước khi có cột) trả NULL → `""` → `embedding_input`
+        # rơi về `text`, đúng hành vi trước đây.
+        chunks = [
+            Chunk(chunk_id=r[0], text=r[2], tenant_id=tenant_id, section_role=r[1], embed_text=r[3] or "") for r in rows
+        ]
         if not chunks:
             return 0
         await self.index(chunks, await self.embed_invoke(chunks))

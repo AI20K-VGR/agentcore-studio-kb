@@ -151,3 +151,68 @@ async def test_re_index_giu_chunk_id_va_so_luong(pool: object) -> None:
 
 async def test_re_index_tenant_rong_tra_0(pool: object) -> None:
     assert await _pipe(pool).re_index(ANKOR_ID) == 0
+
+
+# ── embed-view + re_index: chuỗi đem embed phải TÁI LẬP ĐƯỢC sau vòng đời DB ──
+
+
+class _Ghi:
+    """`EmbeddingService` GHI LẠI đúng chuỗi nó được đưa — để so ingest vs re_index."""
+
+    def __init__(self) -> None:
+        self.da_embed: list[str] = []
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        self.da_embed.extend(texts)
+        return [derive_vector(t) for t in texts]
+
+
+async def test_embed_invoke_dung_embedding_input_khong_dung_text() -> None:
+    """`embed_invoke` phải embed `embedding_input` (có ngữ cảnh doc), KHÔNG phải `text` trần.
+
+    Không có bài này thì thêm `embed_text` vào `Chunk` vẫn xanh trong khi đường ghi thật bỏ qua nó —
+    harness đẹp lên mà production không đổi gì (xanh giả)."""
+    ghi = _Ghi()
+    chunk = Chunk(
+        chunk_id="ankor-hr-leave#c1",
+        text="## Nghỉ ốm\n30 ngày.",
+        tenant_id=ANKOR_ID,
+        section_role="hr",
+        embed_text="Chính sách nghỉ phép\n## Nghỉ ốm\n30 ngày.",
+    )
+    await _pipe(None, ghi).embed_invoke([chunk])
+    assert ghi.da_embed == ["Chính sách nghỉ phép\n## Nghỉ ốm\n30 ngày."]
+
+
+@pytest.mark.usefixtures("pool")
+async def test_re_index_nhung_lai_DUNG_CHUOI_da_embed(pool: object) -> None:
+    """`re_index` phải nhúng lại ĐÚNG chuỗi mà `index` đã nhúng — nếu không, một vòng re-index âm
+    thầm đổi vector của mọi chunk (mất ngữ cảnh doc + boilerplate quay lại) mà không id nào chết.
+
+    Đây là cái bẫy riêng của thiết kế embed-view: `re_index` dựng lại `Chunk` TỪ DB, nên chuỗi đem
+    embed phải được LƯU, không thể suy lại từ một dòng đơn lẻ (tiêu đề doc không nằm trong text nào)."""
+    chunks = [
+        Chunk(
+            chunk_id="ankor-hr-leave#c1",
+            text="## Nghỉ ốm\n30 ngày.",
+            tenant_id=ANKOR_ID,
+            section_role="hr",
+            embed_text="Chính sách nghỉ phép\n## Nghỉ ốm\n30 ngày.",
+        ),
+        Chunk(
+            chunk_id="ankor-hr-leave#c2",
+            text="## Thai sản\n6 tháng.",
+            tenant_id=ANKOR_ID,
+            section_role="hr",
+            embed_text="Chính sách nghỉ phép\n## Thai sản\n6 tháng.",
+        ),
+    ]
+    luc_ingest = _Ghi()
+    pipe_in = _pipe(pool, luc_ingest)
+    await pipe_in.index(chunks, await pipe_in.embed_invoke(chunks))
+
+    luc_reindex = _Ghi()
+    assert await _pipe(pool, luc_reindex).re_index(ANKOR_ID) == 2
+    assert sorted(luc_reindex.da_embed) == sorted(luc_ingest.da_embed), (
+        "re_index nhúng chuỗi KHÁC lúc ingest → vector trôi âm thầm sau mỗi vòng re-index"
+    )

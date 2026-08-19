@@ -1,710 +1,665 @@
-# Năm provider embedding: dim-8 vs hashing-512 vs BGE-M3 vs multilingual-e5-large vs Gemini
-
-So 5 provider trên CÙNG harness (`tests/embedding-tests/_harness.py`), CÙNG 300 case, CÙNG corpus 800 chunk (`docs/callisto-2.0`), CÙNG cách xếp hạng (cosine, top-k=10, lọc `{tenant_id, section_roles}` trước). Báo cáo THỬ NGHIỆM — không đổi provider mặc định của harness, không sửa case JSON ở đây (case đã được sửa/mở rộng lên 300 ở công việc trước; `baseline-dim8.json` được re-record khớp case set hiện tại — xem mục Ghi chú).
-
-## Năm provider là gì
-
-| Provider | Công thức | Chiều | Nơi chạy | Có ngữ nghĩa? |
-|---|---|---:|---|:---:|
-| `baseline-dim8` | `derive_vector` — `blake2b(token)` băm vào ô, đếm, L2-normalize (`studio_kb/embeddings.py`) | 8 | local, CPU | Không |
-| `bow-hash512` | CÙNG hàm `derive_vector`, chỉ đổi `dim=8`→`dim=512` | 512 | local, CPU | Không |
-| `bge-m3` | `BAAI/bge-m3` qua `sentence-transformers`, dense học sẵn (contrastive, đa ngôn ngữ) | 1024 | local, MPS (GPU) | Có |
-| `multilingual-e5-large` | `intfloat/multilingual-e5-large` qua `sentence-transformers`, dense học sẵn (contrastive, đa ngôn ngữ, ~24 layer) | 1024 | local, MPS (GPU) | Có |
-| `gemini-embedding-001` | Google Gemini Embedding API, `output_dimensionality=1024` (Matryoshka, cắt từ 3072 gốc) | 1024 | API (Google) | Có |
-
-**`multilingual-e5-large` bắt buộc prefix** — tài liệu chính thức của model yêu cầu thêm `"query: "` trước câu hỏi và `"passage: "` trước đoạn văn bản trước khi encode; bỏ prefix làm giảm chất lượng rõ rệt vì model huấn luyện contrastive với quy ước này để phân biệt vai trò bất đối xứng query↔document. `E5LargeProvider` dùng chung thủ thuật với `gemini-embedding-001`: harness gọi `embed()` đúng 2 lần theo thứ tự cố định — (1) corpus trong `build_retriever` → prefix `passage: `, (2) query trong `build_report` → prefix `query: `.
-- **`gemini-embedding-001` ĐỌC LẠI cache** đã chấm trước đó (`gemini_cache.json`, 1088 vector — một vài text trùng lặp giữa các case nên ít hơn 1100 danh nghĩa), KHÔNG gọi API lại — tránh đốt thêm quota free-tier vốn đã trầy trật khi chấm lần đầu (2 lần đổi API key vì hết quota ngày).
-
-## Corpus & bộ case (dùng chung cho cả 5 provider)
-
-- Corpus 2.0: **800 chunk** trên **80 tài liệu**, 2 tenant.
-
-| role | số chunk |
-|---|---:|
-| engineering | 200 |
-| finance | 200 |
-| hr | 200 |
-| public | 200 |
-
-| tenant | số chunk |
-|---|---:|
-| ankor | 400 |
-| borea | 400 |
-
-- Bộ case: **300 case**, 5 tầng S1–S5 (~60 case/tầng).
-
-### Định nghĩa metric
-
-- **recall@k** (S1–S4): `|expected ∩ retrieved_top10| / |expected|`.
-- **reciprocal_rank** (S1–S4): `1/hạng` của chunk đúng đầu tiên trong top-10; 0 nếu trượt hẳn.
-- **S5 (negative)**: `recall = 1 − top_score` — cao = 'sạch'.
-- **Gate 'vượt'**: `recall(ứng viên) ≥ recall(baseline dim-8) + margin[tầng]` — margin: S1=+0.02, S2=+0.10, S3=+0.10, S4=+0.10, S5=+0.05.
-
-**Ghi chú về `baseline-dim8.json`**: file này đã được re-record ngay trước khi viết báo cáo này (`python tests/embedding-tests/record_baseline.py`) — bản cũ bị stale so với case set hiện tại (300 case, sau khi sửa ground-truth S1–S4 ở công việc trước), khiến `test_embedding_gate.py` đỏ ở cả 5 tầng (freshness check tự phát hiện đúng như thiết kế). Toàn bộ số 'dim-8' trong báo cáo này là số MỚI, khớp case set hiện tại.
-
-## Kết quả tổng theo tầng — cả 5 provider
-
-| Tầng | n | recall dim-8 | recall hash512 | recall bge-m3 | recall e5-large | recall gemini-001 | mrr dim-8 | mrr hash512 | mrr bge-m3 | mrr e5-large | mrr gemini-001 |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| S1 | 65 | 0.2615 | 0.8154 | 0.7385 | 0.7231 | 0.8000 | 0.1034 | 0.6044 | 0.5671 | 0.5362 | 0.5675 |
-| S2 | 61 | 0.0984 | 0.1148 | 0.6721 | 0.6230 | 0.7049 | 0.0329 | 0.0262 | 0.3837 | 0.3538 | 0.5112 |
-| S3 | 60 | 0.2333 | 0.5167 | 0.5667 | 0.5833 | 0.7167 | 0.0862 | 0.3164 | 0.3800 | 0.4247 | 0.5066 |
-| S4 | 55 | 0.2182 | 0.4545 | 0.5818 | 0.6182 | 0.6364 | 0.0497 | 0.2694 | 0.4675 | 0.4594 | 0.5133 |
-| S5 | 59 | 0.0662 | 0.6872 | 0.4228 | 0.1487 | 0.2916 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
-
-### Gate (so với baseline dim-8 + margin) — 4 provider ứng viên
-
-| Tầng | margin | delta hash512 | Gate | delta bge-m3 | Gate | delta e5-large | Gate | delta gemini-001 | Gate |
-|---|---:|---:|:---:|---:|:---:|---:|:---:|---:|:---:|
-| S1 | +0.02 | +0.5538 | ✅ | +0.4769 | ✅ | +0.4615 | ✅ | +0.5385 | ✅ |
-| S2 | +0.10 | +0.0164 | ❌ | +0.5738 | ✅ | +0.5246 | ✅ | +0.6066 | ✅ |
-| S3 | +0.10 | +0.2833 | ✅ | +0.3333 | ✅ | +0.3500 | ✅ | +0.4833 | ✅ |
-| S4 | +0.10 | +0.2364 | ✅ | +0.3636 | ✅ | +0.4000 | ✅ | +0.4182 | ✅ |
-| S5 | +0.05 | +0.6210 | ✅ | +0.3565 | ✅ | +0.0825 | ✅ | +0.2253 | ✅ |
-
-**hash512: 4/5 · bge-m3: 5/5 · multilingual-e5-large: 5/5 · gemini-embedding-001: 5/5 tầng vượt gate.**
-
-## Kết luận nhanh
-
-Trung bình recall 5 tầng: dim-8=0.1755 · hash512=0.5177 · bge-m3=0.5964 · e5-large=0.5392 · gemini-001=0.6299. Xếp hạng 4 ứng viên theo recall trung bình: gemini-001 (0.6299) > bge-m3 (0.5964) > e5-large (0.5392) > hash512 (0.5177). Cả ba dense provider học sẵn (bge-m3, e5-large, gemini-embedding-001) đều vượt xa hai baseline lexical trên mọi tầng bắt buộc ngữ nghĩa (S2–S4); chênh lệch NỘI BỘ giữa ba dense model nhỏ hơn nhiều so với khoảng cách giữa nhóm dense và nhóm lexical — vẫn đúng kết luận cũ: 'có chuyển sang dense hay không' quan trọng hơn 'chọn dense model nào'.
-
-## Phân tích chi tiết theo tầng — 4 provider ứng viên
-
-### S1 — lexical-easy — query và đáp án chia sẻ ≥1 token.
-
-recall: hash512=0.8154 (+0.5538) · bge-m3=0.7385 (+0.4769) · e5-large=0.7231 (+0.4615) · gemini-001=0.8000 (+0.5385) · dim-8=0.2615 — delta tính so dim-8.
-
-- `hash512`: 53/65 case recall=1.0 (12 trượt).
-- `bge-m3`: 48/65 case recall=1.0 (17 trượt).
-- `e5-large`: 47/65 case recall=1.0 (18 trượt).
-- `gemini-001`: 52/65 case recall=1.0 (13 trượt).
-
-Case `multilingual-e5-large` trượt (recall<1.0), đối chiếu `bge-m3` và `gemini-embedding-001` trên CÙNG case:
-
-| case id | query | expected | recall e5 | top-1 e5 | recall bge-m3 | top-1 bge-m3 | recall gemini | top-1 gemini |
-|---|---|---|---:|---|---:|---|---:|---|
-| s1-ankor-eng-deployment-strategy | Ankor dùng chiến lược triển khai nào để giảm rủi ro khi đưa code lên production | ankor-engineering-deployment#c2 | 0.00 | ankor-engineering-deployment#c1 | 0.00 | ankor-engineering-testing#c1 | 0.00 | ankor-engineering-deployment#c1 |
-| s1-ankor-eng-mfa-required | hệ thống Ankor bắt buộc xác thực hai bước không | ankor-engineering-security#c3 | 0.00 | ankor-engineering-security#c1 | 1.00 | ankor-engineering-testing#c1 | 1.00 | ankor-engineering-access#c1 |
-| s1-ankor-eng-pr-large-sla | SLA review PR lớn ở Ankor là bao lâu | ankor-engineering-code-review#c4 | 0.00 | ankor-engineering-code-review#c3 | 1.00 | ankor-engineering-code-review#c3 | 0.00 | ankor-engineering-code-review#c3 |
-| s1-ankor-fin-budget-capex | Ankor phân loại chi đầu tư dài hạn vào mục nào trong ngân sách | ankor-finance-budget#c3 | 0.00 | ankor-finance-forecast#c1 | 0.00 | ankor-finance-expense#c1 | 0.00 | ankor-finance-budget#c1 |
-| s1-ankor-hr-grievance-timeline | Ankor xử lý khiếu nại nội bộ trong bao nhiêu ngày | ankor-hr-grievance#c4 | 0.00 | ankor-hr-grievance#c1 | 0.00 | ankor-hr-grievance#c1 | 0.00 | ankor-hr-grievance#c1 |
-| s1-ankor-hr-probation-period | thời gian thử việc ở Ankor là bao lâu | ankor-hr-onboarding#c1 | 0.00 | ankor-hr-onboarding#c7 | 0.00 | ankor-hr-onboarding#c7 | 0.00 | ankor-hr-onboarding#c7 |
-| s1-ankor-hr-sick-days | nghỉ ốm mỗi năm được tối đa bao nhiêu ngày ở Ankor | ankor-hr-leave#c3 | 0.00 | ankor-hr-leave#c1 | 1.00 | ankor-hr-leave#c1 | 1.00 | ankor-hr-leave#c1 |
-| s1-ankor-pub-communication-slack | Slack được dùng cho mục đích giao tiếp gì tại Ankor | ankor-public-communication#c2 | 0.00 | ankor-public-communication#c1 | 0.00 | ankor-public-communication#c1 | 0.00 | ankor-public-communication#c1 |
-| s1-ankor-pub-gift-limit | được nhận quà tặng từ đối tác trị giá bao nhiêu | ankor-public-code-of-conduct#c5 | 0.00 | ankor-public-code-of-conduct#c6 | 0.00 | ankor-public-code-of-conduct#c6 | 1.00 | ankor-public-code-of-conduct#c6 |
-| s1-ankor-pub-harassment-report-channel | tố cáo quấy rối ở Ankor gửi đến đâu | ankor-public-anti-harassment#c3 | 0.00 | ankor-public-anti-harassment#c6 | 0.00 | ankor-public-code-of-conduct#c9 | 0.00 | ankor-public-anti-harassment#c6 |
-| s1-ankor-pub-national-holidays | Ankor nghỉ những ngày lễ quốc gia nào trong năm | ankor-public-holidays#c2 | 0.00 | ankor-public-holidays#c10 | 0.00 | ankor-public-holidays#c10 | 0.00 | ankor-public-holidays#c10 |
-| s1-ankor-pub-parking-motorbike | phí gửi xe máy tháng tại Ankor là bao nhiêu | ankor-public-parking#c4 | 0.00 | ankor-public-parking#c8 | 0.00 | ankor-public-parking#c8 | 1.00 | ankor-public-parking#c1 |
-| s1-ankor-pub-visitor-badge-color | khách thăm quan Ankor phải đeo thẻ màu gì | ankor-public-visitors#c2 | 0.00 | ankor-public-visitors#c1 | 0.00 | ankor-public-visitors#c1 | 0.00 | ankor-public-visitors#c1 |
-| s1-borea-fin-petty-cash | quỹ tiền mặt nhỏ petty cash mỗi phòng ban Borea được bao nhiêu | borea-finance-expense#c5 | 0.00 | borea-finance-reimbursement#c1 | 0.00 | borea-finance-budget#c8 | 0.00 | borea-finance-budget#c8 |
-| s1-borea-fin-tax-tndn | thuế thu nhập doanh nghiệp Borea bao nhiêu phần trăm | borea-finance-tax#c2 | 0.00 | borea-finance-tax#c1 | 0.00 | borea-finance-tax#c1 | 1.00 | borea-finance-tax#c1 |
-| s1-borea-hr-paternity-leave | bố mới có con được nghỉ phép đặc biệt mấy ngày ở Borea | borea-hr-leave#c6 | 0.00 | borea-hr-leave#c1 | 0.00 | borea-hr-leave#c1 | 0.00 | borea-hr-leave#c1 |
-| s1-borea-hr-payday | Borea trả lương vào ngày nào mỗi tháng | borea-hr-payroll#c2 | 0.00 | borea-hr-exit#c6 | 0.00 | borea-hr-payroll#c1 | 0.00 | borea-hr-payroll#c1 |
-| s1-borea-hr-remote-days | Borea cho phép làm việc từ xa bao nhiêu ngày trong tuần | borea-hr-remote-work#c2 | 0.00 | borea-hr-remote-work#c8 | 0.00 | borea-hr-remote-work#c8 | 0.00 | borea-hr-remote-work#c8 |
-
-### S2 — paraphrase — query trùng ≤2 token với đáp án, buộc phải hiểu nghĩa.
-
-recall: hash512=0.1148 (+0.0164) · bge-m3=0.6721 (+0.5738) · e5-large=0.6230 (+0.5246) · gemini-001=0.7049 (+0.6066) · dim-8=0.0984 — delta tính so dim-8.
-
-- `hash512`: 7/61 case recall=1.0 (54 trượt).
-- `bge-m3`: 41/61 case recall=1.0 (20 trượt).
-- `e5-large`: 38/61 case recall=1.0 (23 trượt).
-- `gemini-001`: 43/61 case recall=1.0 (18 trượt).
-
-Case `multilingual-e5-large` trượt (recall<1.0), đối chiếu `bge-m3` và `gemini-embedding-001` trên CÙNG case:
-
-| case id | query | expected | recall e5 | top-1 e5 | recall bge-m3 | top-1 bge-m3 | recall gemini | top-1 gemini |
-|---|---|---|---:|---|---:|---|---:|---|
-| s2-ankor-eng-blue-green | Ankor tung bản mới ra dần dần hay đổi cả cụm server cùng lúc | ankor-engineering-deployment#c2 | 0.00 | ankor-engineering-release#c1 | 0.00 | ankor-engineering-release#c1 | 0.00 | ankor-engineering-deployment#c4 |
-| s2-ankor-eng-log-storage-period | dữ liệu nhật ký hệ thống Ankor giữ được bao lâu trước khi xoá | ankor-engineering-monitoring#c7 | 0.00 | ankor-engineering-security#c10 | 0.00 | ankor-engineering-security#c10 | 0.00 | ankor-engineering-security#c10 |
-| s2-ankor-eng-oncall-nightcall | bị dựng dậy giữa đêm chữa sự cố thì hôm sau thế nào | ankor-engineering-oncall#c8 | 0.00 | ankor-engineering-oncall#c9 | 1.00 | ankor-engineering-oncall#c9 | 0.00 | ankor-engineering-oncall#c9 |
-| s2-ankor-eng-pr-test-requirement | khi thêm tính năng lập trình, quy định bắt buộc đi kèm là gì | ankor-engineering-testing#c1 | 0.00 | ankor-engineering-security#c5 | 0.00 | ankor-engineering-testing#c2 | 0.00 | ankor-engineering-code-review#c4 |
-| s2-ankor-fin-capital-expenditure | mua sắm thiết bị giá trị lớn được hạch toán vào khoản gì | ankor-finance-budget#c3 | 0.00 | ankor-finance-audit#c3 | 0.00 | ankor-finance-procurement#c10 | 0.00 | ankor-finance-procurement#c10 |
-| s2-ankor-fin-indirect-tax-rate | Ankor thu thuế gián tiếp nào trên từng giao dịch bán hàng | ankor-finance-tax#c3 | 0.00 | ankor-finance-tax#c1 | 0.00 | ankor-finance-tax#c1 | 0.00 | ankor-finance-tax#c1 |
-| s2-ankor-fin-invoice-format | giấy tờ xuất cho bên mua theo quy chuẩn nào | ankor-finance-invoicing#c1 | 0.00 | ankor-finance-invoicing#c3 | 0.00 | ankor-finance-invoicing#c4 | 0.00 | ankor-finance-invoicing#c3 |
-| s2-ankor-hr-probation-tasks | mới vào làm thì trong 2 tháng đầu phải làm gì để qua thử thách | ankor-hr-onboarding#c1 | 0.00 | ankor-hr-training#c7 | 1.00 | ankor-hr-training#c7 | 0.00 | ankor-hr-onboarding#c6 |
-| s2-ankor-hr-recruitment-interview-count | ứng viên vào Ankor phải trải qua mấy vòng phỏng vấn | ankor-hr-recruitment#c3 | 0.00 | ankor-hr-recruitment#c8 | 0.00 | ankor-hr-recruitment#c8 | 0.00 | ankor-hr-recruitment#c8 |
-| s2-ankor-pub-fire-escape-route | khi có chuông báo cháy ở Ankor thì phải thoát ra cửa nào | ankor-public-safety#c4 | 0.00 | ankor-public-visitors#c3 | 0.00 | ankor-public-visitors#c3 | 0.00 | ankor-public-visitors#c1 |
-| s2-ankor-pub-parking-reserve | thủ tục nào giúp giữ một vị trí cố định để phương tiện tại trụ sở | ankor-public-parking#c1 | 0.00 | ankor-public-parking#c2 | 0.00 | ankor-public-parking#c2 | 1.00 | ankor-public-parking#c2 |
-| s2-ankor-pub-public-holidays-list | trong năm Ankor đóng cửa những ngày nào theo quy định nhà nước | ankor-public-holidays#c2 | 0.00 | ankor-public-office-hours#c10 | 0.00 | ankor-public-office-hours#c10 | 0.00 | ankor-public-holidays#c10 |
-| s2-borea-eng-alert-first-receiver | khi hệ thống báo động thì ai nhận thông báo đầu tiên | borea-engineering-monitoring#c6 | 0.00 | borea-engineering-oncall#c4 | 0.00 | borea-engineering-incident#c3 | 0.00 | borea-engineering-incident#c4 |
-| s2-borea-eng-p2-response-sla | sự cố mức 2 ở Borea phải phản hồi trong bao lâu | borea-engineering-oncall#c5 | 0.00 | borea-engineering-oncall#c4 | 0.00 | borea-engineering-oncall#c4 | 0.00 | borea-engineering-incident#c3 |
-| s2-borea-fin-approval-level | khoản chi bao nhiêu thì sếp trực tiếp được ký | borea-finance-reimbursement#c4 | 0.00 | borea-finance-budget#c5 | 0.00 | borea-finance-budget#c5 | 0.00 | borea-finance-approval-limits#c5 |
-| s2-borea-fin-corporate-tax | công ty Borea trích bao nhiêu phần trăm thu nhập nộp ngân sách nhà nước | borea-finance-tax#c2 | 0.00 | borea-finance-tax#c1 | 0.00 | borea-finance-tax#c1 | 0.00 | borea-finance-tax#c1 |
-| s2-borea-fin-meal-expense-ceiling | chi phí tiếp đãi đối tác từng lần Borea giới hạn không quá bao nhiêu tiền | borea-finance-reimbursement#c2 | 0.00 | borea-finance-reimbursement#c1 | 1.00 | borea-finance-reimbursement#c1 | 1.00 | borea-finance-reimbursement#c1 |
-| s2-borea-fin-petty-cash-request | muốn mua đồ nhỏ tiền mặt cho phòng thì lấy ở đâu | borea-finance-expense#c5 | 0.00 | borea-finance-procurement#c1 | 1.00 | borea-finance-travel#c5 | 1.00 | borea-finance-approval-limits#c3 |
-| s2-borea-hr-complaint-response-time | khiếu nại nhân sự thì bao lâu nhận được phản hồi | borea-hr-grievance#c4 | 0.00 | borea-hr-performance#c9 | 1.00 | borea-hr-performance#c9 | 1.00 | borea-hr-performance#c9 |
-| s2-borea-hr-performance-frequency | sếp gặp riêng từng người dưới quyền để bàn việc mấy bận trong một năm | borea-hr-performance#c1 | 0.00 | borea-hr-grievance#c6 | 0.00 | borea-hr-exit#c2 | 1.00 | borea-hr-performance#c6 |
-| s2-borea-hr-rating-scale | kết quả làm việc cả năm của nhân viên Borea chia thành mấy mức | borea-hr-performance#c3 | 0.00 | borea-hr-payroll#c1 | 0.00 | borea-hr-payroll#c1 | 0.00 | borea-hr-performance#c1 |
-| s2-borea-hr-salary-structure | thu nhập định kỳ chia làm mấy phần | borea-hr-payroll#c1 | 0.00 | borea-hr-payroll#c2 | 1.00 | borea-hr-payroll#c2 | 1.00 | borea-hr-payroll#c1 |
-| s2-borea-pub-workplace-bullying | tổ chức phản hồi ra sao khi một người bị ức hiếp trong công sở | borea-public-anti-harassment#c1 | 0.00 | borea-public-code-of-conduct#c2 | 0.00 | borea-public-code-of-conduct#c2 | 1.00 | borea-public-code-of-conduct#c2 |
-
-### S3 — near-miss cùng vai — có chunk CÙNG role trùng từ khoá bằng/hơn đáp án.
-
-recall: hash512=0.5167 (+0.2833) · bge-m3=0.5667 (+0.3333) · e5-large=0.5833 (+0.3500) · gemini-001=0.7167 (+0.4833) · dim-8=0.2333 — delta tính so dim-8.
-
-- `hash512`: 31/60 case recall=1.0 (29 trượt).
-- `bge-m3`: 34/60 case recall=1.0 (26 trượt).
-- `e5-large`: 35/60 case recall=1.0 (25 trượt).
-- `gemini-001`: 43/60 case recall=1.0 (17 trượt).
-
-Case `multilingual-e5-large` trượt (recall<1.0), đối chiếu `bge-m3` và `gemini-embedding-001` trên CÙNG case:
-
-| case id | query | expected | recall e5 | top-1 e5 | recall bge-m3 | top-1 bge-m3 | recall gemini | top-1 gemini |
-|---|---|---|---:|---|---:|---|---:|---|
-| s3-ankor-eng-hotfix-process | khi có lỗi nghiêm trọng thì bản vá khẩn được đưa lên theo quy trình nào | ankor-engineering-release#c8 | 0.00 | ankor-engineering-oncall#c6 | 0.00 | ankor-engineering-deployment#c5 | 0.00 | ankor-engineering-deployment#c7 |
-| s3-ankor-eng-infra-backup | Ankor sao lưu dữ liệu production với tần suất và phương thức nào | ankor-engineering-infra#c6 | 0.00 | ankor-engineering-security#c1 | 0.00 | ankor-engineering-infra#c1 | 0.00 | ankor-engineering-deployment#c1 |
-| s3-ankor-eng-vuln-patch-sla | vá lỗ hổng bảo mật nghiêm trọng phải hoàn tất trong bao lâu | ankor-engineering-security#c5 | 0.00 | ankor-engineering-security#c9 | 0.00 | ankor-engineering-security#c9 | 1.00 | ankor-engineering-security#c9 |
-| s3-ankor-fin-opex-report | báo cáo chi phí vận hành Ankor gửi cho ban lãnh đạo theo tần suất nào | ankor-finance-expense#c3 | 0.00 | ankor-finance-forecast#c2 | 0.00 | ankor-finance-forecast#c2 | 0.00 | ankor-finance-forecast#c2 |
-| s3-ankor-fin-reimburse-late | gửi yêu cầu lấy lại chi phí muộn có được chấp nhận không | ankor-finance-reimbursement#c4 | 0.00 | ankor-finance-reimbursement#c8 | 1.00 | ankor-finance-reimbursement#c7 | 1.00 | ankor-finance-reimbursement#c4 |
-| s3-ankor-hr-offboard-handover-window | trước khi nghỉ việc nhân viên Ankor phải bàn giao công việc trong bao lâu | ankor-hr-exit#c3 | 0.00 | ankor-hr-exit#c1 | 0.00 | ankor-hr-exit#c1 | 1.00 | ankor-hr-exit#c1 |
-| s3-ankor-hr-paternity-apply | muốn nghỉ thai sản khi vợ sinh thì đăng ký như thế nào tại Ankor | ankor-hr-leave#c6 | 0.00 | ankor-hr-leave#c5 | 0.00 | ankor-hr-leave#c5 | 0.00 | ankor-hr-leave#c5 |
-| s3-ankor-hr-sick-notification | nghỉ ốm đột xuất cần báo trước bao lâu và báo cho ai ở Ankor | ankor-hr-leave#c3 | 0.00 | ankor-hr-exit#c1 | 0.00 | ankor-hr-exit#c1 | 1.00 | ankor-hr-exit#c1 |
-| s3-ankor-pub-canteen-menu | thực đơn căng tin Ankor thay đổi theo chu kỳ nào | ankor-public-office-hours#c7 | 0.00 | ankor-public-dress-code#c1 | 0.00 | ankor-public-office-hours#c1 | 0.00 | ankor-public-communication#c5 |
-| s3-ankor-pub-meeting-room-etiquette | khi dùng phòng họp xong ở Ankor cần làm gì trước khi ra | ankor-public-office-hours#c9 | 0.00 | ankor-public-office-hours#c10 | 0.00 | ankor-public-visitors#c5 | 0.00 | ankor-public-visitors#c5 |
-| s3-ankor-pub-national-holiday-work | nếu phải vào làm ngày 2 tháng 9 thì Ankor tính lương thêm bao nhiêu | ankor-public-holidays#c6 | 0.00 | ankor-public-holidays#c5 | 0.00 | ankor-public-office-hours#c1 | 0.00 | ankor-public-office-hours#c1 |
-| s3-borea-eng-canary-deployment | khi đưa tính năng mới lên Borea thì traffic được chuyển dần hay ngay tức thì | borea-engineering-deployment#c2 | 0.00 | borea-engineering-release#c1 | 0.00 | borea-engineering-release#c1 | 0.00 | borea-engineering-release#c1 |
-| s3-borea-eng-ci-integration-test | integration test ở Borea được chạy khi nào trong pipeline | borea-engineering-testing#c5 | 0.00 | borea-engineering-testing#c1 | 1.00 | borea-engineering-testing#c1 | 1.00 | borea-engineering-testing#c1 |
-| s3-borea-eng-code-review-checklist | reviewer phải kiểm tra những điểm gì trong khi review code Borea | borea-engineering-code-review#c5 | 0.00 | borea-engineering-code-review#c1 | 0.00 | borea-engineering-code-review#c1 | 1.00 | borea-engineering-code-review#c1 |
-| s3-borea-eng-log-search | khi cần tra cứu log để debug thì Borea dùng công cụ gì | borea-engineering-monitoring#c8 | 0.00 | borea-engineering-code-review#c9 | 0.00 | borea-engineering-monitoring#c1 | 0.00 | borea-engineering-monitoring#c1 |
-| s3-borea-eng-ops-dashboard | số liệu vận hành hệ thống Borea xem ở đâu | borea-engineering-monitoring#c2 | 0.00 | borea-engineering-infra#c1 | 0.00 | borea-engineering-monitoring#c1 | 0.00 | borea-engineering-monitoring#c1 |
-| s3-borea-eng-semver-convention | cách đặt tên phiên bản khi phát hành phần mềm Borea | borea-engineering-release#c2 | 0.00 | borea-engineering-release#c1 | 0.00 | borea-engineering-release#c1 | 1.00 | borea-engineering-release#c5 |
-| s3-borea-fin-capex-approval | ai phải phê duyệt các khoản đầu tư tài sản dài hạn tại Borea | borea-finance-budget#c5 | 0.00 | borea-finance-approval-limits#c1 | 0.00 | borea-finance-approval-limits#c1 | 0.00 | borea-finance-approval-limits#c1 |
-| s3-borea-fin-receipt-attachment-format | khi nộp chi phí thì chứng từ phải đính kèm dạng nào | borea-finance-expense#c4 | 0.00 | borea-finance-reimbursement#c3 | 0.00 | borea-finance-reimbursement#c3 | 0.00 | borea-finance-reimbursement#c3 |
-| s3-borea-hr-exit-interview-mandatory | nhân viên Borea nghỉ việc có phải tham gia phỏng vấn thoát không | borea-hr-exit#c5 | 0.00 | borea-hr-exit#c1 | 0.00 | borea-hr-exit#c1 | 1.00 | borea-hr-exit#c6 |
-| s3-borea-hr-grievance-steps | nhân viên Borea muốn khiếu nại thì đi theo những bước nào | borea-hr-grievance#c2 | 0.00 | borea-hr-grievance#c1 | 0.00 | borea-hr-grievance#c1 | 0.00 | borea-hr-grievance#c1 |
-| s3-borea-hr-offsite-training-approval | nhân viên muốn đi học khoá ngoài văn phòng thì xin phép như thế nào | borea-hr-training#c4 | 0.00 | borea-hr-remote-work#c9 | 0.00 | borea-hr-leave#c4 | 0.00 | borea-hr-training#c3 |
-| s3-borea-hr-probation-criteria | đánh giá nhân viên thử việc Borea dựa trên tiêu chí nào | borea-hr-onboarding#c1 | 0.00 | borea-hr-onboarding#c7 | 0.00 | borea-hr-onboarding#c7 | 0.00 | borea-hr-onboarding#c7 |
-| s3-borea-hr-referral-payout-timing | giới thiệu người vào Borea thành công thì tiền thưởng trả lúc nào | borea-hr-recruitment#c10 | 0.00 | borea-hr-onboarding#c7 | 0.00 | borea-hr-training#c6 | 0.00 | borea-hr-onboarding#c3 |
-| s3-borea-hr-sick-extended | Borea xử lý thế nào nếu nhân viên nghỉ ốm kéo dài quá số ngày cho phép | borea-hr-leave#c5 | 0.00 | borea-hr-leave#c1 | 0.00 | borea-hr-leave#c1 | 0.00 | borea-hr-leave#c3 |
-
-### S4 — cross-role trap — có chunk KHÁC role (được phép) trùng từ khoá.
-
-recall: hash512=0.4545 (+0.2364) · bge-m3=0.5818 (+0.3636) · e5-large=0.6182 (+0.4000) · gemini-001=0.6364 (+0.4182) · dim-8=0.2182 — delta tính so dim-8.
-
-- `hash512`: 25/55 case recall=1.0 (30 trượt).
-- `bge-m3`: 32/55 case recall=1.0 (23 trượt).
-- `e5-large`: 34/55 case recall=1.0 (21 trượt).
-- `gemini-001`: 35/55 case recall=1.0 (20 trượt).
-
-Case `multilingual-e5-large` trượt (recall<1.0), đối chiếu `bge-m3` và `gemini-embedding-001` trên CÙNG case:
-
-| case id | query | expected | recall e5 | top-1 e5 | recall bge-m3 | top-1 bge-m3 | recall gemini | top-1 gemini |
-|---|---|---|---:|---|---:|---|---:|---|
-| s4-ankor-eng-infra-backup-vs-fin | dữ liệu Ankor được sao lưu để phục vụ kiểm toán hay để phục hồi thảm hoạ | ankor-engineering-infra#c6 | 0.00 | ankor-engineering-oncall#c5 | 0.00 | ankor-engineering-oncall#c5 | 0.00 | ankor-finance-forecast#c1 |
-| s4-ankor-fin-tax-vs-pub | Ankor phải nộp những loại phí và thuế nào khi ký hợp đồng với khách hàng | ankor-finance-tax#c4 | 0.00 | ankor-finance-tax#c1 | 0.00 | ankor-finance-tax#c1 | 1.00 | ankor-finance-tax#c1 |
-| s4-ankor-hr-exit-cert-vs-fin | sau khi nghỉ việc Ankor cấp giấy tờ gì và nhân viên có phải tự chịu chi phí làm giấy không | ankor-hr-exit#c7 | 0.00 | ankor-hr-exit#c1 | 0.00 | ankor-hr-remote-work#c1 | 0.00 | ankor-hr-exit#c10 |
-| s4-ankor-hr-paternity-vs-fin | nghỉ thai sản cha tại Ankor có được hưởng lương đầy đủ không | ankor-hr-leave#c6 | 0.00 | ankor-hr-leave#c5 | 0.00 | ankor-hr-leave#c5 | 0.00 | ankor-hr-leave#c5 |
-| s4-ankor-pub-anti-harassment-investigation | khi có đơn tố cáo quấy rối ở Ankor thì ai tiến hành điều tra | ankor-public-anti-harassment#c5 | 0.00 | ankor-public-anti-harassment#c6 | 0.00 | ankor-public-anti-harassment#c6 | 0.00 | ankor-public-anti-harassment#c6 |
-| s4-ankor-pub-canteen-subsidy | Ankor có trợ cấp suất ăn trưa cho nhân viên không | ankor-public-office-hours#c7 | 0.00 | ankor-hr-training#c1 | 0.00 | ankor-public-office-hours#c1 | 0.00 | ankor-hr-benefits#c8 |
-| s4-ankor-pub-conduct-gift-vs-fin | nhận quà từ đối tác trên mức cho phép thì xử lý sao | ankor-public-code-of-conduct#c5 | 0.00 | ankor-public-code-of-conduct#c6 | 0.00 | ankor-public-code-of-conduct#c6 | 0.00 | ankor-public-code-of-conduct#c6 |
-| s4-ankor-pub-gift-policy | nhận quà từ đối tác trên mức cho phép thì xử lý sao | ankor-public-code-of-conduct#c5 | 0.00 | ankor-public-code-of-conduct#c6 | 0.00 | ankor-public-code-of-conduct#c6 | 0.00 | ankor-public-code-of-conduct#c6 |
-| s4-ankor-pub-safety-vs-eng | khi xảy ra sự cố cháy nổ tại Ankor thì đội kỹ thuật phải xử lý theo quy trình nào | ankor-public-safety#c3 | 0.00 | ankor-engineering-security#c7 | 0.00 | ankor-public-code-of-conduct#c1 | 0.00 | ankor-engineering-incident#c10 |
-| s4-borea-eng-code-coverage-gate | PR ở Borea không đạt mức phủ kiểm thử thì có merge được không | borea-engineering-testing#c3 | 0.00 | borea-engineering-code-review#c9 | 0.00 | borea-engineering-deployment#c1 | 0.00 | borea-engineering-code-review#c9 |
-| s4-borea-eng-log-retention-vs-fin | Borea lưu dữ liệu vận hành hệ thống bao lâu để phục vụ kiểm toán | borea-engineering-monitoring#c7 | 0.00 | borea-finance-audit#c1 | 0.00 | borea-finance-audit#c1 | 0.00 | borea-finance-audit#c1 |
-| s4-borea-eng-release-vs-hr | việc phát hành phần mềm mới của Borea có liên quan đến việc thưởng cho nhóm không | borea-engineering-release#c7 | 0.00 | borea-engineering-release#c1 | 0.00 | borea-engineering-release#c1 | 0.00 | borea-hr-training#c6 |
-| s4-borea-fin-capex-vs-hr | khi mua máy tính mới cho nhân viên thì phải xin duyệt như thế nào | borea-finance-budget#c5 | 0.00 | borea-hr-remote-work#c3 | 1.00 | borea-hr-remote-work#c4 | 0.00 | borea-finance-procurement#c4 |
-| s4-borea-fin-reimbursement-vs-hr | nhân viên Borea đặt khách sạn công tác tự trả trước thì báo cáo chi phí theo mẫu nào | borea-finance-reimbursement#c5 | 0.00 | borea-finance-reimbursement#c7 | 0.00 | borea-hr-remote-work#c4 | 0.00 | borea-finance-reimbursement#c7 |
-| s4-borea-hr-backup-coverage | khi nhân viên Borea nghỉ ốm dài ngày thì ai phụ trách công việc của họ | borea-hr-leave#c5 | 0.00 | borea-hr-leave#c1 | 0.00 | borea-hr-leave#c1 | 0.00 | borea-hr-remote-work#c9 |
-| s4-borea-hr-grievance-vs-eng | khi nhân viên kỹ thuật vi phạm policy thì được xử lý theo bước nào tại Borea | borea-hr-grievance#c2 | 0.00 | borea-engineering-testing#c1 | 0.00 | borea-engineering-testing#c1 | 0.00 | borea-engineering-testing#c1 |
-| s4-borea-hr-performance-tracking | Borea theo dõi kết quả làm việc nhân viên bằng công cụ nào | borea-hr-performance#c2 | 0.00 | borea-hr-leave#c10 | 0.00 | borea-hr-leave#c10 | 0.00 | borea-hr-remote-work#c10 |
-| s4-borea-hr-probation-vs-eng | trong giai đoạn đầu thử sức với công việc mới thì ai đánh giá kết quả | borea-hr-onboarding#c1 | 0.00 | borea-hr-performance#c1 | 0.00 | borea-hr-onboarding#c7 | 0.00 | borea-hr-onboarding#c7 |
-| s4-borea-pub-code-of-conduct-conflict | nhân viên Borea đi làm cho đối thủ cạnh tranh trong thời gian còn ràng buộc thì có vi phạm không | borea-public-code-of-conduct#c4 | 0.00 | borea-hr-exit#c8 | 0.00 | borea-hr-exit#c8 | 0.00 | borea-hr-exit#c8 |
-| s4-borea-pub-conduct-vs-hr | vi phạm nội quy ứng xử ở Borea thì bộ phận nào xử lý kỷ luật | borea-public-code-of-conduct#c3 | 0.00 | borea-public-code-of-conduct#c1 | 0.00 | borea-public-code-of-conduct#c1 | 0.00 | borea-public-code-of-conduct#c1 |
-| s4-borea-pub-holiday-vs-fin | Borea trả lương ra sao cho người làm việc vào ngày nghỉ Tết | borea-public-holidays#c6 | 0.00 | borea-public-holidays#c1 | 0.00 | borea-public-holidays#c1 | 0.00 | borea-public-holidays#c1 |
-
-### S5 — negative/no-answer — câu hỏi không có đáp án trong tenant+role.
-
-recall: hash512=0.6872 (+0.6210) · bge-m3=0.4228 (+0.3565) · e5-large=0.1487 (+0.0825) · gemini-001=0.2916 (+0.2253) · dim-8=0.0662 — delta tính so dim-8.
-
-15 case `multilingual-e5-large` có `top_score` CAO NHẤT, đối chiếu `bge-m3` và `gemini-embedding-001`:
-
-| case id | query | top_score e5 | top-1 e5 | top_score bge-m3 | top_score gemini |
-|---|---|---:|---|---:|---:|
-| s5-ankor-hr-unlimited-leave | Ankor có chính sách nghỉ phép không giới hạn số ngày không | 0.9143 | ankor-hr-leave#c1 | 0.7242 | 0.8269 |
-| s5-borea-pub-bicycle-policy | quy định gửi xe đạp trong toà nhà Borea như thế nào | 0.8981 | borea-public-parking#c8 | 0.6566 | 0.8478 |
-| s5-borea-hr-bereavement-extended | Borea có chính sách nghỉ phép tang chế kéo dài hơn 5 ngày không | 0.8827 | borea-hr-leave#c1 | 0.6737 | 0.8033 |
-| s5-borea-hr-four-day-week | Borea có áp dụng tuần làm việc 4 ngày không | 0.8793 | borea-hr-onboarding#c7 | 0.6529 | 0.7785 |
-| s5-borea-hr-adoption-leave | Borea có chính sách nghỉ phép khi nhận con nuôi không | 0.8789 | borea-hr-leave#c1 | 0.6165 | 0.7733 |
-| s5-borea-eng-metaverse | hướng dẫn xây dựng ứng dụng trong môi trường metaverse tại Borea | 0.8756 | borea-engineering-access#c1 | 0.5693 | 0.7065 |
-| s5-borea-hr-sabbatical-leave | Borea có chính sách nghỉ học thuật dài hạn sabbatical hưởng lương không | 0.8750 | borea-hr-leave#c1 | 0.6310 | 0.7599 |
-| s5-borea-eng-embedded-linux | quy trình build và deploy image cho thiết bị nhúng Linux của Borea | 0.8721 | borea-engineering-deployment#c1 | 0.5544 | 0.6932 |
-| s5-borea-eng-rust-guidelines | quy chuẩn viết code Rust tại Borea là gì | 0.8713 | borea-engineering-access#c1 | 0.5948 | 0.7624 |
-| s5-borea-eng-vr | hướng dẫn thiết lập môi trường phát triển ứng dụng thực tế ảo vr | 0.8698 | borea-engineering-deployment#c2 | 0.5639 | 0.6158 |
-| s5-borea-pub-massage-room | Borea có phòng massage thư giãn cho nhân viên sau giờ làm không | 0.8683 | borea-public-safety#c5 | 0.6401 | 0.7795 |
-| s5-ankor-hr-student-loan | Ankor có hỗ trợ trả nợ vay học phí đại học cho nhân viên mới không | 0.8663 | ankor-hr-training#c1 | 0.6706 | 0.7286 |
-| s5-ankor-hr-relocation-allowance | Ankor hỗ trợ chi phí chuyển nhà khi điều chuyển công tác nội địa không | 0.8659 | ankor-hr-recruitment#c8 | 0.5949 | 0.7670 |
-| s5-borea-hr-expat-package | Borea có gói đãi ngộ riêng cho chuyên gia nước ngoài expatriate không | 0.8655 | borea-hr-onboarding#c8 | 0.6285 | 0.7694 |
-| s5-borea-pub-art-installation | quy trình xin phép trưng bày tác phẩm nghệ thuật trong không gian văn phòng Borea | 0.8652 | borea-public-visitors#c10 | 0.6701 | 0.7100 |
-
-## Breakdown theo tenant — 4 provider ứng viên
-
-| tenant | tầng | n | recall hash512 | recall bge-m3 | recall e5-large | recall gemini-001 |
-|---|---|---:|---:|---:|---:|---:|
-| ankor | S1 | 36 | 0.7778 | 0.6944 | 0.6389 | 0.7500 |
-| ankor | S2 | 31 | 0.1290 | 0.6129 | 0.6129 | 0.6129 |
-| ankor | S3 | 31 | 0.6129 | 0.6452 | 0.6452 | 0.7742 |
-| ankor | S4 | 28 | 0.4643 | 0.5714 | 0.6786 | 0.7143 |
-| ankor | S5 | 30 | 0.6741 | 0.4223 | 0.1538 | 0.2982 |
-| borea | S1 | 29 | 0.8621 | 0.7931 | 0.8276 | 0.8621 |
-| borea | S2 | 30 | 0.1000 | 0.7333 | 0.6333 | 0.8000 |
-| borea | S3 | 29 | 0.4138 | 0.4828 | 0.5172 | 0.6552 |
-| borea | S4 | 27 | 0.4444 | 0.5926 | 0.5556 | 0.5556 |
-| borea | S5 | 29 | 0.7008 | 0.4233 | 0.1434 | 0.2847 |
-
-## `multilingual-e5-large` so trực tiếp với `bge-m3` và `gemini-embedding-001`
-
-So với `bge-m3` (tổng 23/241 case non-S5 lệch nhau): e5-large thắng **11** case, bge-m3 thắng **12** case.
-So với `gemini-embedding-001` (tổng 23/241 case non-S5 lệch nhau): e5-large thắng **2** case, gemini-embedding-001 thắng **21** case.
-
-### 15 case e5-large thắng đậm nhất bge-m3 (bge-m3 trượt hẳn, e5-large ăn trọn)
-
-| case id | tầng | query | expected | top-1 bge-m3 | top-1 e5-large |
-|---|---|---|---|---|---|
-| s1-ankor-eng-monitoring-downtime-alert | S1 | hệ thống monitoring Ankor gửi cảnh báo sau mấy phút downtime | ankor-engineering-monitoring#c5 | ankor-engineering-security#c7 | ankor-engineering-security#c7 |
-| s1-borea-eng-deploy-time-window | S1 | Borea deploy lên production trong khung giờ nào | borea-engineering-deployment#c3 | borea-engineering-deployment#c1 | borea-engineering-deployment#c1 |
-| s2-ankor-eng-infra-db | S2 | cơ sở dữ liệu chạy trên dịch vụ đám mây nào | ankor-engineering-infra#c4 | ankor-engineering-infra#c1 | ankor-engineering-infra#c1 |
-| s2-ankor-eng-primary-cloud-region | S2 | dịch vụ của Ankor đặt máy chủ chính ở vùng địa lý nào | ankor-engineering-infra#c2 | ankor-engineering-infra#c1 | ankor-engineering-infra#c1 |
-| s2-borea-eng-no-deploy-period | S2 | những dịp nào trong năm Borea cấm đội kỹ thuật đưa code lên production | borea-engineering-deployment#c10 | borea-engineering-code-review#c1 | borea-engineering-code-review#c1 |
-| s3-ankor-pub-car-park-allocation | S3 | nhân viên nào được Ankor ưu tiên chỗ đỗ xe tại bãi | ankor-public-parking#c2 | ankor-public-parking#c1 | ankor-public-parking#c8 |
-| s3-borea-fin-corporate-tax-deadline | S3 | Borea nộp tờ khai thuế TNDN vào thời điểm nào trong năm | borea-finance-tax#c4 | borea-finance-tax#c1 | borea-finance-invoicing#c9 |
-| s3-borea-pub-first-aid-training | S3 | ai được đào tạo sơ cứu để xử lý khi có người bị thương tại văn phòng Borea | borea-public-safety#c5 | borea-public-anti-harassment#c8 | borea-public-safety#c10 |
-| s4-ankor-fin-budget-alert | S4 | chi phí vượt ngưỡng ngân sách thì hệ thống cảnh báo cho ai | ankor-finance-budget#c7 | ankor-finance-approval-limits#c9 | ankor-finance-approval-limits#c9 |
-| s4-ankor-fin-budget-alert-system | S4 | chi phí vượt ngưỡng ngân sách thì hệ thống cảnh báo cho ai | ankor-finance-budget#c7 | ankor-finance-approval-limits#c9 | ankor-finance-approval-limits#c9 |
-| s4-ankor-fin-travel-approval | S4 | chi phí công tác nước ngoài phải được ai phê duyệt | ankor-finance-travel#c2 | ankor-finance-approval-limits#c1 | ankor-finance-approval-limits#c1 |
-
-### 15 case bge-m3 thắng đậm nhất e5-large (e5-large trượt hẳn, bge-m3 ăn trọn)
-
-| case id | tầng | query | expected | top-1 bge-m3 | top-1 e5-large |
-|---|---|---|---|---|---|
-| s1-ankor-eng-mfa-required | S1 | hệ thống Ankor bắt buộc xác thực hai bước không | ankor-engineering-security#c3 | ankor-engineering-testing#c1 | ankor-engineering-security#c1 |
-| s1-ankor-eng-pr-large-sla | S1 | SLA review PR lớn ở Ankor là bao lâu | ankor-engineering-code-review#c4 | ankor-engineering-code-review#c3 | ankor-engineering-code-review#c3 |
-| s1-ankor-hr-sick-days | S1 | nghỉ ốm mỗi năm được tối đa bao nhiêu ngày ở Ankor | ankor-hr-leave#c3 | ankor-hr-leave#c1 | ankor-hr-leave#c1 |
-| s2-ankor-eng-oncall-nightcall | S2 | bị dựng dậy giữa đêm chữa sự cố thì hôm sau thế nào | ankor-engineering-oncall#c8 | ankor-engineering-oncall#c9 | ankor-engineering-oncall#c9 |
-| s2-ankor-hr-probation-tasks | S2 | mới vào làm thì trong 2 tháng đầu phải làm gì để qua thử thách | ankor-hr-onboarding#c1 | ankor-hr-training#c7 | ankor-hr-training#c7 |
-| s2-borea-fin-meal-expense-ceiling | S2 | chi phí tiếp đãi đối tác từng lần Borea giới hạn không quá bao nhiêu tiền | borea-finance-reimbursement#c2 | borea-finance-reimbursement#c1 | borea-finance-reimbursement#c1 |
-| s2-borea-fin-petty-cash-request | S2 | muốn mua đồ nhỏ tiền mặt cho phòng thì lấy ở đâu | borea-finance-expense#c5 | borea-finance-travel#c5 | borea-finance-procurement#c1 |
-| s2-borea-hr-complaint-response-time | S2 | khiếu nại nhân sự thì bao lâu nhận được phản hồi | borea-hr-grievance#c4 | borea-hr-performance#c9 | borea-hr-performance#c9 |
-| s2-borea-hr-salary-structure | S2 | thu nhập định kỳ chia làm mấy phần | borea-hr-payroll#c1 | borea-hr-payroll#c2 | borea-hr-payroll#c2 |
-| s3-ankor-fin-reimburse-late | S3 | gửi yêu cầu lấy lại chi phí muộn có được chấp nhận không | ankor-finance-reimbursement#c4 | ankor-finance-reimbursement#c7 | ankor-finance-reimbursement#c8 |
-| s3-borea-eng-ci-integration-test | S3 | integration test ở Borea được chạy khi nào trong pipeline | borea-engineering-testing#c5 | borea-engineering-testing#c1 | borea-engineering-testing#c1 |
-| s4-borea-fin-capex-vs-hr | S4 | khi mua máy tính mới cho nhân viên thì phải xin duyệt như thế nào | borea-finance-budget#c5 | borea-hr-remote-work#c4 | borea-hr-remote-work#c3 |
-
-## Thời gian & tài nguyên
-
-| Provider | Chiều | Thời gian embed 800 chunk + 300 query | Ghi chú |
-|---|---:|---:|---|
-| `baseline-dim8` | 8 | (số đóng băng, re-recorded) | CPU thuần, tức thời |
-| `bow-hash512` | 512 | 0.92s | CPU thuần, không cần model/GPU/mạng |
-| `bge-m3` | 1024 | load 9.8s + embed 14.7s | local, MPS, trọng số ~2.2GB (một lần, cache) |
-| `multilingual-e5-large` | 1024 | load 9.3s + embed 15.2s | local, MPS, trọng số ~2.24GB (một lần, cache) |
-| `gemini-embedding-001` | 1024 | 1.86s (đọc cache) | API Google — free tier có quota NGÀY dễ cạn khi test lặp lại |
-
-Ba dense model có chi phí vận hành khác hẳn nhau: `bge-m3`/`multilingual-e5-large` chạy local trên GPU sẵn có (chỉ tốn thời gian tải trọng số MỘT LẦN, sau đó tức thời, không phụ thuộc mạng/quota); `gemini-embedding-001` không cần hạ tầng cục bộ nhưng phụ thuộc mạng + rate limit + quota ngày — rủi ro vận hành thật đã gặp phải trực tiếp khi chấm.
-
-## Giới hạn của báo cáo này
-
-- `gemini-embedding-001` không gọi API lại ở lần chạy này — dùng nguyên cache đã chấm trước đó (cùng corpus, cùng 300 case, cùng `output_dimensionality=1024` nên số liệu vẫn hợp lệ để so sánh).
-- `multilingual-e5-large` chạy với prefix `query:`/`passage:` theo khuyến nghị chính thức — chưa thử bỏ prefix để đo mức chênh lệch thực tế do prefix mang lại trên bộ case này.
-- Cả năm đều chấm ngoài luồng (gọi trực tiếp `H.build_retriever`/`build_report`-tương đương), không qua `pytest`/`conftest.py::embedding_provider`.
-- In-memory cosine thuần Python, chưa qua `PgKbSearch`/pgvector thật — chưa đo latency/chi phí lưu trữ thực tế ở quy mô Postgres.
-- Một lần chạy, không lặp lại để đo phương sai.
-
-## Đề xuất
-
-1. Với 3 dense model đều vượt gate ở mọi tầng và khoảng cách nội bộ giữa chúng nhỏ, tiêu chí chọn nên chuyển từ 'model nào recall cao nhất' sang 'chi phí vận hành nào phù hợp' — local (bge-m3/e5-large, cần GPU + trọng số cục bộ, không phụ thuộc mạng/quota) so với API (gemini-embedding-001, không cần hạ tầng cục bộ nhưng phụ thuộc rate limit + quota + chi phí theo lượng gọi).
-2. Nếu ưu tiên 'không dashboard/dịch vụ ngoài, self-hosted' (tinh thần core hiện tại), `bge-m3` hoặc `multilingual-e5-large` local phù hợp hơn `gemini-embedding-001`.
-3. Trước khi chốt provider cuối, nên đo thêm: `multilingual-e5-large` KHÔNG prefix (so mức chênh lệch prefix mang lại), `gemini-embedding-001` ở `output_dimensionality` gốc (3072), và latency p50/p99 tại request-time thật (khác batch offline như các report này) cho cả 3 dense model.
-
-## Thực nghiệm: cross-encoder reranker (`bge-reranker-v2-m3`) trên `bge-m3`
-
-Thử 2 hướng cải thiện: **(1) reranker** — lấy top-30 ứng viên từ bi-encoder `bge-m3` rồi cho cross-encoder `BAAI/bge-reranker-v2-m3` (đọc CẢ query và chunk cùng lúc, không chỉ so cosine) chấm lại, lấy top-10 sau cùng; **(2) ngưỡng tin cậy (threshold)** trên top-1 score để chặn trả lời khi không đủ tự tin (fix riêng cho S5). Kết luận: **chỉ giữ lại reranker** — threshold sweep ra một điểm ngọt trên thang bi-encoder (0.55) nhưng khi áp lên thang điểm reranker (khác hẳn về phân bố) thì bất kỳ ngưỡng nào >0 đều cắt mất một phần đáp án đúng ở S2 mà không có lợi ích ròng nào so với chỉ dùng reranker không ngưỡng — chi tiết ở mục Chi phí & giới hạn.
-
-### Kết quả: `bge-m3` + reranker vs `bge-m3` thuần
-
-| Tầng | dim-8 | bge-m3 | bge-m3 + rerank | delta (so bge-m3) | mrr bge-m3 | mrr +rerank |
-|---|---:|---:|---:|---:|---:|---:|
-| S1 | 0.2615 | 0.7385 | **0.8000** | +0.0615 | 0.5671 | 0.5924 |
-| S2 | 0.0984 | 0.6721 | **0.6885** | +0.0164 | 0.3837 | 0.4151 |
-| S3 | 0.2333 | 0.5667 | **0.6333** | +0.0667 | 0.3800 | 0.4584 |
-| S4 | 0.2182 | 0.5818 | **0.6545** | +0.0727 | 0.4675 | 0.4761 |
-| S5 | 0.0662 | 0.4228 | **0.7768** | +0.3541 | — | — |
-
-**Gate: bge-m3 thuần 5/5 · bge-m3+rerank 5/5.** Reranker cải thiện CẢ 5 tầng, không đánh đổi tầng nào — MRR cũng tăng đều. Nổi bật nhất: **S5** tăng mạnh (0.4228→0.7768) — cross-encoder phân biệt 'gần giống nhưng sai' và 'thật sự không liên quan' tốt hơn hẳn cosine bi-encoder.
-
-### Case bi-encoder trượt hẳn nhưng reranker sửa được (recall 0.0 → 1.0)
-
-Tổng **18** case (trên 241 case non-S5) được sửa; **5** case bị hỏng theo chiều ngược lại. Một vài ví dụ:
-
-| case id | tầng | query | expected | top-1 bge-m3 | top-1 +rerank |
-|---|---|---|---|---|---|
-| s1-ankor-hr-grievance-timeline | S1 | Ankor xử lý khiếu nại nội bộ trong bao nhiêu ngày | ankor-hr-grievance#c4 | ankor-hr-grievance#c1 | ankor-hr-grievance#c1 |
-| s1-ankor-pub-gift-limit | S1 | được nhận quà tặng từ đối tác trị giá bao nhiêu | ankor-public-code-of-conduct#c5 | ankor-public-code-of-conduct#c6 | ankor-public-code-of-conduct#c6 |
-| s1-borea-eng-deploy-time-window | S1 | Borea deploy lên production trong khung giờ nào | borea-engineering-deployment#c3 | borea-engineering-deployment#c1 | borea-engineering-deployment#c1 |
-| s1-borea-fin-tax-tndn | S1 | thuế thu nhập doanh nghiệp Borea bao nhiêu phần trăm | borea-finance-tax#c2 | borea-finance-tax#c1 | borea-finance-tax#c1 |
-| s1-borea-hr-paternity-leave | S1 | bố mới có con được nghỉ phép đặc biệt mấy ngày ở Borea | borea-hr-leave#c6 | borea-hr-leave#c1 | borea-hr-leave#c1 |
-| s2-ankor-eng-primary-cloud-region | S2 | dịch vụ của Ankor đặt máy chủ chính ở vùng địa lý nào | ankor-engineering-infra#c2 | ankor-engineering-infra#c1 | ankor-engineering-infra#c1 |
-| s2-borea-hr-performance-frequency | S2 | sếp gặp riêng từng người dưới quyền để bàn việc mấy bận trong một năm | borea-hr-performance#c1 | borea-hr-exit#c2 | borea-hr-remote-work#c6 |
-| s2-borea-pub-workplace-bullying | S2 | tổ chức phản hồi ra sao khi một người bị ức hiếp trong công sở | borea-public-anti-harassment#c1 | borea-public-code-of-conduct#c2 | borea-public-code-of-conduct#c2 |
-| s3-ankor-hr-sick-notification | S3 | nghỉ ốm đột xuất cần báo trước bao lâu và báo cho ai ở Ankor | ankor-hr-leave#c3 | ankor-hr-exit#c1 | ankor-hr-exit#c1 |
-| s3-ankor-pub-car-park-allocation | S3 | nhân viên nào được Ankor ưu tiên chỗ đỗ xe tại bãi | ankor-public-parking#c2 | ankor-public-parking#c1 | ankor-public-parking#c8 |
-
-Chiều ngược lại (5 case rerank làm hỏng case bi-encoder từng đúng):
-
-| case id | tầng | query | expected | top-1 bge-m3 | top-1 +rerank |
-|---|---|---|---|---|---|
-| s1-ankor-eng-pr-large-sla | S1 | SLA review PR lớn ở Ankor là bao lâu | ankor-engineering-code-review#c4 | ankor-engineering-code-review#c3 | ankor-engineering-code-review#c3 |
-| s2-ankor-fin-audit-scope | S2 | bộ phận rà soát tài chính riêng của công ty xem xét các hạng mục gì | ankor-finance-audit#c1 | ankor-finance-audit#c3 | ankor-finance-audit#c4 |
-| s2-ankor-hr-wfh-equipment | S2 | làm ở nhà thì công ty phát cho những gì | ankor-hr-remote-work#c4 | ankor-hr-payroll#c8 | ankor-hr-benefits#c2 |
-| s3-borea-fin-quarterly-forecast-due | S3 | dự báo tài chính hằng quý phải nộp cho ban lãnh đạo trước hạn nào | borea-finance-forecast#c2 | borea-finance-expense#c9 | borea-finance-expense#c9 |
-| s4-borea-fin-capex-vs-hr | S4 | khi mua máy tính mới cho nhân viên thì phải xin duyệt như thế nào | borea-finance-budget#c5 | borea-hr-remote-work#c4 | borea-finance-reimbursement#c8 |
-
-### S5 — reranker bớt 'tự tin trả nhầm' rõ rệt nhất
-
-6 case `top_score` giảm nhiều nhất khi chuyển từ bi-encoder sang reranker (bi-encoder từng tự tin cao dù không có đáp án thật):
-
-| case id | query | top_score bge-m3 | top_score +rerank | giảm |
+# Bảy provider embedding: dim-8 · hash-1024 · BGE-M3 · e5-large · Gemini-001 · Gemini-2 · Qwen3-8B
+
+Viết lại HOÀN TOÀN, thay thế báo cáo 5-provider cũ (dim-8/hash512/bge-m3/e5-large/gemini-embedding-001
+ở `top_k=10`, đo trước khi `Chunk.embedding_input` có tiêu đề tài liệu + lọc boilerplate). Hai lý do
+số cũ không dùng lại được (đã ghi ở bản trước, không lặp lại ở đây): sai `top_k` (10 thay vì production
+thật) và sai chuỗi đem embed (`.text` trần thay vì `embedding_input`). Bản này đo lại từ đầu trên
+harness hiện tại, với **6 metric mới thay cho `recall`/`clean` cũ** (xem §Metric), `hash-1024` thay
+cho `hash-512`, và `gemini-embedding-001` đo lại ở `output_dimensionality=2048` (bản cũ dùng 1024).
+
+**Năm provider CHÍNH** (dim-8 · hash-1024 · bge-m3 · e5-large · gemini-001) đo trước, có đủ bảng
+per-tầng + gate. **Hai provider BỔ SUNG** (`gemini-embedding-2`, `qwen3-embedding-8b`) đo sau qua
+OpenRouter — kết quả ở §Provider bổ sung, cùng harness/corpus/case nên so trực tiếp được.
+
+## Sai số cần biết TRƯỚC khi đọc mọi bảng
+
+n = **241 case** cho S1–S4 (S5 không có Hit@k). Sai số chuẩn của một tỉ lệ quanh 0.70 là
+**SE ≈ 0.030**. Nghĩa là: **chênh lệch dưới ~3 điểm phần trăm giữa hai provider KHÔNG phải phát hiện**
+— nó nằm trong nhiễu lấy mẫu. Chỉ chênh lệch từ ~6 điểm (2 SE) trở lên mới nên đọc là khác biệt thật.
+Nhiều so sánh trong báo cáo này (đặc biệt reranker-vs-reranker, và ba provider mạnh nhất so với nhau)
+nằm dưới ngưỡng đó — đã chú thích tại chỗ.
+
+## Corpus & bộ case (dùng chung cho cả 7 provider)
+
+- Corpus 2.0: **800 chunk** trên **80 tài liệu**, 2 tenant (`ankor`/`borea`, 400 chunk mỗi bên; 4 role
+  `engineering`/`finance`/`hr`/`public`, 200 chunk mỗi role).
+- Bộ case: **300 case**, 5 tầng S1–S5 (~60 case/tầng) — `tests/embedding-tests/cases/*.json`.
+- Chuỗi đem embed: `Chunk.embedding_input` (= `embed_text`, có tiêu đề tài liệu + đã lọc boilerplate;
+  fallback `.text` nếu rỗng) — **cùng chuỗi đường ghi thật dùng** (`KbIngest.write`), không phải
+  `.text` trần. Xem `doc_factory_v2._cut_document`/`_strip_boilerplate`.
+- Retrieval mô phỏng `PgKbSearch`: cosine, lọc `{tenant_id, section_roles}` TRƯỚC khi xếp hạng, luôn
+  lấy **top-5** (`MAX_K`) rồi cắt còn top-1/3 cho hai metric kia — không retrieve lại ở k khác nhau.
+
+## Metric — 6 con số, MỖI CON SỐ MỘT NGHĨA CỐ ĐỊNH (không đổi nghĩa theo tầng như `recall`/`clean` cũ)
+
+| Metric | Công thức | Tầng áp dụng | Chiều tốt |
+|---|---|---|:---:|
+| **Hit@1** | chunk cần thiết có ở HẠNG #1 không (1.0/0.0) | S1–S4 | cao |
+| **Hit@3** | … trong top-3 | S1–S4 | cao |
+| **Hit@5** | … trong top-5 | S1–S4 | cao |
+| **MRR@5** | 1/hạng của chunk đúng đầu tiên trong top-5; 0 nếu trượt hẳn | S1–S4 | cao |
+| **Decoy Fall Rate** | hạng #1 có TRÚNG ĐÚNG chunk DE gán nhãn bẫy (`decoy_hint`) không | chỉ S3, S4 | **thấp** |
+| **Max Cosine Mean** | trung bình cosine của hạng #1 mỗi case | mọi tầng, kể cả S5 | **thấp** ở S5*, tham khảo ở S1–S4 |
+
+\* Ở S5 (negative — không có `expected_citation`) không có gì để "trúng", nên Hit@k/MRR@5 = **N/A**
+(không phải 0 — 0 sẽ đọc nhầm thành "trượt", trong khi thực ra câu hỏi không áp dụng). Metric duy nhất
+còn ý nghĩa là **Max Cosine Mean thấp = mô hình không tự tin bừa khi không có đáp án** — đây chính là
+gate "clean" của bản báo cáo cũ, chỉ bỏ phép nghịch đảo `1 − top_sim` cho dễ đọc trực tiếp.
+
+**Hit@3 khớp `top_k` mặc định production** (`packages/kb/../workbench/builder.py:219,292` — node
+`kb-retrieve` hardcode `"top_k": 3`); **Hit@5 khớp fallback của `KbRetrieveExecutor`**
+(`src/studio_kb/search.py`). Cả hai đều là call-site thật, không phải số chọn cho "có ngữ cảnh".
+
+**Decoy Fall Rate hẹp hơn tên gọi** — chỉ bắt "hạng #1 trúng ĐÚNG chunk DE đã gán nhãn là bẫy gần
+giống", KHÔNG phải "hạng #1 sai bất kỳ chunk nào". Chỉ S3 (near-miss cùng role) và S4 (cross-role) khai
+`decoy_hint` (S1/S2/S5 luôn `None`/N/A). `test_embedding_cases.py` chỉ kiểm decoy là chunk thật cùng
+tenant, KHÔNG kiểm nó là đối thủ trùng-token mạnh nhất trong corpus — DFR thấp không tự động nghĩa là
+"ít bị nhiễu nói chung", có thể chỉ là nhãn decoy chưa phải bẫy mạnh nhất (xem phát hiện ở §Kết luận).
+
+**Max Cosine Mean chỉ GATE (chặn CI) ở S5** — dù được đo/ghi đủ cho cả S1–S5. Lý do KHÔNG gate ở
+S1–S4: `dim-8` (8 chiều) có cosine bị **thổi phồng giả tạo** do quá ít chiều để hai văn bản bất kỳ
+(liên quan hay không) tách xa nhau về góc — đo trực tiếp: mọi cặp (query, chunk) trong một scope 100
+chunk đều rơi vào dải cosine 0.37–0.83 ở dim-8, kể cả 99 chunk hoàn toàn sai chủ đề; ở dim-1024 dải đó
+kéo dài 0.02–0.29 (chunk sai bị đẩy về gần 0 thật). Gate "cao hơn dim-8" ở S1–S4 sẽ luôn ĐỎ cho các
+provider ngữ nghĩa dù chúng đúng hơn dim-8 hàng chục điểm phần trăm ở Hit@k — vì đang so một hiện
+tượng hình học (số chiều), không so độ tự tin thật. Quyết định giữ nguyên: chỉ gate ở S5.
+
+## Bảy provider là gì
+
+| Provider | Công thức | Chiều | Nơi chạy | Ngữ nghĩa? | Tải/setup | Embed 800+300 |
+|---|---|---:|---|:---:|---:|---:|
+| `dim-8` | `derive_vector` — băm token vào 8 ô, đếm, L2-normalize (`studio_kb/embeddings.py`) | 8 | local, CPU | Không | — | 0.07s |
+| `hash1024` | CÙNG hàm `derive_vector`, chỉ đổi `dim=8`→`dim=1024` | 1024 | local, CPU | Không | — | 1.77s |
+| `bge-m3` | `BAAI/bge-m3` qua `sentence-transformers`, dense học sẵn, đa ngôn ngữ | 1024 | local, MPS | Có | 12.2s | 15.3s |
+| `multilingual-e5-large` | `intfloat/multilingual-e5-large` qua `sentence-transformers` | 1024 | local, MPS | Có | 9.5s | 15.6s |
+| `gemini-embedding-001` | Google Gemini Embedding API, `output_dimensionality=2048` (Matryoshka, cắt từ 3072 gốc) | 2048 | API (Google, free-tier trực tiếp) | Có | — | 209s\* |
+| `gemini-embedding-2` | Cùng dòng, bản mới hơn (context 8192 vs 2048) — gọi qua OpenRouter, `$0.20/M token` | 2048 | API (OpenRouter→Google) | Có | — | **44.9s** |
+| `qwen3-embedding-8b` | `Qwen/Qwen3-Embedding-8B` (8B tham số, context 32K) — qua OpenRouter, `$0.01/M token` | 2048 | API (OpenRouter→DeepInfra) | Có | — | **91.1s** |
+
+\* Thời gian `gemini-embedding-001` KHÔNG phải latency inference thật — phần lớn là chờ giới hạn tốc
+độ CỦA ĐƯỜNG GỌI FREE-TIER TRỰC TIẾP đã dùng để đo (xem §Vận hành, có đính chính). Không nên đọc con
+số này như "API chậm hơn model local ~14 lần" — qua OpenRouter (trả phí, không giới hạn ngày), cùng
+model chạy xong 1100 lượt trong <1 phút, ngang tốc độ `gemini-embedding-2`/`qwen3-embedding-8b`.
+
+**Xử lý bất đối xứng query↔document** — mỗi provider một cách, đều theo tài liệu chính thức của nó:
+
+| Provider | Cách phân biệt query vs document |
+|---|---|
+| `multilingual-e5-large` | prefix trong text: `"passage: "` cho corpus, `"query: "` cho câu hỏi |
+| `gemini-embedding-001` / `-2` | tham số API `task_type=RETRIEVAL_DOCUMENT` / `RETRIEVAL_QUERY` |
+| `qwen3-embedding-8b` | document KHÔNG prefix; query dùng `"Instruct: {task}\nQuery: {q}"` (model card nói +1–5%) |
+| `bge-m3` | không cần gì cả (đối xứng) |
+
+Mọi provider bất đối xứng đều phân biệt hai lượt gọi **theo KÍCH THƯỚC BATCH** (800 vs 300), không
+theo thứ tự gọi — thứ tự không bền nếu ai đó gọi lại `build_retriever`/`build_report` ngoài kịch bản
+1-lần-mỗi-cái; provider raise nếu gặp batch không phải 800/300, không âm thầm đoán. `bge-m3`/`e5-large`
+chạy trên **MPS** (GPU Apple Silicon local), `normalize_embeddings=True`.
+
+Script chấm KHÔNG nằm trong repo `kb` (không thêm `sentence-transformers`/`torch`/`google-genai` vào
+dependency của package — theo tiền lệ bản báo cáo trước): chạy tay, ngoài luồng, import thẳng
+`_harness`/`studio_kb`. `gemini-embedding-001` cache kết quả theo `sha256(text)` (ghi liên tục, không
+embed lại text đã có) — cần thiết vì đã dính quota giữa chừng, xem §Vận hành.
+
+## §Vận hành — chi phí vận hành thật đo được lần này, không phải suy đoán
+
+**Đính chính quan trọng (sau khi viết bản đầu của mục này): quota dưới đây là giới hạn của ĐƯỜNG GỌI cụ
+thể (free-tier key gọi thẳng Google AI Studio), KHÔNG phải giới hạn của bản thân model
+`gemini-embedding-001`.** `google/gemini-embedding-001` cũng gọi được qua OpenRouter
+(`/api/v1/embeddings`, xác nhận trực tiếp từ trang model — `$0.15/M token`, KHÔNG phải free-tier, KHÔNG
+có giới hạn ngày kiểu trên) — đúng cách đã dùng để đo `gemini-embedding-2`/`qwen3-embedding-8b` ở dưới,
+chạy xong 1100 lượt trong <1 phút, 0 lỗi quota. Tức là **toàn bộ sự cố quota mô tả dưới đây là chi phí
+của việc dùng free-tier key trực tiếp, không phải chi phí bắt buộc phải trả để dùng model này** — có
+đường khác (trả phí nhẹ qua OpenRouter) né được hoàn toàn.
+
+Vẫn giữ lại mô tả sự cố (đã xảy ra thật, đáng ghi làm bài học vận hành cho AI dùng free-tier key trực
+tiếp), nhưng không dùng nó để kết luận "gemini-embedding-001 rủi ro quota hơn provider khác" nữa —
+kết luận đó SAI, sửa lại ở phần Kết luận bên dưới.
+
+`gemini-embedding-001` free-tier (đường gọi trực tiếp, KHÔNG phải qua OpenRouter) dính **HAI** loại
+giới hạn khác nhau khi chấm batch này:
+
+1. **Giới hạn theo phút** (100 request/phút) — batch 100 text trong 1 lần gọi bị tính là 100 request,
+   chạm ngưỡng ngay. Giải quyết bằng cách chia batch ~90 text/lần + nghỉ 65s giữa các lần gọi.
+2. **Giới hạn theo NGÀY** (1000 request/ngày, free-tier) — dính **giữa chừng thật**, đúng lúc vừa
+   embed xong 800 chunk corpus và bắt đầu 300 query (chạm mốc 1000 tổng cộng). Loại này retry theo
+   phút KHÔNG cứu được — phải đổi sang API key khác để chạy tiếp 300 query còn lại.
+
+Đây KHÔNG phải lý thuyết suy diễn — là sự cố thật gặp phải khi chấm batch này bằng đường gọi trực tiếp
+(báo cáo bản trước cũng từng ghi nhận hiện tượng tương tự: "2 lần đổi API key vì hết quota ngày").
+`bge-m3`/`e5-large` không gặp giới hạn nào tương tự vì chạy hoàn toàn local; `gemini-embedding-001`
+qua OpenRouter cũng không gặp — chỉ đường gọi free-tier trực tiếp mới dính.
+
+## Kết quả theo tầng — từng metric
+
+### Hit@1
+
+| tầng | dim-8 | hash1024 | bge-m3 | e5-large | gemini-001 |
+|---|---:|---:|---:|---:|---:|
+| S1 | 0.0308 | 0.5692 | 0.6615 | 0.6308 | 0.7231 |
+| S2 | 0.0164 | 0.0000 | 0.3115 | 0.3279 | 0.4754 |
+| S3 | 0.0167 | 0.2333 | 0.3667 | 0.4667 | 0.5667 |
+| S4 | 0.0182 | 0.3091 | 0.3818 | 0.3273 | 0.5091 |
+
+### Hit@3
+
+| tầng | dim-8 | hash1024 | bge-m3 | e5-large | gemini-001 |
+|---|---:|---:|---:|---:|---:|
+| S1 | 0.1231 | 0.7385 | 0.7846 | 0.8000 | 0.8000 |
+| S2 | 0.0492 | 0.0492 | 0.5246 | 0.5246 | 0.6721 |
+| S3 | 0.1333 | 0.4667 | 0.6000 | 0.6500 | 0.7333 |
+| S4 | 0.0727 | 0.4000 | 0.5455 | 0.5818 | 0.6364 |
+
+### Hit@5
+
+| tầng | dim-8 | hash1024 | bge-m3 | e5-large | gemini-001 |
+|---|---:|---:|---:|---:|---:|
+| S1 | 0.1538 | 0.7692 | 0.8769 | 0.8923 | 0.8615 |
+| S2 | 0.0656 | 0.0820 | 0.6230 | 0.6066 | 0.7541 |
+| S3 | 0.1667 | 0.5000 | 0.6833 | 0.7167 | 0.7833 |
+| S4 | 0.1091 | 0.4364 | 0.6182 | 0.6182 | 0.7091 |
+
+### MRR@5
+
+| tầng | dim-8 | hash1024 | bge-m3 | e5-large | gemini-001 |
+|---|---:|---:|---:|---:|---:|
+| S1 | 0.0736 | 0.6497 | 0.7344 | 0.7292 | 0.7718 |
+| S2 | 0.0314 | 0.0292 | 0.4230 | 0.4317 | 0.5825 |
+| S3 | 0.0686 | 0.3464 | 0.4858 | 0.5706 | 0.6478 |
+| S4 | 0.0476 | 0.3558 | 0.4639 | 0.4445 | 0.5800 |
+
+### Decoy Fall Rate (chỉ S3, S4 — càng THẤP càng tốt)
+
+| tầng | dim-8 | hash1024 | bge-m3 | e5-large | gemini-001 |
+|---|---:|---:|---:|---:|---:|
+| S3 | 0.0667 | 0.2333 | 0.2333 | 0.1833 | 0.1167 |
+| S4 | 0.0182 | 0.0545 | 0.0909 | 0.0727 | 0.0364 |
+
+### Max Cosine Mean (S5: càng THẤP càng tốt · S1–S4: tham khảo)
+
+| tầng | dim-8 | hash1024 | bge-m3 | e5-large | gemini-001 |
+|---|---:|---:|---:|---:|---:|
+| S1 | 0.9213 | 0.4219 | 0.7210 | 0.9038 | 0.8163 |
+| S2 | 0.9218 | 0.2360 | 0.6002 | 0.8527 | 0.7383 |
+| S3 | 0.9369 | 0.3428 | 0.6466 | 0.8715 | 0.7796 |
+| S4 | 0.9494 | 0.3536 | 0.6436 | 0.8707 | 0.7659 |
+| **S5** | **0.9333** | **0.3038** | **0.5848** | **0.8546** | **0.7199** |
+
+### Macro trung bình S1–S4 (weighted theo `n` mỗi tầng)
+
+| metric | dim-8 | hash1024 | bge-m3 | e5-large | gemini-001 |
+|---|---:|---:|---:|---:|---:|
+| Hit@1 | 0.0207 | 0.2822 | 0.4357 | 0.4440 | **0.5726** |
+| Hit@3 | 0.0954 | 0.4191 | 0.6183 | 0.6432 | **0.7137** |
+| Hit@5 | 0.1245 | 0.4523 | 0.7054 | 0.7137 | **0.7801** |
+| MRR@5 | 0.0557 | 0.3501 | 0.5320 | 0.5494 | **0.6492** |
+| Decoy Fall (S3+S4) | 0.0435 | 0.1478 | 0.1652 | 0.1304 | **0.0783** |
+
+`gemini-embedding-001` thắng mọi metric chính, KỂ CẢ Decoy Fall Rate (thấp hơn cả `bge-m3` lẫn
+`e5-large`, dù vẫn cao hơn `dim-8` vì lý do đã giải thích ở §Metric/§Kết luận).
+
+## Gate (baseline dim-8 + margin theo `H.GATED_METRICS`/`record_baseline.py`)
+
+**Hai chế độ gate** (`_harness.gate_verdict`):
+- *Tương đối* so baseline dim-8 + margin — `hit1/hit3/hit5/mrr5` (S1 margin 0.02 · S2–S4 margin 0.10)
+  và `max_cosine_mean` @S5 (margin 0.05, chiều thấp).
+- *Tuyệt đối* — `decoy_fall` @S3/S4 phải `≤ 0.35`, KHÔNG so với dim-8. Xem §Vì sao `decoy_fall` phải
+  gate tuyệt đối ngay dưới.
+
+| tầng.metric | hash1024 | bge-m3 | e5-large | gemini-001 | gemini-2 | qwen3-8b |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| S1.hit1 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S1.hit3 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S1.hit5 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S1.mrr5 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S2.hit1 | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S2.hit3 | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S2.hit5 | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S2.mrr5 | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S3.hit1 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S3.hit3 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S3.hit5 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S3.mrr5 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S3.decoy_fall | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S4.hit1 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S4.hit3 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S4.hit5 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S4.mrr5 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S4.decoy_fall | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S5.max_cosine_mean | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Tổng** | **15/19** | **19/19** | **19/19** | **19/19** | **19/19** | **19/19** |
+
+Gate còn bắt đúng MỘT thứ, và đó là thứ đáng bắt: **`hash1024` trượt cả 4 ô S2 (paraphrase)** — nó
+thuần lexical nên không hiểu diễn đạt lại; ở `hit3` thậm chí HOÀ đúng bằng dim-8 (0.0492 = 0.0492).
+Năm provider ngữ nghĩa qua sạch 19/19.
+
+### Vì sao `decoy_fall` phải gate TUYỆT ĐỐI — gate cũ BẤT KHẢ THI về mặt số học
+
+Bản trước gate `decoy_fall` theo cùng cơ chế tương đối ("thấp hơn dim-8 − margin 0.10") và **cả 5
+provider ngữ nghĩa đều trượt đúng 2 ô này**. Ban đầu tưởng là gate nghiêm; kiểm lại thì là **gate
+hỏng**:
+
+```
+S3: cần decoy_fall ≤ 0.0667 − 0.10 = −0.033   ← NGƯỠNG ÂM
+S4: cần decoy_fall ≤ 0.0182 − 0.10 = −0.082   ← NGƯỠNG ÂM
+```
+
+Không tỉ lệ nào âm được, nên **không provider nào từng có khả năng qua** — trượt vì số học, không vì
+chất lượng.
+
+Gốc rễ: **dim-8 thắng metric này một cách TẦM THƯỜNG.** Nó xếp hạng gần như ngẫu nhiên nên hạng #1
+hiếm khi trúng đúng chunk decoy đã gán nhãn — thấp vì *không hiểu gì để bị bẫy*, không phải vì chống
+bẫy giỏi. Đo cụ thể:
+
+| | decoy_fall (macro S3+S4) | so với mức ngẫu nhiên thuần |
+|---|---:|---:|
+| xếp hạng ngẫu nhiên (1/\|scope\|) | 0.0076 | 1.0× |
+| `dim-8` | 0.0435 | 5.7× |
+| `gemini-001` / `gemini-2` | 0.078 | ~10× |
+| `qwen3-8b` | 0.122 | 16× |
+| `e5-large` | 0.130 | 17× |
+| `hash1024` | 0.148 | 19× |
+| `bge-m3` | 0.165 | 22× |
+
+Model càng hiểu nghĩa càng dễ bị near-miss decoy kéo lên hạng #1 (decoy được DE dựng cố ý là "cùng
+role, chủ đề kề"), nên metric này **không thể dùng để CHỌN model** — nó xếp một model ngẫu nhiên lên
+đầu bảng. Nó chỉ dùng được như **thanh chắn an toàn một chiều**: bắt provider bị bẫy một cách bệnh
+hoạn.
+
+**Ngưỡng 0.35 lấy từ dữ liệu, không phải cảm tính**: giá trị cao nhất từng quan sát ở một provider
+chạy được là **0.2333** (S3, `hash1024` và `bge-m3`); với n=60 ở S3 thì SE ≈ 0.055, nên
+0.2333 + 2·SE ≈ 0.343. Chọn 0.35 để model tệ-ngang-`bge-m3` vẫn qua chắc chắn (gate không nhấp nháy
+vì nhiễu lấy mẫu) nhưng vẫn bắt được thứ thật sự bệnh — ví dụ một nửa số truy vấn rơi vào bẫy.
+
+Đã cài đặt: `_harness.ABSOLUTE_MAX` + `_harness.gate_verdict`, ngưỡng ghi vào `baseline-dim8.json`
+(nằm trong git diff, đổi ngưỡng mà quên re-record thì CI đỏ). Margin `decoy_fall` đã bị **xoá khỏi**
+`record_baseline._DEFAULT_MARGIN` để không còn cấu hình chết gây hiểu nhầm. Logic gate được chốt bằng
+5 test tính tay ở `test_score_case.py` (nhánh 'ứng viên' vốn không bao giờ chạy ở CI thường vì CI chỉ
+chấm chính dim-8 ở chế độ freshness), và đã gieo 3 mutation — đảo dấu ngưỡng, siết ngưỡng xuống dưới
+mức đã quan sát, bỏ hẳn nhánh tuyệt đối — cả ba đều làm test đỏ.
+
+## Provider BỔ SUNG — `gemini-embedding-2` và `qwen3-embedding-8b` (đo sau, qua OpenRouter)
+
+Cùng harness · cùng 800 chunk · cùng 300 case · cùng `embedding_input` · cùng `dim=2048` như
+`gemini-001`, nên so trực tiếp được với mọi bảng ở trên.
+
+### Per-tầng
+
+| metric | tầng | gemini-001 | gemini-2 | qwen3-8b |
 |---|---|---:|---:|---:|
-| s5-ankor-hr-student-loan | Ankor có hỗ trợ trả nợ vay học phí đại học cho nhân viên mới không | 0.6706 | 0.0654 | +0.6052 |
-| s5-ankor-pub-meditation-room | Ankor có phòng thiền định cho nhân viên cần không gian yên tĩnh không | 0.6631 | 0.0694 | +0.5937 |
-| s5-ankor-fin-car-loan | quy định duyệt khoản vay ưu đãi mua ô tô trả góp cho nhân sự cấp cao | 0.6085 | 0.0200 | +0.5884 |
-| s5-ankor-hr-crypto-bonus | công ty có trả thưởng bằng tiền điện tử không | 0.6180 | 0.0301 | +0.5880 |
-| s5-ankor-hr-fertility-treatment | công ty có hỗ trợ chi phí điều trị hiếm muộn cho nhân viên không | 0.5701 | 0.0059 | +0.5642 |
-| s5-ankor-pub-gym | công ty có phòng gym miễn phí cho nhân viên không | 0.5729 | 0.0115 | +0.5614 |
+| Hit@1 | S1 | 0.7231 | 0.6769 | 0.6923 |
+| Hit@1 | S2 | 0.4754 | **0.5246** | 0.4426 |
+| Hit@1 | S3 | 0.5667 | 0.5333 | 0.4667 |
+| Hit@1 | S4 | 0.5091 | 0.4364 | 0.4545 |
+| Hit@3 | S1 | 0.8000 | **0.8462** | 0.8308 |
+| Hit@3 | S2 | 0.6721 | 0.6721 | 0.6721 |
+| Hit@3 | S3 | 0.7333 | 0.6667 | 0.6500 |
+| Hit@3 | S4 | 0.6364 | 0.6000 | 0.6545 |
+| Hit@5 | S1 | 0.8615 | 0.9077 | **0.9231** |
+| Hit@5 | S2 | 0.7541 | **0.8033** | 0.7377 |
+| Hit@5 | S3 | 0.7833 | 0.7500 | 0.7333 |
+| Hit@5 | S4 | 0.7091 | 0.6727 | 0.6909 |
+| MRR@5 | S1 | 0.7718 | 0.7659 | 0.7736 |
+| MRR@5 | S2 | 0.5825 | **0.6131** | 0.5694 |
+| MRR@5 | S3 | 0.6478 | 0.6092 | 0.5672 |
+| MRR@5 | S4 | 0.5800 | 0.5273 | 0.5636 |
+| Decoy Fall | S3 | 0.1167 | **0.1000** | 0.1500 |
+| Decoy Fall | S4 | 0.0364 | 0.0545 | 0.0909 |
+| Max Cosine | **S5** | 0.7199 | 0.6836 | **0.5592** |
 
-### Chi phí & giới hạn
+### Macro S1–S4 + gate
 
-- **Chi phí**: rerank 30 ứng viên/query × 300 query = 9000 cặp (query, chunk) qua cross-encoder — mất **159.5s** trên MPS local (thêm vào ~25s embed bi-encoder có sẵn). Đây là chi phí request-time thật nếu áp production (mỗi query mới đều phải rerank), không phải chi phí một lần như embed corpus.
-- **Threshold KHÔNG cộng dồn được với reranker** — sweep threshold trên thang điểm reranker (0.05 → 0.50) cho thấy MỌI mức threshold thử đều làm S2 tụt, trong khi S5 chỉ nhích thêm so với reranker-không-threshold vốn đã cải thiện mạnh. Kết luận: reranker một mình đã đạt hầu hết lợi ích mà threshold nhắm tới cho S5, thêm threshold chỉ có hại ròng trên bộ case này — vì vậy KHÔNG đưa threshold vào khuyến nghị cuối, chỉ giữ reranker.
-- Thử ngoài luồng (không qua `pytest`), top-30 lấy từ `bge-m3` local — chưa thử reranker trên top-30 của `gemini-embedding-001`/`multilingual-e5-large` hay ở pool lớn hơn 30.
-- Một lần chạy, không lặp lại để đo phương sai.
+| metric | gemini-001 | gemini-2 | qwen3-8b | chênh lệch lớn nhất |
+|---|---:|---:|---:|---|
+| Hit@1 | **0.5726** | 0.5477 | 0.5187 | 5.4đ (≈1.8 SE) |
+| Hit@3 | **0.7137** | 0.7013 | 0.7054 | 1.2đ (**dưới nhiễu**) |
+| Hit@5 | 0.7801 | **0.7884** | 0.7759 | 1.3đ (**dưới nhiễu**) |
+| MRR@5 | **0.6492** | 0.6338 | 0.6226 | 2.7đ (**dưới nhiễu**) |
+| Decoy Fall (S3+S4) | **0.0783** | 0.0782 | 0.1217 | 4.3đ |
+| **Gate** | 17/19 | 17/19 | 17/19 | — (cả ba trượt đúng 2 ô `decoy_fall`) |
 
-## Khuyến nghị cuối cùng
+**Ba provider này THỐNG KÊ KHÔNG PHÂN BIỆT ĐƯỢC ở Hit@3/Hit@5/MRR@5** — chênh lệch 1.2–2.7 điểm, đều
+dưới 1 SE. Hit@3 và Hit@5 chính là hai metric khớp production thật (`top_k=3`, fallback 5), nên **về
+mặt sản phẩm, ba model này tương đương nhau**. Chỉ hai chỗ nhích ra ngoài nhiễu:
 
-**`bge-m3` + `bge-reranker-v2-m3` (2 tầng: bi-encoder lấy top-30 → cross-encoder rerank còn top-10)** — không phải một embedding đơn lẻ.
+1. **Hit@1**: `gemini-001` (0.5726) hơn `qwen3-8b` (0.5187) 5.4đ ≈ 1.8 SE — nghiêng về gemini-001
+   nhưng chưa đủ mạnh để khẳng định chắc.
+2. **Decoy Fall Rate**: cả hai bản Gemini (0.078) tốt hơn rõ `qwen3-8b` (0.122) — dòng Gemini xử lý
+   near-miss decoy tốt hơn nhất quán ở cả hai phiên bản.
 
-| | dim-8 | hash512 | e5-large | gemini-001 | bge-m3 | **bge-m3 + rerank** |
-|---|---:|---:|---:|---:|---:|---:|
-| Gate | — | 4/5 | 5/5 | 5/5 | 5/5 | **5/5** |
-| Recall trung bình 5 tầng | 0.1755 | 0.5177 | 0.5392 | 0.6299 | 0.5964 | **0.7106** |
-| S5 (không trả bịa) | 0.0662 | 0.6872 | 0.1487 | 0.2916 | 0.4228 | **0.7768** |
-| Chạy ở đâu | local | local | local | API | local | local |
-| Rủi ro vận hành | — | không | không | quota/mạng (dính cạn quota 2 lần khi đo) | không | không |
+### Vận hành — đây mới là chỗ khác biệt thật
 
-Ba lý do:
+| | gemini-001 (free-tier trực tiếp) | gemini-2 (OpenRouter) | qwen3-8b (OpenRouter) |
+|---|---|---|---|
+| Thời gian 1100 lượt | 209s (phần lớn là chờ quota) | **44.9s** | 91.1s |
+| Sự cố | dính quota ngày, **phải đổi API key giữa chừng** | không | không |
+| Giá | $0.15/M qua OpenRouter (free-tier trực tiếp: 1000 req/ngày) | $0.20/M token | **$0.01/M token** |
+| Chi phí đợt đo này | $0 (free-tier, nhưng tốn 1 key dự phòng) | ~$0.014 | ~$0.0007 |
 
-1. **Thắng mọi lựa chọn embedding đơn, kể cả `gemini-embedding-001`** (vốn đang cao nhất trong 3 dense model) — reranker đọc query+chunk cùng lúc nên xử lý đúng loại bẫy corpus cố tình dựng (S3 near-miss cùng vai, S4 cross-role trap). Không đánh đổi gì để có mức tăng này: cả 5 tầng đều lên so với `bge-m3` thuần, không tầng nào giảm.
-2. **S5 vượt trội** — ít 'tự tin trả nhầm' nhất khi câu hỏi không có đáp án thật trong số mọi lựa chọn đã thử. Với RAG, đây quan trọng ngang recall vì quyết định LLM có bị đưa context sai rồi bịa theo không.
-3. **Toàn bộ local, không phụ thuộc API/quota** — `gemini-embedding-001` recall S1-S4 cao nhất nhưng đã đích thân dính quota-cạn 2 lần trong quá trình đo ở report này, phải đổi 3 API key mới xong một job 1100 văn bản. Rủi ro vận hành thật, không phải lý thuyết.
+Khác biệt thật giữa ba model nằm ở **vận hành, không phải độ chính xác**: chất lượng tương đương (xem
+bảng macro), còn giá chênh nhau tới 20 lần.
 
-**Đánh đổi cần biết**: reranker cộng thêm ~530ms/query (159.5s / 300 query ở top-30) so với chỉ dùng bi-encoder — cần đo lại nếu retrieval nằm trên đường latency-critical có SLA chặt.
+### Vì sao hai provider này DỪNG ở mức thử nghiệm, không thay `gemini-embedding-001`
 
-**Nếu bắt buộc chỉ chọn một embedding đơn** (không thêm tầng rerank): **`bge-m3`** — cân bằng nhất, local, và đã là model sạch nhất (S5 tốt nhất trong 3 dense) trước cả khi thêm reranker.
+Cả hai đều được thử vì một **giả thuyết cụ thể**, và cả hai giả thuyết đều bị chính dữ liệu bác bỏ.
+Ghi lại đây để lần sau không ai thử lại cùng một hướng rồi ngạc nhiên như cũ.
 
-**Lưu ý phạm vi**: đây là khuyến nghị dựa trên dữ liệu từ eval harness DE sở hữu (`tests/embedding-tests/`) — quyết định wiring embedding thật vào hệ thống (đổi `EMBEDDING_DIM`, `EmbeddingService`) là lane của AIE-1, cần trao đổi trước khi áp dụng.
+**`qwen3-embedding-8b` — giả thuyết: "đứng đầu MTEB Multilingual thì phải mạnh trên tiếng Việt".**
+Nó đang hạng 1 MTEB Multilingual (**70.58**), trên cả `gemini-embedding-exp` (68.37) và
+`multilingual-e5-large` (63.22), nên kỳ vọng là nó sẽ dẫn đầu ở đây. **Thực tế ngược lại**: nó
+KHÔNG vượt được `gemini-embedding-001` ở bất kỳ metric chính nào, và thua rõ nhất đúng ở hai chỗ khó
+nhất của bài toán này:
 
-## Phụ lục — kết quả đầy đủ 300 case, cả 4 provider ứng viên cạnh nhau
+| | qwen3-8b | gemini-001 | chênh |
+|---|---:|---:|---:|
+| Hit@1 (macro) | 0.5187 | 0.5726 | **−5.4đ** |
+| Decoy Fall (S3+S4) | 0.1217 | 0.0783 | **+4.3đ (tệ hơn)** |
 
-| case id | tầng | tenant | recall hash512 | recall bge-m3 | recall e5-large | recall gemini-001 | top1 e5-large |
-|---|---|---|---:|---:|---:|---:|---|
-| s1-ankor-eng-code-review-approval | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-code-review#c1 |
-| s1-ankor-eng-deployment-strategy | S1 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-engineering-deployment#c1 |
-| s1-ankor-eng-incident-classify | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-incident#c1 |
-| s1-ankor-eng-infra-region | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-infra#c1 |
-| s1-ankor-eng-log-retention | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-oncall#c5 |
-| s1-ankor-eng-mfa-required | S1 | ankor | 1.00 | 1.00 | 0.00 | 1.00 | ankor-engineering-security#c1 |
-| s1-ankor-eng-monitoring-downtime-alert | S1 | ankor | 0.00 | 0.00 | 1.00 | 1.00 | ankor-engineering-security#c7 |
-| s1-ankor-eng-oncall-allowance | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-oncall#c3 |
-| s1-ankor-eng-oncall-sla-p1 | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-oncall#c4 |
-| s1-ankor-eng-pr-large-sla | S1 | ankor | 1.00 | 1.00 | 0.00 | 0.00 | ankor-engineering-code-review#c3 |
-| s1-ankor-eng-production-access | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-access#c8 |
-| s1-ankor-eng-review-sla | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-code-review#c3 |
-| s1-ankor-fin-approval-teamlead | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-approval-limits#c2 |
-| s1-ankor-fin-budget-capex | S1 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-finance-forecast#c1 |
-| s1-ankor-fin-pettycash | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-expense#c5 |
-| s1-ankor-fin-procurement-floor | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-procurement#c1 |
-| s1-ankor-fin-reimburse-deadline | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-reimbursement#c3 |
-| s1-ankor-fin-tax-tndn | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-tax#c1 |
-| s1-ankor-hr-annual-leave-count | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-hr-leave#c1 |
-| s1-ankor-hr-grievance-timeline | S1 | ankor | 1.00 | 0.00 | 0.00 | 0.00 | ankor-hr-grievance#c1 |
-| s1-ankor-hr-health-insurance-coverage | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-hr-benefits#c1 |
-| s1-ankor-hr-performance-cycle | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-hr-performance#c1 |
-| s1-ankor-hr-probation-period | S1 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-hr-onboarding#c7 |
-| s1-ankor-hr-sick-days | S1 | ankor | 1.00 | 1.00 | 0.00 | 1.00 | ankor-hr-leave#c1 |
-| s1-ankor-hr-thaisan | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-hr-leave#c5 |
-| s1-ankor-hr-wfh-days | S1 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-hr-remote-work#c2 |
-| s1-ankor-pub-casual-friday | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-public-dress-code#c1 |
-| s1-ankor-pub-communication-slack | S1 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-public-communication#c1 |
-| s1-ankor-pub-gift-limit | S1 | ankor | 0.00 | 0.00 | 0.00 | 1.00 | ankor-public-code-of-conduct#c6 |
-| s1-ankor-pub-harassment-report-channel | S1 | ankor | 1.00 | 0.00 | 0.00 | 0.00 | ankor-public-anti-harassment#c6 |
-| s1-ankor-pub-national-holidays | S1 | ankor | 1.00 | 0.00 | 0.00 | 0.00 | ankor-public-holidays#c10 |
-| s1-ankor-pub-office-open-time | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-public-office-hours#c1 |
-| s1-ankor-pub-parking-fee | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-public-parking#c8 |
-| s1-ankor-pub-parking-motorbike | S1 | ankor | 0.00 | 0.00 | 0.00 | 1.00 | ankor-public-parking#c8 |
-| s1-ankor-pub-tet | S1 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-public-holidays#c1 |
-| s1-ankor-pub-visitor-badge-color | S1 | ankor | 1.00 | 0.00 | 0.00 | 0.00 | ankor-public-visitors#c1 |
-| s1-borea-eng-alert-level | S1 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-engineering-monitoring#c5 |
-| s1-borea-eng-db-access | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-engineering-access#c8 |
-| s1-borea-eng-deploy-time-window | S1 | borea | 0.00 | 0.00 | 1.00 | 1.00 | borea-engineering-deployment#c1 |
-| s1-borea-eng-incident-p1-ack | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-engineering-oncall#c4 |
-| s1-borea-eng-oncall-weekly-pay | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-engineering-oncall#c1 |
-| s1-borea-eng-pr-small-sla | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-engineering-code-review#c10 |
-| s1-borea-eng-release-freeze | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-engineering-deployment#c1 |
-| s1-borea-eng-rollback | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-engineering-deployment#c5 |
-| s1-borea-fin-cfo-approval-cap | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-finance-reimbursement#c1 |
-| s1-borea-fin-petty-cash | S1 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-finance-reimbursement#c1 |
-| s1-borea-fin-procurement-scope | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-finance-procurement#c1 |
-| s1-borea-fin-reimburse-limit | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-finance-reimbursement#c2 |
-| s1-borea-fin-reimbursement-cap | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-finance-reimbursement#c1 |
-| s1-borea-fin-tax-tndn | S1 | borea | 1.00 | 0.00 | 0.00 | 1.00 | borea-finance-tax#c1 |
-| s1-borea-fin-travel-meal | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-finance-reimbursement#c1 |
-| s1-borea-hr-annual-review-cycle | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-hr-performance#c1 |
-| s1-borea-hr-leave-annual | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-hr-leave#c1 |
-| s1-borea-hr-paternity-leave | S1 | borea | 1.00 | 0.00 | 0.00 | 0.00 | borea-hr-leave#c1 |
-| s1-borea-hr-payday | S1 | borea | 1.00 | 0.00 | 0.00 | 0.00 | borea-hr-exit#c6 |
-| s1-borea-hr-remote-days | S1 | borea | 1.00 | 0.00 | 0.00 | 0.00 | borea-hr-remote-work#c8 |
-| s1-borea-hr-resignation-notice | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-hr-exit#c1 |
-| s1-borea-hr-sick | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-hr-leave#c3 |
-| s1-borea-hr-sick-max-days | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-hr-leave#c3 |
-| s1-borea-hr-training-annual-budget | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-hr-training#c1 |
-| s1-borea-pub-canteen-hours | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-public-office-hours#c2 |
-| s1-borea-pub-dress-code-basic | S1 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-public-dress-code#c9 |
-| s1-borea-pub-dress-formal | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-public-dress-code#c3 |
-| s1-borea-pub-office-hours | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-public-office-hours#c6 |
-| s1-borea-pub-tet | S1 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-public-holidays#c1 |
-| s2-ankor-eng-blue-green | S2 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-engineering-release#c1 |
-| s2-ankor-eng-deploy-freeze | S2 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-release#c2 |
-| s2-ankor-eng-infra-db | S2 | ankor | 0.00 | 0.00 | 1.00 | 1.00 | ankor-engineering-infra#c1 |
-| s2-ankor-eng-log-storage-period | S2 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-engineering-security#c10 |
-| s2-ankor-eng-merge-approvers | S2 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-code-review#c1 |
-| s2-ankor-eng-oncall-nightcall | S2 | ankor | 0.00 | 1.00 | 0.00 | 0.00 | ankor-engineering-oncall#c9 |
-| s2-ankor-eng-pr-test-requirement | S2 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-engineering-security#c5 |
-| s2-ankor-eng-primary-cloud-region | S2 | ankor | 0.00 | 0.00 | 1.00 | 1.00 | ankor-engineering-infra#c1 |
-| s2-ankor-eng-release-rhythm | S2 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-incident#c5 |
-| s2-ankor-eng-secret-store | S2 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-access#c9 |
-| s2-ankor-fin-audit-scope | S2 | ankor | 0.00 | 1.00 | 1.00 | 0.00 | ankor-finance-approval-limits#c10 |
-| s2-ankor-fin-budget-reforecast | S2 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-finance-budget#c1 |
-| s2-ankor-fin-capital-expenditure | S2 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-finance-audit#c3 |
-| s2-ankor-fin-indirect-tax-rate | S2 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-finance-tax#c1 |
-| s2-ankor-fin-invoice-format | S2 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-finance-invoicing#c3 |
-| s2-ankor-hr-complaint-handling | S2 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-hr-grievance#c2 |
-| s2-ankor-hr-exit-notice | S2 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-hr-exit#c1 |
-| s2-ankor-hr-pip-timeframe | S2 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-hr-performance#c7 |
-| s2-ankor-hr-probation-tasks | S2 | ankor | 0.00 | 1.00 | 0.00 | 0.00 | ankor-hr-training#c7 |
-| s2-ankor-hr-recruitment-interview-count | S2 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-hr-recruitment#c8 |
-| s2-ankor-hr-training-budget | S2 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-hr-training#c1 |
-| s2-ankor-hr-unused-leave-rollover | S2 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-hr-leave#c10 |
-| s2-ankor-hr-wfh-equipment | S2 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-hr-remote-work#c4 |
-| s2-ankor-pub-conduct-discipline | S2 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-public-anti-harassment#c8 |
-| s2-ankor-pub-daily-outfit | S2 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-public-dress-code#c2 |
-| s2-ankor-pub-fire-escape-route | S2 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-public-visitors#c3 |
-| s2-ankor-pub-instant-messaging | S2 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-public-communication#c9 |
-| s2-ankor-pub-official-comms-channel | S2 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-public-communication#c9 |
-| s2-ankor-pub-parking-reserve | S2 | ankor | 0.00 | 0.00 | 0.00 | 1.00 | ankor-public-parking#c2 |
-| s2-ankor-pub-public-holidays-list | S2 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-public-office-hours#c10 |
-| s2-ankor-pub-visitor-entry | S2 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-public-visitors#c8 |
-| s2-borea-eng-alert-first-receiver | S2 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-engineering-oncall#c4 |
-| s2-borea-eng-cloud-provider | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-engineering-infra#c1 |
-| s2-borea-eng-no-deploy-period | S2 | borea | 0.00 | 0.00 | 1.00 | 1.00 | borea-engineering-code-review#c1 |
-| s2-borea-eng-p2-response-sla | S2 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-engineering-oncall#c4 |
-| s2-borea-eng-prod-login | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-engineering-access#c8 |
-| s2-borea-eng-rollback-trigger | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-engineering-deployment#c5 |
-| s2-borea-eng-test-coverage | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-engineering-testing#c5 |
-| s2-borea-fin-approval-level | S2 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-finance-budget#c5 |
-| s2-borea-fin-corporate-tax | S2 | borea | 1.00 | 0.00 | 0.00 | 0.00 | borea-finance-tax#c1 |
-| s2-borea-fin-invoice-issuance-window | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-finance-invoicing#c2 |
-| s2-borea-fin-meal-expense-ceiling | S2 | borea | 0.00 | 1.00 | 0.00 | 1.00 | borea-finance-reimbursement#c1 |
-| s2-borea-fin-min-vendor-quotes | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-finance-procurement#c7 |
-| s2-borea-fin-petty-cash-request | S2 | borea | 0.00 | 1.00 | 0.00 | 1.00 | borea-finance-procurement#c1 |
-| s2-borea-fin-travel-hotel | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-finance-travel#c4 |
-| s2-borea-hr-complaint-response-time | S2 | borea | 0.00 | 1.00 | 0.00 | 1.00 | borea-hr-performance#c9 |
-| s2-borea-hr-dad-days-off | S2 | borea | 0.00 | 1.00 | 1.00 | 0.00 | borea-hr-onboarding#c7 |
-| s2-borea-hr-medical-cert | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-hr-leave#c3 |
-| s2-borea-hr-onboarding-day1 | S2 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-hr-onboarding#c2 |
-| s2-borea-hr-performance-frequency | S2 | borea | 1.00 | 0.00 | 0.00 | 1.00 | borea-hr-grievance#c6 |
-| s2-borea-hr-rating-scale | S2 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-hr-payroll#c1 |
-| s2-borea-hr-referral | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-hr-recruitment#c9 |
-| s2-borea-hr-salary-structure | S2 | borea | 0.00 | 1.00 | 0.00 | 1.00 | borea-hr-payroll#c2 |
-| s2-borea-hr-supplemental-health | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-hr-benefits#c2 |
-| s2-borea-hr-wfh-office-days | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-hr-remote-work#c2 |
-| s2-borea-pub-business-attire | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-public-dress-code#c3 |
-| s2-borea-pub-company-purpose | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-public-anti-harassment#c9 |
-| s2-borea-pub-holiday-count | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-public-holidays#c4 |
-| s2-borea-pub-lunch-service | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-public-office-hours#c2 |
-| s2-borea-pub-safety-fire | S2 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-public-safety#c2 |
-| s2-borea-pub-workplace-bullying | S2 | borea | 0.00 | 0.00 | 0.00 | 1.00 | borea-public-code-of-conduct#c2 |
-| s3-ankor-eng-code-freeze-scope | S3 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-security#c1 |
-| s3-ankor-eng-deploy-rollback | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-deployment#c5 |
-| s3-ankor-eng-hotfix-process | S3 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-engineering-oncall#c6 |
-| s3-ankor-eng-infra-backup | S3 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-engineering-security#c1 |
-| s3-ankor-eng-oncall-sla | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-oncall#c2 |
-| s3-ankor-eng-rollback-criteria | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-deployment#c5 |
-| s3-ankor-eng-security-password | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-security#c2 |
-| s3-ankor-eng-vuln-patch-sla | S3 | ankor | 0.00 | 0.00 | 0.00 | 1.00 | ankor-engineering-security#c9 |
-| s3-ankor-fin-approval-limits | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-approval-limits#c8 |
-| s3-ankor-fin-expense-alert | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-expense#c2 |
-| s3-ankor-fin-external-audit-cycle | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-audit#c1 |
-| s3-ankor-fin-opex-categories | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-expense#c1 |
-| s3-ankor-fin-opex-report | S3 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-finance-forecast#c2 |
-| s3-ankor-fin-petty-cash-usage | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-procurement#c1 |
-| s3-ankor-fin-reimburse-late | S3 | ankor | 0.00 | 1.00 | 0.00 | 1.00 | ankor-finance-reimbursement#c8 |
-| s3-ankor-fin-revenue-forecast-cycle | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-forecast#c2 |
-| s3-ankor-hr-maternity-return | S3 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-hr-exit#c9 |
-| s3-ankor-hr-offboard-handover-window | S3 | ankor | 1.00 | 0.00 | 0.00 | 1.00 | ankor-hr-exit#c1 |
-| s3-ankor-hr-paternity-apply | S3 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-hr-leave#c5 |
-| s3-ankor-hr-performance-pip | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-hr-performance#c7 |
-| s3-ankor-hr-sick-notification | S3 | ankor | 1.00 | 0.00 | 0.00 | 1.00 | ankor-hr-exit#c1 |
-| s3-ankor-hr-sick-notify | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-hr-leave#c3 |
-| s3-ankor-hr-week1-tasks | S3 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-hr-onboarding#c2 |
-| s3-ankor-pub-all-hands-cadence | S3 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-public-office-hours#c8 |
-| s3-ankor-pub-canteen-menu | S3 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-public-dress-code#c1 |
-| s3-ankor-pub-car-park-allocation | S3 | ankor | 1.00 | 0.00 | 1.00 | 1.00 | ankor-public-parking#c8 |
-| s3-ankor-pub-core-values | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-public-mission#c3 |
-| s3-ankor-pub-holiday-overtime-pay | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-public-holidays#c6 |
-| s3-ankor-pub-meeting-room-etiquette | S3 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-public-office-hours#c10 |
-| s3-ankor-pub-national-holiday-work | S3 | ankor | 1.00 | 0.00 | 0.00 | 0.00 | ankor-public-holidays#c5 |
-| s3-ankor-pub-parking-bikes | S3 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-public-parking#c2 |
-| s3-borea-eng-canary-deployment | S3 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-engineering-release#c1 |
-| s3-borea-eng-ci-integration-test | S3 | borea | 0.00 | 1.00 | 0.00 | 1.00 | borea-engineering-testing#c1 |
-| s3-borea-eng-code-review-checklist | S3 | borea | 0.00 | 0.00 | 0.00 | 1.00 | borea-engineering-code-review#c1 |
-| s3-borea-eng-incident-classify | S3 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-engineering-incident#c1 |
-| s3-borea-eng-log-search | S3 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-engineering-code-review#c9 |
-| s3-borea-eng-ops-dashboard | S3 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-engineering-infra#c1 |
-| s3-borea-eng-prod-session | S3 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-engineering-access#c5 |
-| s3-borea-eng-semver-convention | S3 | borea | 1.00 | 0.00 | 0.00 | 1.00 | borea-engineering-release#c1 |
-| s3-borea-fin-budget-contingency | S3 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-finance-budget#c8 |
-| s3-borea-fin-capex-approval | S3 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-finance-approval-limits#c1 |
-| s3-borea-fin-corporate-tax-deadline | S3 | borea | 0.00 | 0.00 | 1.00 | 1.00 | borea-finance-invoicing#c9 |
-| s3-borea-fin-quarterly-forecast-due | S3 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-finance-expense#c9 |
-| s3-borea-fin-receipt-attachment-format | S3 | borea | 1.00 | 0.00 | 0.00 | 0.00 | borea-finance-reimbursement#c3 |
-| s3-borea-hr-exit-interview-mandatory | S3 | borea | 0.00 | 0.00 | 0.00 | 1.00 | borea-hr-exit#c1 |
-| s3-borea-hr-grievance-steps | S3 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-hr-grievance#c1 |
-| s3-borea-hr-leave-carryover | S3 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-hr-leave#c2 |
-| s3-borea-hr-offsite-training-approval | S3 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-hr-remote-work#c9 |
-| s3-borea-hr-onboarding-buddy | S3 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-hr-onboarding#c2 |
-| s3-borea-hr-payroll-bonus | S3 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-hr-payroll#c10 |
-| s3-borea-hr-probation-criteria | S3 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-hr-onboarding#c7 |
-| s3-borea-hr-referral-payout-timing | S3 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-hr-onboarding#c7 |
-| s3-borea-hr-remote-hours | S3 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-hr-remote-work#c5 |
-| s3-borea-hr-setup-allowance | S3 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-hr-remote-work#c4 |
-| s3-borea-hr-sick-extended | S3 | borea | 1.00 | 0.00 | 0.00 | 0.00 | borea-hr-leave#c1 |
-| s3-borea-pub-conduct-gifts | S3 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-public-code-of-conduct#c4 |
-| s3-borea-pub-first-aid-training | S3 | borea | 0.00 | 0.00 | 1.00 | 1.00 | borea-public-safety#c10 |
-| s3-borea-pub-holiday-makeup | S3 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-public-holidays#c3 |
-| s3-borea-pub-parking-registration | S3 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-public-parking#c1 |
-| s3-borea-pub-visitor-escort-rule | S3 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-public-visitors#c3 |
-| s4-ankor-eng-code-freeze-holiday | S4 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-deployment#c10 |
-| s4-ankor-eng-infra-backup-vs-fin | S4 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-engineering-oncall#c5 |
-| s4-ankor-eng-oncall | S4 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-oncall#c4 |
-| s4-ankor-eng-p1-ack-time | S4 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-oncall#c4 |
-| s4-ankor-eng-ssh-key-rotation | S4 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-access#c6 |
-| s4-ankor-eng-ssh-rotate | S4 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-engineering-access#c6 |
-| s4-ankor-fin-budget-alert | S4 | ankor | 0.00 | 0.00 | 1.00 | 1.00 | ankor-finance-approval-limits#c9 |
-| s4-ankor-fin-budget-alert-system | S4 | ankor | 0.00 | 0.00 | 1.00 | 1.00 | ankor-finance-approval-limits#c9 |
-| s4-ankor-fin-invoice | S4 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-invoicing#c6 |
-| s4-ankor-fin-invoice-types | S4 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-invoicing#c6 |
-| s4-ankor-fin-petty-cash-vs-eng | S4 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-expense#c5 |
-| s4-ankor-fin-tax-vs-pub | S4 | ankor | 0.00 | 0.00 | 0.00 | 1.00 | ankor-finance-tax#c1 |
-| s4-ankor-fin-travel-approval | S4 | ankor | 1.00 | 0.00 | 1.00 | 1.00 | ankor-finance-approval-limits#c1 |
-| s4-ankor-hr-exit-cert-vs-fin | S4 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-hr-exit#c1 |
-| s4-ankor-hr-paternity-vs-fin | S4 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-hr-leave#c5 |
-| s4-ankor-hr-performance-cycle | S4 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-hr-performance#c1 |
-| s4-ankor-hr-recruitment | S4 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-hr-recruitment#c5 |
-| s4-ankor-hr-review-cycle-length | S4 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-hr-performance#c1 |
-| s4-ankor-hr-tech-interview-duration | S4 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-hr-recruitment#c5 |
-| s4-ankor-hr-training-vs-fin | S4 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-finance-reimbursement#c4 |
-| s4-ankor-pub-anti-harassment-investigation | S4 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-public-anti-harassment#c6 |
-| s4-ankor-pub-canteen-subsidy | S4 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-hr-training#c1 |
-| s4-ankor-pub-conduct-gift-vs-fin | S4 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-public-code-of-conduct#c6 |
-| s4-ankor-pub-gift-policy | S4 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-public-code-of-conduct#c6 |
-| s4-ankor-pub-holiday-overtime | S4 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-public-holidays#c6 |
-| s4-ankor-pub-holidays | S4 | ankor | 1.00 | 1.00 | 1.00 | 1.00 | ankor-public-holidays#c6 |
-| s4-ankor-pub-meeting-room-booking | S4 | ankor | 0.00 | 1.00 | 1.00 | 1.00 | ankor-public-visitors#c5 |
-| s4-ankor-pub-safety-vs-eng | S4 | ankor | 0.00 | 0.00 | 0.00 | 0.00 | ankor-engineering-security#c7 |
-| s4-borea-eng-code-coverage-gate | S4 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-engineering-code-review#c9 |
-| s4-borea-eng-log-retention-vs-fin | S4 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-finance-audit#c1 |
-| s4-borea-eng-passwordless-login | S4 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-engineering-security#c2 |
-| s4-borea-eng-reimbursement-docs | S4 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-finance-reimbursement#c3 |
-| s4-borea-eng-release-vs-hr | S4 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-engineering-release#c1 |
-| s4-borea-eng-security | S4 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-engineering-security#c2 |
-| s4-borea-fin-capex-vs-hr | S4 | borea | 0.00 | 1.00 | 0.00 | 0.00 | borea-hr-remote-work#c3 |
-| s4-borea-fin-reimburse | S4 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-finance-reimbursement#c3 |
-| s4-borea-fin-reimbursement-vs-hr | S4 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-finance-reimbursement#c7 |
-| s4-borea-fin-tax | S4 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-finance-tax#c2 |
-| s4-borea-fin-tax-obligations | S4 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-finance-tax#c2 |
-| s4-borea-hr-annual-leave-entitlement | S4 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-hr-leave#c1 |
-| s4-borea-hr-backup-coverage | S4 | borea | 1.00 | 0.00 | 0.00 | 0.00 | borea-hr-leave#c1 |
-| s4-borea-hr-commute | S4 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-finance-travel#c6 |
-| s4-borea-hr-commute-allowance | S4 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-finance-reimbursement#c2 |
-| s4-borea-hr-grievance-vs-eng | S4 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-engineering-testing#c1 |
-| s4-borea-hr-leave | S4 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-hr-leave#c1 |
-| s4-borea-hr-performance-tracking | S4 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-hr-leave#c10 |
-| s4-borea-hr-probation-vs-eng | S4 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-hr-performance#c1 |
-| s4-borea-pub-code-of-conduct-conflict | S4 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-hr-exit#c8 |
-| s4-borea-pub-conduct-vs-hr | S4 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-public-code-of-conduct#c1 |
-| s4-borea-pub-fire-drill-frequency | S4 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-engineering-incident#c10 |
-| s4-borea-pub-focus-time-morning | S4 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-public-office-hours#c8 |
-| s4-borea-pub-holiday-vs-fin | S4 | borea | 0.00 | 0.00 | 0.00 | 0.00 | borea-public-holidays#c1 |
-| s4-borea-pub-office-hours | S4 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-public-office-hours#c8 |
-| s4-borea-pub-parking-vs-fin | S4 | borea | 1.00 | 1.00 | 1.00 | 1.00 | borea-public-parking#c3 |
-| s4-borea-pub-safety | S4 | borea | 0.00 | 1.00 | 1.00 | 1.00 | borea-engineering-incident#c10 |
-| s5-ankor-eng-ai-chip-design | S5 | ankor | 0.63 | 0.41 | 0.15 | 0.30 | ankor-engineering-infra#c1 |
-| s5-ankor-eng-blockchain | S5 | ankor | 0.83 | 0.54 | 0.18 | 0.38 | ankor-engineering-deployment#c8 |
-| s5-ankor-eng-dna-sequencing | S5 | ankor | 0.78 | 0.46 | 0.15 | 0.32 | ankor-engineering-testing#c1 |
-| s5-ankor-eng-fpga-development | S5 | ankor | 0.79 | 0.42 | 0.14 | 0.31 | ankor-engineering-deployment#c1 |
-| s5-ankor-eng-ml-platform | S5 | ankor | 0.75 | 0.43 | 0.14 | 0.30 | ankor-engineering-infra#c1 |
-| s5-ankor-fin-car-loan | S5 | ankor | 0.67 | 0.39 | 0.16 | 0.32 | ankor-finance-budget#c5 |
-| s5-ankor-fin-crypto-investment | S5 | ankor | 0.61 | 0.49 | 0.18 | 0.33 | ankor-finance-budget#c3 |
-| s5-ankor-fin-crypto-payroll | S5 | ankor | 0.79 | 0.46 | 0.15 | 0.33 | ankor-finance-reimbursement#c1 |
-| s5-ankor-fin-factoring | S5 | ankor | 0.76 | 0.37 | 0.15 | 0.30 | ankor-finance-approval-limits#c1 |
-| s5-ankor-fin-housing-loan | S5 | ankor | 0.69 | 0.49 | 0.19 | 0.36 | ankor-finance-procurement#c7 |
-| s5-ankor-fin-leasing | S5 | ankor | 0.54 | 0.40 | 0.16 | 0.29 | ankor-finance-travel#c7 |
-| s5-ankor-fin-venture-capital | S5 | ankor | 0.70 | 0.45 | 0.15 | 0.30 | ankor-finance-budget#c8 |
-| s5-ankor-hr-crypto-bonus | S5 | ankor | 0.72 | 0.38 | 0.16 | 0.30 | ankor-hr-payroll#c10 |
-| s5-ankor-hr-dating | S5 | ankor | 0.63 | 0.44 | 0.18 | 0.35 | ankor-hr-performance#c7 |
-| s5-ankor-hr-fertility-treatment | S5 | ankor | 0.60 | 0.43 | 0.16 | 0.30 | ankor-hr-benefits#c2 |
-| s5-ankor-hr-relocation-allowance | S5 | ankor | 0.74 | 0.41 | 0.13 | 0.23 | ankor-hr-recruitment#c8 |
-| s5-ankor-hr-sabbatical | S5 | ankor | 0.58 | 0.44 | 0.15 | 0.29 | ankor-hr-leave#c7 |
-| s5-ankor-hr-shadow-board | S5 | ankor | 0.60 | 0.42 | 0.14 | 0.30 | ankor-hr-training#c5 |
-| s5-ankor-hr-stock-options | S5 | ankor | 0.61 | 0.42 | 0.16 | 0.25 | ankor-hr-grievance#c1 |
-| s5-ankor-hr-student-loan | S5 | ankor | 0.59 | 0.33 | 0.13 | 0.27 | ankor-hr-training#c1 |
-| s5-ankor-hr-unlimited-leave | S5 | ankor | 0.54 | 0.28 | 0.09 | 0.17 | ankor-hr-leave#c1 |
-| s5-ankor-pub-esports-team | S5 | ankor | 0.74 | 0.41 | 0.15 | 0.27 | ankor-public-communication#c1 |
-| s5-ankor-pub-gym | S5 | ankor | 0.65 | 0.43 | 0.16 | 0.31 | ankor-public-parking#c8 |
-| s5-ankor-pub-meditation-room | S5 | ankor | 0.58 | 0.34 | 0.14 | 0.25 | ankor-public-visitors#c3 |
-| s5-ankor-pub-pets | S5 | ankor | 0.68 | 0.43 | 0.18 | 0.33 | ankor-public-dress-code#c5 |
-| s5-ankor-pub-podcast-studio | S5 | ankor | 0.67 | 0.41 | 0.14 | 0.27 | ankor-public-office-hours#c8 |
-| s5-ankor-pub-rooftop-event | S5 | ankor | 0.72 | 0.40 | 0.15 | 0.31 | ankor-public-visitors#c1 |
-| s5-ankor-pub-rooftop-garden | S5 | ankor | 0.72 | 0.46 | 0.16 | 0.29 | ankor-public-anti-harassment#c2 |
-| s5-ankor-pub-sauna-room | S5 | ankor | 0.68 | 0.39 | 0.15 | 0.28 | ankor-public-visitors#c3 |
-| s5-ankor-pub-sleeping-bags | S5 | ankor | 0.65 | 0.54 | 0.19 | 0.34 | ankor-public-code-of-conduct#c3 |
-| s5-borea-eng-embedded-linux | S5 | borea | 0.72 | 0.45 | 0.13 | 0.31 | borea-engineering-deployment#c1 |
-| s5-borea-eng-metaverse | S5 | borea | 0.82 | 0.43 | 0.12 | 0.29 | borea-engineering-access#c1 |
-| s5-borea-eng-quantum | S5 | borea | 0.71 | 0.48 | 0.18 | 0.39 | borea-engineering-incident#c4 |
-| s5-borea-eng-rust-guidelines | S5 | borea | 0.80 | 0.41 | 0.13 | 0.24 | borea-engineering-access#c1 |
-| s5-borea-eng-satellite-deployment | S5 | borea | 0.79 | 0.46 | 0.14 | 0.30 | borea-engineering-deployment#c1 |
-| s5-borea-eng-vr | S5 | borea | 0.84 | 0.44 | 0.13 | 0.38 | borea-engineering-deployment#c2 |
-| s5-borea-fin-carbon-credit | S5 | borea | 0.78 | 0.44 | 0.14 | 0.31 | borea-finance-procurement#c1 |
-| s5-borea-fin-charity-deduction | S5 | borea | 0.66 | 0.46 | 0.17 | 0.36 | borea-finance-tax#c4 |
-| s5-borea-fin-hedge-fund | S5 | borea | 0.77 | 0.46 | 0.14 | 0.25 | borea-finance-budget#c8 |
-| s5-borea-fin-insurance-captive | S5 | borea | 0.69 | 0.47 | 0.14 | 0.28 | borea-finance-audit#c1 |
-| s5-borea-fin-nft-investment | S5 | borea | 0.70 | 0.41 | 0.14 | 0.28 | borea-finance-approval-limits#c1 |
-| s5-borea-fin-stock-trading | S5 | borea | 0.80 | 0.43 | 0.17 | 0.37 | borea-finance-approval-limits#c6 |
-| s5-borea-hr-adoption-leave | S5 | borea | 0.68 | 0.38 | 0.12 | 0.23 | borea-hr-leave#c1 |
-| s5-borea-hr-bereavement-extended | S5 | borea | 0.61 | 0.33 | 0.12 | 0.20 | borea-hr-leave#c1 |
-| s5-borea-hr-childcare-voucher | S5 | borea | 0.69 | 0.39 | 0.15 | 0.24 | borea-hr-benefits#c3 |
-| s5-borea-hr-daycare | S5 | borea | 0.72 | 0.49 | 0.17 | 0.32 | borea-hr-benefits#c2 |
-| s5-borea-hr-early-retirement | S5 | borea | 0.69 | 0.52 | 0.17 | 0.32 | borea-hr-benefits#c2 |
-| s5-borea-hr-expat-package | S5 | borea | 0.73 | 0.37 | 0.13 | 0.23 | borea-hr-onboarding#c8 |
-| s5-borea-hr-four-day-week | S5 | borea | 0.61 | 0.35 | 0.12 | 0.22 | borea-hr-onboarding#c7 |
-| s5-borea-hr-sabbatical-leave | S5 | borea | 0.58 | 0.37 | 0.13 | 0.24 | borea-hr-leave#c1 |
-| s5-borea-pub-art-installation | S5 | borea | 0.68 | 0.33 | 0.13 | 0.29 | borea-public-visitors#c10 |
-| s5-borea-pub-bicycle-policy | S5 | borea | 0.65 | 0.34 | 0.10 | 0.15 | borea-public-parking#c8 |
-| s5-borea-pub-cooking-class | S5 | borea | 0.70 | 0.46 | 0.17 | 0.34 | borea-public-safety#c8 |
-| s5-borea-pub-corporate-jet | S5 | borea | 0.71 | 0.47 | 0.16 | 0.29 | borea-public-visitors#c5 |
-| s5-borea-pub-dog-friendly-office | S5 | borea | 0.63 | 0.36 | 0.14 | 0.25 | borea-public-office-hours#c6 |
-| s5-borea-pub-lactation-room | S5 | borea | 0.61 | 0.44 | 0.14 | 0.26 | borea-public-safety#c5 |
-| s5-borea-pub-massage-room | S5 | borea | 0.60 | 0.36 | 0.13 | 0.22 | borea-public-safety#c5 |
-| s5-borea-pub-nap-pods | S5 | borea | 0.71 | 0.51 | 0.17 | 0.34 | borea-public-office-hours#c9 |
-| s5-borea-pub-parking-heli | S5 | borea | 0.64 | 0.48 | 0.18 | 0.36 | borea-public-parking#c2 |
+Nghĩa là nó vừa kém hơn ở "chọn đúng ngay hạng #1", vừa dễ bị near-miss decoy đánh lừa hơn — đúng
+hai thứ mà corpus này cố tình dựng ra để thử. **Bài học: MTEB đo trung bình trên nhiều domain/ngôn
+ngữ, không đo riêng tiếng Việt lĩnh vực chính sách nội bộ có bẫy near-miss cố ý.** Thứ hạng benchmark
+công khai KHÔNG thay thế được đo trên dữ liệu thật của mình — đây chính là lý do tồn tại của harness
+này, và lần này nó tự chứng minh giá trị bằng cách bác bỏ một model được kỳ vọng cao.
 
+**`gemini-embedding-2` — giả thuyết: "context 8192 token (gấp 4 lần bản cũ) thì phải tốt hơn".**
+(Lưu ý phân biệt: 8192 là **giới hạn context đầu vào**, không phải số chiều vector — cả hai bản đều
+được đo ở CÙNG `dim=2048` để so công bằng.) **Thực tế: lợi thế đó hoàn toàn vô nghĩa với corpus này**
+— đo trực tiếp độ dài chunk:
+
+| | ký tự | ≈ token |
+|---|---:|---:|
+| chunk dài nhất | 566 | ~142 |
+| phân vị 95 | 365 | ~91 |
+| trung bình | 236 | ~59 |
+
+**Chunk dài nhất chỉ dùng hết 6.9% giới hạn của bản CŨ (2048 token).** Nâng trần từ 2048 lên 8192 là
+nới một ràng buộc chưa bao giờ bị chạm tới — không thể mang lại lợi ích nào. Và kết quả đúng như vậy:
+`gemini-2` chỉ **ngang** `gemini-001` (chênh 1.2–2.7đ, đều dưới nhiễu), thậm chí **tệ hơn ở một số
+tầng** — rõ nhất là S4.Hit@1 (0.4364 vs 0.5091, −7.3đ) và S3.Hit@3 (0.6667 vs 0.7333, −6.7đ), tức là
+đúng hai tầng bẫy khó. Có xu hướng "tốt hơn ở S1/S2, kém hơn ở S3/S4" nhưng mọi chênh lệch per-tầng
+đều dưới 2 SE nên **chưa đủ để khẳng định**; điều khẳng định được là **nó không tốt hơn**.
+
+Cộng thêm chi phí: `gemini-2` giá **$0.20/M token**, đắt hơn `gemini-001` ($0.15/M) **33%**. Trả thêm
+tiền cho một model không tốt hơn, để dùng một tính năng (context dài) mà corpus không cần → **không
+có lý do nào để đổi**. Giữ `gemini-embedding-001`.
+
+### Khi nào nên quay lại `qwen3-embedding-8b`: khi CHI PHÍ trở thành ràng buộc
+
+Đây là lý do duy nhất đáng cân nhắc lại, và nó là lý do mạnh. Ở hai metric khớp production thật
+(`top_k=3` và fallback 5), `qwen3-8b` **gần như không thua**:
+
+| metric (macro) | qwen3-8b | gemini-001 | chênh |
+|---|---:|---:|---:|
+| **Hit@3** (= `top_k` production) | 0.7054 | 0.7137 | −0.8đ (**dưới nhiễu**) |
+| **Hit@5** (= fallback) | 0.7759 | 0.7801 | −0.4đ (**dưới nhiễu**) |
+
+Trong khi giá rẻ hơn **15 lần** ($0.01/M so với $0.15/M). Quy ra tiền ở quy mô thật:
+
+| kịch bản | gemini-001 | gemini-2 | qwen3-8b |
+|---|---:|---:|---:|
+| Re-index corpus hiện tại (800 chunk, ~47K token) | $0.007 | $0.009 | **$0.0005** |
+| Re-index corpus gấp 100 lần (~4.7M token) | $0.71 | $0.94 | **$0.047** |
+| 1 triệu truy vấn/tháng (~14M token) | $2.10 | $2.80 | **$0.14** |
+
+**Đánh đổi phải biết rõ trước khi đổi**: cái mất không nằm ở Hit@3/Hit@5 (gần như hoà) mà ở **Hit@1
+(−5.4đ)** và **Decoy Fall (+4.3đ)**. Nên `qwen3-8b` phù hợp khi hệ thống đưa cả top-3/top-5 chunk cho
+LLM tự chọn (lúc đó Hit@1 ít quan trọng); **không phù hợp** nếu sản phẩm hiển thị thẳng một kết quả
+duy nhất cho người dùng, vì đó đúng là chỗ nó yếu nhất.
+
+## Kết luận
+
+**1. `gemini-embedding-001` thắng năm provider CHÍNH ở mọi metric (Hit@1/3/5, MRR@5), cách biệt rõ
+nhất ở S2 (paraphrase, Hit@3 macro cao hơn `e5-large` +7 điểm) và S4 (cross-role, MRR@5 cao hơn
+`bge-m3` +12 điểm).** Cả ba provider ngữ nghĩa đều vượt xa `dim-8`/`hash1024` (thuần lexical) — bằng
+chứng lặp lại: "chuyển sang dense/ngữ nghĩa" quan trọng hơn "chọn dense model nào" (khoảng cách
+dense↔lexical hàng chục điểm, khoảng cách nội bộ nhóm dense chỉ vài điểm). **Nhưng so với hai provider
+BỔ SUNG thì lợi thế đó biến mất**: `gemini-2` và `qwen3-8b` ngang `gemini-001` ở Hit@3/Hit@5 (chênh
+dưới nhiễu) — xem §Provider bổ sung.
+
+**2. Phát hiện phản trực giác (lặp lại từ bản `hash-512`, nay có thêm `gemini-001`): CẢ BA provider
+ngữ nghĩa đều có Decoy Fall Rate CAO HƠN `dim-8`** (macro 0.078–0.165 so với 0.044) — dù thắng áp đảo
+ở mọi metric đúng-sai khác. Lý do: `dim-8` (8 chiều băm) gần như nhiễu ngẫu nhiên trên toàn corpus —
+không đủ "hiểu" để bị cuốn theo cả đáp án ĐÚNG lẫn decoy near-miss, nên hạng #1 của nó gần như random
+và hiếm khi trúng chính xác chunk decoy đã gán nhãn. Ba model ngữ nghĩa NGƯỢC LẠI: đủ hiểu để bị
+near-miss decoy (cùng role, chủ đề kề, ví dụ chunk liền kề trong CÙNG tài liệu) kéo lên hạng #1 — ví
+dụ cụ thể, `s3-ankor-hr-week1-tasks` ("tuần đầu vào công ty phải làm gì") có đáp án
+`ankor-hr-onboarding#c3` nhưng `e5-large` trả hạng #1 là `ankor-hr-onboarding#c2` — chunk liền trước,
+cùng mục onboarding. `gemini-001` có DFR thấp nhất trong ba (0.078) — model càng mạnh dường như càng
+ít bị near-miss đánh lừa, nhưng vẫn cao hơn dim-8 vì lý do hình học trên, không phải vì dim-8 "chống
+nhiễu tốt hơn". **Hệ quả đã được xử lý: gate `decoy_fall` chuyển từ so-tương-đối-với-dim-8 sang
+NGƯỠNG TUYỆT ĐỐI `≤ 0.35`** — bản cũ cho ra ngưỡng âm nên bất khả thi với mọi provider; chi tiết +
+cách chọn ngưỡng ở §Vì sao `decoy_fall` phải gate tuyệt đối. Vẫn giữ nguyên cảnh báo: **metric này
+không dùng để CHỌN model được** (model càng ngẫu nhiên càng "thắng"), nó chỉ là thanh chắn một chiều.
+
+**3. Chi phí vận hành: `bge-m3`/`e5-large` local (MPS), không phụ thuộc mạng/quota, tải model ~10–15s
+một lần rồi tức thời; `gemini-embedding-001` phụ thuộc dịch vụ ngoài.** ~~ĐÃ dính quota thật khi chấm
+đợt này~~ **— ĐÍNH CHÍNH (xem §Vận hành): quota đó là của đường gọi free-tier trực tiếp, KHÔNG phải
+của model.** Gọi `google/gemini-embedding-001` qua OpenRouter ($0.15/M token, trả phí, không giới hạn
+ngày) né hoàn toàn sự cố này — đã xác nhận đúng cách này chạy êm khi đo `gemini-embedding-2`/
+`qwen3-embedding-8b` ở dưới. Nếu tiêu chí ưu tiên là "self-hosted, không dịch vụ ngoài" (đúng tinh
+thần core hiện tại), `bge-m3`/`e5-large` vẫn phù hợp hơn (0 phụ thuộc mạng dù ở đường gọi nào) — nhưng
+lý do KHÔNG còn là "gemini rủi ro quota", mà đơn thuần là chi phí/độ trễ mạng của một API call so với
+chạy local. Nếu chấp nhận phụ thuộc dịch vụ ngoài (qua OpenRouter, trả phí, không quota), `gemini-001`
+là lựa chọn mạnh nhất trong 5 provider chính đã đo (xem thêm `gemini-embedding-2`/`qwen3-embedding-8b`
+— hai provider đo sau, thống kê không phân biệt được với `gemini-001`, đều gọi qua OpenRouter êm).
+
+### Chốt lại — chọn gì, và KHÔNG chọn gì
+
+| | chọn | vì sao |
+|---|---|---|
+| **Mặc định (API)** | `gemini-embedding-001` **qua OpenRouter**, KHÔNG rerank | mạnh nhất/đồng hạng nhất ở mọi metric; $0.15/M, không quota; rerank chỉ làm tệ đi (xem §rerank) |
+| **Nếu bắt buộc self-hosted** | `bge-m3` hoặc `e5-large` **+ reranker** | 0 phụ thuộc mạng; rerank ở đây THẬT SỰ có lợi (+4–5đ Hit@1); hai reranker không phân biệt được nhau nên chọn `bge-reranker-v2-m3` vì miễn phí/local |
+| **Nếu chi phí là ràng buộc** | `qwen3-embedding-8b` | rẻ hơn 15×, hoà ở Hit@3/Hit@5; chỉ chấp nhận được khi LLM đọc cả top-3/5 (xem đánh đổi ở §Khi nào quay lại qwen3) |
+| **KHÔNG chọn** | `gemini-embedding-2` | không tốt hơn bản 001, đắt hơn 33%, lợi thế context 8192 vô nghĩa với chunk ~59 token |
+| **KHÔNG chọn** | `dim-8`, `hash1024` | thuần lexical, sập hoàn toàn ở S2 (paraphrase); `dim-8` chỉ là fixture baseline, không phải ứng viên |
+
+Và một điều quan trọng hơn mọi lựa chọn model ở trên: **khoảng cách giữa các model dense đã cạn**
+(chênh dưới nhiễu), trong khi §Trần theo K cho thấy **đáp án đúng nằm trong top-50 ở 97.9% số case**
+còn Hit@5 thực tế mới 78%. Dư địa 20 điểm đó nằm ở **tầng xếp hạng/lọc, không nằm ở model embedding**
+— đổi model nữa sẽ không mua thêm được gì đáng kể.
+
+## Thử nghiệm PHỤ — rerank bằng cross-encoder (`bge-reranker-v2-m3`)
+
+**Không phải một trong 5 provider chính ở trên** — thử nghiệm ngoài luồng để trả lời "thêm rerank có
+đáng không", đo trên harness thật (300 case, cùng corpus), KHÔNG đổi provider mặc định của harness.
+
+**Cách đo**: retrieve top-**10** bằng bi-encoder (vòng 1) → cross-encoder chấm điểm lại CẢ 10 (vòng
+2, đọc query+chunk CÙNG LÚC thay vì so hai vector rời) → sắp lại theo điểm mới, cắt còn top-**5** để
+tính 6 metric — khớp `MAX_K` của harness nên so trực tiếp được với bảng ở trên.
+
+### Bẫy đầu tiên: rerank trên `.text` (không tiêu đề) TỆ HƠN cả không rerank
+
+Thử trên `e5-large`, so rerank khi cho cross-encoder đọc `.text` (bản KHÔNG có tiêu đề tài liệu) so
+với `embedding_input` (CÓ tiêu đề — cùng chuỗi đã dùng để embed):
+
+| metric (macro S1–S4) | trước rerank | sau rerank (`.text`) | sau rerank (`embedding_input`) |
+|---|---:|---:|---:|
+| Hit@1 | 0.4440 | 0.4105 | **0.4979** |
+| Hit@3 | 0.6432 | 0.5989 | **0.6598** |
+| MRR@5 | 0.5494 | 0.5019 | **0.5798** |
+
+Rerank trên `.text` trần làm KẾT QUẢ TỆ HƠN không rerank — đúng bug tiêu đề tài liệu đã sửa ở
+`doc_factory_v2` (xem đầu báo cáo) lặp lại một lần nữa, lần này ở tầng rerank: cross-encoder mất đúng
+tín hiệu (tiêu đề) mà bi-encoder vòng 1 đang có, nên "ý kiến thứ hai" của nó kém thông tin hơn "ý kiến
+thứ nhất". **Bài học: rerank PHẢI đọc CÙNG chuỗi đã dùng để embed, không phải `.text` hiển thị.** Toàn
+bộ số dưới đây đều dùng `embedding_input` cho rerank.
+
+### Rerank giúp `e5-large` (bi-encoder yếu hơn), nhưng HẠI `gemini-001` (bi-encoder mạnh hơn)
+
+| metric (macro S1–S4) | e5-large trước | e5-large sau rerank | gemini-001 trước | gemini-001 sau rerank |
+|---|---:|---:|---:|---:|
+| Hit@1 | 0.4440 | **0.4979** (+5.4) | 0.5726 | 0.4979 (**−7.5**) |
+| Hit@3 | 0.6432 | **0.6598** (+1.7) | 0.7137 | 0.6847 (**−2.9**) |
+| Hit@5 | 0.7137 | **0.7261** (+1.2) | 0.7801 | 0.7635 (**−1.7**) |
+| MRR@5 | 0.5494 | **0.5798** (+3.0) | 0.6492 | 0.5974 (**−5.2**) |
+| Decoy Fall (S3+S4) | 0.1304 | **0.1217** (−0.9, tốt hơn) | 0.0783 | 0.1218 (**+4.4, tệ hơn**) |
+
+Rerank cải thiện MỌI metric chính của `e5-large`, nhưng làm TỆ ĐI mọi metric chính của `gemini-001` —
+kể cả sau khi đã sửa đúng bug tiêu đề ở trên. Diễn giải: giá trị của một reranker cố định
+(`bge-reranker-v2-m3`, chất lượng cố định trên tiếng Việt) là **tương đối với bi-encoder nền**, không
+phải cải thiện mặc định. Khi bi-encoder vòng 1 yếu hơn reranker (`e5-large`), "ý kiến thứ hai" nâng
+chất lượng lên. Khi bi-encoder vòng 1 đã mạnh hơn reranker cho đúng bài toán này (`gemini-001` —
+provider tốt nhất đo được ở trên), ghi đè bằng một ý kiến kém hơn làm loãng đi thứ hạng vốn đã tốt.
+
+### Trần cứng của rerank — đáp án phải NẰM TRONG top-10 vòng 1 thì mới cứu được
+
+| tầng | trần top-10 (`e5-large`) | trần top-10 (`gemini-001`) |
+|---|---:|---:|
+| S1 | 0.9385 | 0.9538 |
+| S2 | 0.7377 | 0.8361 |
+| S3 | 0.7833 | 0.8333 |
+| S4 | 0.7455 | 0.7636 |
+
+Rerank chỉ SẮP LẠI ứng viên đã lấy ở vòng 1, không tạo ứng viên mới — case có đáp án đúng nằm ngoài
+top-10 thì rerank không cứu được bất kể reranker tốt đến đâu.
+
+### Trần theo K — đo tới K=200 (`gemini-001`, đọc từ cache, 0 API call)
+
+Đây là câu hỏi "đáp án đúng có NẰM TRONG pool không", tách hẳn khỏi "có xếp đúng thứ hạng không":
+
+| K | S1 | S2 | S3 | S4 | **macro S1–S4** |
+|---:|---:|---:|---:|---:|---:|
+| 5 (= `MAX_K` hiện dùng) | 0.8615 | 0.7541 | 0.7833 | 0.7091 | **0.7801** |
+| 10 | 0.9538 | 0.8361 | 0.8333 | 0.7636 | **0.8506** |
+| 20 | 0.9692 | 0.9344 | 0.9333 | 0.8182 | **0.9170** |
+| **50** | 1.0000 | 0.9836 | 0.9833 | 0.9455 | **0.9793** |
+| 100 | 1.0000 | 1.0000 | 1.0000 | 0.9636 | **0.9917** |
+| 200 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | **1.0000** |
+
+**Đây là con số quan trọng nhất trong cả báo cáo cho câu hỏi "làm sao đạt độ chính xác cao".** Đáp án
+đúng nằm trong top-50 ở **97.9%** số case. Nghĩa là bài toán hiện tại **KHÔNG phải "không tìm được"**
+(recall đã gần như đủ) mà là **"tìm được nhưng xếp sai thứ hạng"** — Hit@5 thực tế mới 0.78 trong khi
+trần ở K=50 là 0.98. Khoảng cách 20 điểm đó là dư địa của tầng xếp hạng, không phải của model embedding.
+
+Hệ quả cho thiết kế: mọi nỗ lực "đổi sang embedding tốt hơn" chỉ tranh chấp trong vài điểm phần trăm
+(xem §Provider bổ sung — ba model mạnh nhất chênh nhau dưới nhiễu), trong khi **retrieve rộng hơn rồi
+lọc lại** chạm được tới 98%. Và đây cũng là lý do rerank ở K=10 không giúp Gemini: ở K=10 bi-encoder
+đã sắp gần tối ưu rồi, reranker chỉ tranh chấp lặt vặt. Bài toán reranker CHƯA từng được giao là
+"lọc 50 ứng viên xuống 3" — chưa thử, và đó mới là chỗ nó có thể chứng minh giá trị thật.
+
+**Kết luận thử nghiệm**: rerank KHÔNG phải cải thiện mặc định nên bật — phải đo trên đúng cặp
+(bi-encoder nền, reranker, ngôn ngữ/domain) đang dùng thật, và phải rerank trên đúng chuỗi đã embed.
+
+### So hai reranker khác nhau — `bge-reranker-v2-m3` (local) vs `cohere/rerank-v3.5` (API qua OpenRouter)
+
+Cùng cách đo (top-10 → rerank → top-5, trên `embedding_input`), đổi reranker để xem kết luận "rerank
+giúp/hại" có phụ thuộc vào RERANKER cụ thể hay không. `cohere/rerank-v3.5` gọi qua
+`POST https://openrouter.ai/api/v1/rerank` (OpenRouter CÓ mục rerank riêng, ngoài danh mục
+chat/completion — endpoint và model được xác nhận trực tiếp từ tài liệu OpenRouter, không suy đoán),
+chi phí đo được **$0.001/lượt gọi** (300 case × 3 bi-encoder = 900 lượt, dưới $1 tổng). Ma trận 2
+reranker × 3 bi-encoder đo ĐỦ 6/6 ô.
+
+| bi-encoder | metric (macro S1–S4) | trước rerank | sau `bge-reranker-v2-m3` | sau `cohere/rerank-v3.5` |
+|---|---|---:|---:|---:|
+| `bge-m3` | Hit@1 | 0.4357 | **0.4772** | 0.4606 |
+| `bge-m3` | Hit@3 | 0.6183 | **0.6556** | 0.6515 |
+| `bge-m3` | Hit@5 | 0.7054 | 0.7137 | **0.7137** (hoà) |
+| `bge-m3` | MRR@5 | 0.5320 | **0.5672** | 0.5613 |
+| `bge-m3` | Decoy Fall (S3+S4) | 0.1652 | **0.1044** (tốt hơn) | 0.1479 (tốt hơn) |
+| `e5-large` | Hit@1 | 0.4440 | **0.4979** | 0.4648 |
+| `e5-large` | Hit@3 | 0.6432 | 0.6598 | **0.6846** |
+| `e5-large` | Hit@5 | 0.7137 | 0.7261 | **0.7303** |
+| `e5-large` | MRR@5 | 0.5494 | **0.5798** | 0.5705 |
+| `e5-large` | Decoy Fall (S3+S4) | 0.1304 | **0.1217** (tốt hơn) | 0.1392 (tệ hơn) |
+| `gemini-001` | Hit@1 | **0.5726** | 0.4979 (tệ hơn) | 0.4772 (tệ hơn) |
+| `gemini-001` | Hit@3 | **0.7137** | 0.6847 (tệ hơn) | 0.6805 (tệ hơn) |
+| `gemini-001` | Hit@5 | **0.7801** | 0.7635 (tệ hơn) | 0.7510 (tệ hơn) |
+| `gemini-001` | MRR@5 | **0.6492** | 0.5974 (tệ hơn) | 0.5832 (tệ hơn) |
+| `gemini-001` | Decoy Fall (S3+S4) | **0.0783** | 0.1218 (tệ hơn) | 0.1392 (tệ hơn) |
+
+Bốn phát hiện:
+
+1. **CẢ HAI reranker đều cải thiện CẢ HAI bi-encoder chưa mạnh nhất** (`bge-m3`, `e5-large`) ở mọi
+   metric chính — nhất quán với kết luận "rerank có lợi khi bi-encoder nền chưa phải tốt nhất".
+2. **CẢ HAI reranker đều làm TỆ ĐI `gemini-001` ở cả 5 metric MACRO** — khác hẳn hai bi-encoder kia
+   (nơi ít nhất một reranker luôn có lợi). Ủng hộ giả thuyết "reranker cố định chỉ có lợi khi
+   bi-encoder nền còn kém hơn nó": `gemini-001` là provider mạnh nhất trong 5 provider chính, và cả
+   hai reranker (khác nhà, khác kiến trúc) đều không "giỏi" bằng để nâng nó lên.
+   *(⚠️ Chỉ mức giảm ở **Hit@1** là ngoài nhiễu (−7.5đ ≈ 2.5 SE); Hit@3/Hit@5 giảm 1.7–2.9đ nằm trong
+   nhiễu, và xét theo TỪNG TẦNG thì có tầng còn cải thiện — xem §VÌ SAO rerank hại model mạnh, nơi
+   phát biểu này được đo lại và làm chính xác.)*
+3. **Trên `bge-m3`, `bge-reranker-v2-m3` thắng CẢ 5 metric** so với `cohere/rerank-v3.5` (dù sát nút ở
+   Hit@5/Decoy Fall) — khác với `e5-large`, nơi hai reranker thắng-thua đan xen. Có thể vì
+   `bge-reranker-v2-m3` cùng họ BGE với `bge-m3` (cùng nơi huấn luyện/dữ liệu), lợi thế "cùng nhà"
+   không chắc còn giữ khi đổi bi-encoder nền.
+4. **Trên `e5-large`, hai reranker THẮNG-THUA khác nhau ở từng metric, không có reranker nào thắng
+   tuyệt đối**: `bge-reranker-v2-m3` thắng Hit@1/MRR@5 VÀ Decoy Fall Rate; `cohere/rerank-v3.5` thắng
+   Hit@3/Hit@5 nhưng làm Decoy Fall Rate TỆ ĐI (0.130→0.139, ngược chiều với `bge-reranker-v2-m3`).
+
+Củng cố kết luận chính: **"rerank có lợi" phải đo cho từng cặp (bi-encoder, reranker) cụ thể — không
+suy diễn từ một cặp sang cặp khác, kể cả cùng bi-encoder nền hay cùng reranker.**
+
+> ⚠️ **Cảnh báo nhiễu cho phát hiện 3 và 4**: mọi so sánh reranker-vs-reranker trên CÙNG bi-encoder ở
+> bảng trên chênh nhau 0.4–3.3 điểm — **đều dưới 1 SE (0.030)**. Ở cỡ mẫu này **hai reranker KHÔNG phân
+> biệt được**. Câu "bge-reranker thắng cả 5 metric trên bge-m3" đúng về con số nhưng **không phải bằng
+> chứng** (Hit@5 còn hoà tuyệt đối 0.7137=0.7137); giả thuyết "lợi thế cùng họ BGE" chỉ là suy đoán
+> trên một cú hoà thống kê, đừng dùng nó để chọn reranker. Thứ THẬT SỰ ngoài nhiễu chỉ có hai điều:
+> (a) rerank giúp `bge-m3`/`e5-large` ở Hit@1 (+4.2 đến +5.4đ), (b) rerank hại `gemini-001` ở Hit@1
+> (−7.5đ ≈ 2.5 SE).
+
+### VÌ SAO rerank hại model mạnh — cơ chế đo được, không phải suy đoán
+
+Chạy thêm `gemini-embedding-2` qua cùng reranker để kiểm chứng một dự đoán: nếu giả thuyết "reranker
+áp trần riêng của nó" đúng, thì `gemini-2` (Hit@1 trước rerank = 0.5477, TRÊN trần) cũng phải bị hại,
+và phải rơi về **cùng một mức** với các bi-encoder khác. Kết quả:
+
+| bi-encoder | Hit@1 TRƯỚC rerank | Hit@1 SAU `bge-reranker-v2-m3` | thay đổi |
+|---|---:|---:|---:|
+| `bge-m3` | 0.4357 | 0.4772 | **+4.2đ** |
+| `e5-large` | 0.4440 | 0.4979 | **+5.4đ** |
+| `gemini-2` | 0.5477 | 0.4979 | **−5.0đ** |
+| `gemini-001` | 0.5726 | 0.4979 | **−7.5đ** |
+| **Độ TRẢI giữa các bi-encoder** | **0.1369** | **0.0207** | — |
+
+Dự đoán đúng: `gemini-2` bị hại y hệt, và **ba bi-encoder khác nhau (xuất phát 0.444→0.573) đều rơi
+đúng về 120/241 case = 0.4979**. Độ trải giữa các bi-encoder sụp từ 0.137 xuống 0.021 (dưới 1 SE).
+
+**Cơ chế**: cross-encoder KHÔNG tinh chỉnh thứ tự cũ — nó chấm điểm lại từ đầu cả 10 ứng viên rồi sắp
+theo điểm của RIÊNG NÓ. Điểm cosine của bi-encoder bị **vứt bỏ 100%**. Nên bi-encoder chỉ còn giữ một
+vai trò duy nhất: quyết định *chunk nào lọt vào pool 10* (recall). Còn *chunk nào đứng #1* thì hoàn
+toàn do reranker quyết → **độ chính xác sau rerank ≈ năng lực tự thân của reranker, gần như độc lập
+với bi-encoder nào tạo pool.**
+
+Đếm SỬA vs PHÁ ở rank-1 làm cơ chế này thành con số cụ thể:
+
+| bi-encoder | SỬA (sai→đúng) | PHÁ (đúng→sai) | ròng |
+|---|---:|---:|---:|
+| `gemini-001` | 12 | 30 | **−18 case** |
+| `gemini-2` | 14 | 26 | **−12 case** |
+
+Số case reranker SỬA được gần như cố định (12–14) vì nó phản ánh năng lực của chính reranker. Nhưng
+số case bị PHÁ tỉ lệ với việc bi-encoder vốn đã đúng bao nhiêu — **bi-encoder càng giỏi càng có nhiều
+thứ để mất, trong khi số sửa được không tăng theo → càng giỏi càng lỗ.**
+
+Trần ~0.50 của `bge-reranker-v2-m3` không phải lỗi cấu hình: nó là cross-encoder đa ngôn ngữ dùng
+chung, không huấn luyện riêng cho tiếng Việt lĩnh vực chính sách nội bộ có decoy near-miss cố ý.
+
+**Sắc thái quan trọng — thiệt hại tập trung ở rank-1, không trải đều:** với `gemini-2`, Hit@3 chỉ giảm
+0.4đ (0.7012→0.6971) và Hit@5 giảm 0.4đ (0.7884→0.7842) — **cả hai đều trong nhiễu, coi như không
+đổi**. Và ở tầng S1, rerank thực ra LÀM TỐT HƠN cho `gemini-001` (Hit@3 0.80→0.86, Hit@5 0.86→0.89).
+Nên phát biểu "rerank hại gemini ở MỌI metric, không ngoại lệ" ở phát hiện 2 phía trên là **quá mạnh**
+— chính xác hơn: *rerank hại rõ và chắc chắn ở rank-1; ở Hit@3/Hit@5 thì trộn lẫn theo tầng và phần
+lớn nằm trong nhiễu.* Với production dùng `top_k=3`, rerank trên Gemini gần như **vô hại nhưng cũng
+vô ích** — chỉ tốn thêm một tầng tính toán.
+
+Đây là thử nghiệm ngoài luồng (không nằm trong `_harness.py`/CI), không phải khuyến nghị production.
+
+## Còn để mở
+
+Xếp theo đòn bẩy — việc đầu tiên là thứ dữ liệu ở §Trần theo K chỉ thẳng vào.
+
+1. **Rerank/lọc ở K=50 thay vì K=10** — trần recall ở K=50 là 97.9% còn Hit@5 thực tế mới 78.0%; đây
+   là dư địa lớn nhất còn lại và chưa ai chạm vào. Cũng là phép thử công bằng duy nhất cho reranker
+   trên Gemini (ở K=10 nó chỉ tranh chấp thứ hạng bi-encoder đã sắp gần tối ưu).
+2. **Chưa thử bỏ prefix/`task_type`** của `e5-large`/`gemini`/`qwen3` để đo chênh lệch thực tế mà quy
+   ước bất đối xứng mang lại trên bộ case này (treo từ bản báo cáo trước).
+3. **Chưa đo reranker thứ ba** `qwen/qwen3-reranker-8b` (thấy trên OpenRouter khi tra
+   `cohere/rerank-v3.5`). Ưu tiên thấp: cơ chế "reranker áp trần riêng" dự đoán nó cũng sẽ kéo mọi
+   bi-encoder về trần của chính nó — đáng đo chỉ khi trần đó cao hơn ~0.57 của Gemini.
+4. **`decoy_fall` có phiên bản tốt hơn chưa wire**: DFR *có điều kiện* — `P(hạng #1 = decoy | hạng #1
+   SAI)` — tách được "bị bẫy" khỏi "sai nói chung" (DFR thô bị nhiễu bởi độ chính xác: model càng
+   đúng nhiều càng ít cơ hội rơi bẫy). Đã tính thử: dim-8 0.044 · gemini-001 0.170 · e5-large 0.217 ·
+   hash1024 0.202 · bge-m3 0.264. Vẫn KHÔNG sửa được vấn đề gốc (dim-8 vẫn "thắng"), nên chưa đưa vào
+   harness — ghi lại để không phải tính lại.
+5. **S5 (59 case, ~20% bộ case) không nằm trong bất kỳ con số Hit@k nào** ở báo cáo này. Mọi phát biểu
+   dạng "đạt X% độ chính xác" ở đây đều chỉ tính trên 241 case S1–S4. Độ chính xác end-to-end tính cả
+   khả năng TỪ CHỐI đúng ở S5 là câu hỏi khác, phụ thuộc tầng sinh câu trả lời, không chỉ retrieval.

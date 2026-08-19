@@ -175,3 +175,22 @@ def test_manual_label_khop_fence_semantics() -> None:
 def test_manual_label_trai_hai_tenant() -> None:
     tenants = {c.tenant for c in _LABELED}
     assert {"ankor", "borea"} <= tenants, f"subset nhãn tay không trải đủ tenant: {tenants}"
+
+
+@pytest.mark.parametrize("case", _POS, ids=[c.case_id for c in _POS])
+def test_nhan_van_song_sot_trong_embed_text(case: GoldenCase, by_id: dict[str, Chunk]) -> None:
+    """`expected` phải grounded trong **`embed_text`** chứ không chỉ `text` — chống bộ lọc boilerplate
+    ăn mất chính câu mang đáp án.
+
+    Vì sao 4 trục kia KHÔNG bắt được: chúng chấm trên `.text` (grounded) và qua `StaticKbSearch`
+    (retrievable), mà `StaticKbSearch` cũng xếp hạng trên `.text`. Production thì embed `embed_text`
+    (`pipeline.py::embed_invoke`). Nếu `_strip_boilerplate` cắt đúng câu chứa `expected`, mọi bài trên
+    vẫn XANH trong khi vector của chunk đó không còn đại diện cho đáp án của chính nó — hỏng câm.
+
+    Rủi ro này TĂNG kể từ khi `expected` đổi sang CẢ CÂU verbatim (18/08): câu càng dài càng dễ trùng
+    với một câu lặp ≥3 chunk trong scope."""
+    for cid in case.expected_citation:
+        assert _contains_phrase(by_id[cid].embed_text, case.expected), (
+            f"{case.case_id}: {case.expected!r} còn trong text nhưng MẤT khỏi embed_text của {cid} — "
+            f"_strip_boilerplate cắt nhầm câu mang đáp án (miễn trừ câu đó, hoặc nâng ngưỡng)"
+        )
