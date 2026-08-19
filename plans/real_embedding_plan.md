@@ -81,7 +81,11 @@ Hai vế của quyết định này khoá vào nhau: **bỏ HNSW là thứ làm 
       (800 dòng `vector(2048)`, stack test 5433 sau khi `ALTER` sang 2048, `EXPLAIN` xác nhận Seq
       Scan, 60 truy vấn). Cả 800 dòng cùng một `section_role` ⇒ ca **xấu nhất về độ chọn lọc của
       filter**, tức chặn trên bảo thủ. Dưới xa mốc ~50ms ⇒ §2 không phải mở lại.
-- [ ] **Ghi rõ ngưỡng quy mô làm quyết định này hết đúng.** Bỏ HNSW đúng ở 800 chunk; ở ~10⁵–10⁶
+- [x] **Ghi rõ ngưỡng quy mô làm quyết định này hết đúng** — đã ghi ở `schema.py::_KB_DDL` (cạnh
+      `DROP INDEX`) và `DL-22.3`. Nhắc lại **ở đây** theo nit AIE-2 (kb#44), để ai đọc plan trước
+      khi đọc code vẫn thấy: **~10⁵–10⁶ chunk là ngưỡng đảo quyết định** — seq scan sập, index quay
+      lại, trần 2000 quay lại theo, và chiều phải hạ 2048 → 1536 (nấc MRL gần nhất) + đo lại toàn
+      bộ report. Nguyên văn cân nhắc gốc: Bỏ HNSW đúng ở 800 chunk; ở ~10⁵–10⁶
       chunk thì seq scan sập và phải quay lại index — lúc đó trần 2000 quay lại, và 2048 sẽ phải hạ
       xuống 1536. Viết ngưỡng đó vào docstring `schema.py` để người sau không phải suy lại.
 - [ ] **Không dùng 3072 dù bỏ HNSW đã cho phép.** 3072 được Google chuẩn hoá sẵn (hết bẫy
@@ -241,6 +245,48 @@ chỗ; không dùng được, vì `re_index` chạy qua provider đang tiêm —
 - PR-2 (AIE-1) — nối provider thật vào 3 route truy vấn; cần bề mặt `async embed`.
 - PR-4 (AIE-2) — đổi `golden_set_ref` mặc định + đo lại, kèm nhãn thước đo `2.0 · Pg · gemini@2048`.
 - Ngưỡng gate 0.9 / 0.95 — AIE-1 chốt (kit#170), DEC-D20-03 cấm hạ ngưỡng để demo xanh.
+
+## §5.1c — Sửa sau review AIE-2 (kb#44): migration KHÔNG được phá dữ liệu
+
+`kb#43` dùng `TRUNCATE` trong migration. **Sai**, và cái sai không nằm ở corpus Callisto:
+
+| loại dữ liệu trong `kb.chunks` | dựng lại được? |
+|---|---|
+| 800 chunk corpus 2.0 | ✅ `scripts/ingest_callisto_v2.py` từ `docs/` |
+| tài liệu **tenant tự upload** (`POST /api/admin/documents`, app#27) | ❌ **không** — route chunk/embed/index thẳng vào bảng này, **không lưu file gốc ở đâu khác**; `core` schema chỉ có tenants·users·sections·jobs·outbox. `kb.chunks` là bản sao DUY NHẤT |
+
+- [x] `TRUNCATE` → **`ALTER ... USING NULL`**: giữ `text`/`embed_text`, chỉ bỏ vector. Trạng thái
+      này **đã được thiết kế sẵn** — `_SEARCH` lọc `AND embedding IS NOT NULL` nên chunk chưa có
+      vector không lọt vào kết quả (hạ cấp sạch, không phải rác). Dựng lại bằng
+      `KbPipeline.re_index(tenant_id)`, vốn đọc `embed_text` **từ DB** nên không cần file gốc.
+- [x] `RAISE NOTICE` → **`RAISE WARNING`** kèm **số chunk sắp mất vector**. Đo được vì sao đổi:
+      `log_min_messages` mặc định là `warning`, nên `NOTICE` **không** vào log server còn `WARNING`
+      **có** (đã thử: chỉ dòng WARNING xuất hiện trong `docker logs`). Phía client thì psycopg bỏ
+      **cả hai** nếu không ai gắn `add_notice_handler` — và không nơi nào trong `apps/studio` gắn.
+      Nên đường tin cậy là log server, không phải log ứng dụng.
+      Đếm bằng `pg_class.reltuples` chứ không `count(*)`: `FORCE RLS` fence cả owner nên `count(*)`
+      chỉ thấy tenant hiện tại (thường chưa đặt ⇒ 0), còn `reltuples` không đi qua RLS.
+- [x] Bài hồi quy `test_tai_lieu_tenant_upload_song_sot_migration_va_re_index_duoc` — ba chặng:
+      sống sót (nội dung nguyên vẹn) · không rác (`embedding IS NULL`) · dựng lại được (`re_index`).
+- [x] Siết `test_ddl_chay_lai_..._KHONG_dong_du_lieu` để assert **cả vector**, không chỉ đếm dòng.
+      Với `TRUNCATE` thì đếm dòng là đủ; với `USING NULL` thì dòng luôn sống, nên migration vô điều
+      kiện sẽ `NULL` sạch vector mỗi lần boot mà bài cũ **vẫn xanh**. Đột biến `IF true` bắt đúng đó.
+
+### Chưa làm — cần lane khác
+
+- [ ] **⚠️ `documents.py:139` đang ghi bag-of-words vào cột mang nhãn Gemini.** Route upload dựng
+      `KbPipeline(pool, CallistoEmbedding())`, mà `CallistoEmbedding` bọc `derive_vector` **không
+      truyền `dim`** ⇒ sau kb#43 nó sinh **2048 ô bag-of-words**. Cột nhận, không lỗi nào nổ, và
+      vector đó trộn cùng không gian với vector Gemini của corpus. **CI không bắt được** — suite
+      `apps/studio` xanh vì mọi test app tự nhất quán với nhau.
+      *Lưu ý: PR nối provider thật (PR-2) **chưa tồn tại** — repo `agentcore-studio-app` cao nhất là
+      #29. Vậy đây là lỗ đang mở, không phải chuyện chờ merge.*
+- [ ] **Cột `embedding_model TEXT`** (gợi ý AIE-2, DE đồng ý): writer buộc khai model, `index()`
+      assert khớp hằng số. Biến cả lớp lỗi trên từ "âm thầm" thành "nổ ở dòng đầu tiên", và là thứ
+      duy nhất khiến tầng dữ liệu tự phân biệt được vector do provider nào ghi. Không làm trong
+      kb#44 vì `NOT NULL` sẽ gãy 5 call site ở lane khác — cần thống nhất trước.
+- [ ] `pg_advisory_xact_lock` cho khối `DO $$` (nit AIE-2). Hiện hai backend boot đồng thời vẫn
+      đúng nhờ `ACCESS EXCLUSIVE` của `ALTER`, nhưng dựa vào khoá ngầm thì ý định không đọc ra được.
 
 ## §5.2 — engine (stub + test + script + contract, lane AIE-1)
 

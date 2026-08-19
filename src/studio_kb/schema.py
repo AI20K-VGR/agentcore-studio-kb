@@ -76,24 +76,48 @@ DROP INDEX IF EXISTS kb.kb_chunks_embedding_hnsw_idx;
 -- `pipeline.py`/`postgres.py` so với hằng số MỚI nên lọt, rồi lỗi rơi xuống Postgres dưới dạng
 -- "expected N dimensions". Có điều kiện (`<>`) nên boot bình thường không đụng gì.
 --
--- TRUNCATE chứ không `ALTER ... USING`: vector cũ nằm ở KHÔNG GIAN khác (provider khác, chiều
--- khác), ép kiểu chỉ tạo ra số đúng-định-dạng-sai-nghĩa. Mọi chunk PHẢI được embed lại
--- (`scripts/ingest_callisto_v2.py`). TRUNCATE cũng là đường duy nhất xoá sạch được ở đây:
--- `FORCE ROW LEVEL SECURITY` bên dưới fence cả owner, nên `DELETE` không có `app.tenant_id`
--- sẽ xoá 0 dòng **im lặng** rồi ALTER vỡ.
+-- `USING NULL` — GIỮ DÒNG, chỉ bỏ vector. Bản đầu (kb#43) dùng `TRUNCATE` và **đó là sai**; sửa
+-- ở kb#44 sau review AIE-2. Lập luận cũ ("vector cũ ở không gian khác, phải embed lại hết") vẫn
+-- đúng cho phần VECTOR, nhưng nó không kéo theo việc xoá `text`/`embed_text` — và hai cột đó là
+-- thứ duy nhất không dựng lại được:
+--
+--   * `scripts/ingest_callisto_v2.py` dựng lại được 800 chunk corpus Callisto từ `docs/`;
+--   * tài liệu **tenant tự upload** (`POST /api/admin/documents`, app#27) thì KHÔNG — route đó
+--     chunk/embed/index thẳng vào bảng này và **không lưu file gốc ở đâu khác** (`core` schema
+--     chỉ có tenants·users·sections·jobs·outbox, không bảng nào giữ blob). `kb.chunks` là **bản
+--     sao duy nhất**. `TRUNCATE` ở đây là mất vĩnh viễn, không có đường phục hồi trong repo.
+--
+-- Sau `USING NULL`, dòng còn nguyên với `embedding IS NULL`, và trạng thái đó **đã được thiết kế
+-- sẵn**: `_SEARCH` (postgres.py) lọc `AND embedding IS NOT NULL`, nên chunk chưa có vector không
+-- bao giờ lọt vào kết quả — hạ cấp sạch, không phải rác. Dựng lại vector bằng
+-- `KbPipeline.re_index(tenant_id)`: nó đọc `embed_text` **từ DB** nên không cần file gốc.
+--
+-- Vì sao migration KHÔNG tự gọi `re_index`: `re_index` cần một `EmbeddingService`, mà DDL thì
+-- không có khe tiêm nào — `ensure_all_schemas()` chỉ thực thi chuỗi SQL. Hai tầng, hai việc:
+-- DDL lo CẤU TRÚC, người vận hành lo DỮ LIỆU.
 DO $$
 DECLARE
-    cur_dim int;
+    cur_dim  int;
+    n_chunk  bigint;
 BEGIN
     SELECT atttypmod INTO cur_dim
       FROM pg_attribute
      WHERE attrelid = 'kb.chunks'::regclass AND attname = 'embedding' AND NOT attisdropped;
 
     IF cur_dim IS NOT NULL AND cur_dim <> {EMBEDDING_DIM} THEN
-        RAISE NOTICE 'kb.chunks.embedding: vector(%) -> vector(%); TRUNCATE + re-ingest bắt buộc',
-                     cur_dim, {EMBEDDING_DIM};
-        TRUNCATE TABLE kb.chunks;
-        ALTER TABLE kb.chunks ALTER COLUMN embedding TYPE vector({EMBEDDING_DIM});
+        -- Đếm TRƯỚC khi đổi: con số này là thứ người vận hành cần để biết phải re_index bao nhiêu.
+        -- `count(*)` chạy dưới owner-pool nhưng `FORCE RLS` fence cả owner, nên nó chỉ thấy dòng
+        -- của `app.tenant_id` hiện tại (thường chưa đặt ⇒ 0). Dùng `pg_class.reltuples` (ước lượng
+        -- của planner, không qua RLS) để con số phản ánh CẢ BẢNG.
+        SELECT GREATEST(reltuples, 0)::bigint INTO n_chunk
+          FROM pg_class WHERE oid = 'kb.chunks'::regclass;
+
+        RAISE WARNING 'kb.chunks.embedding: vector(%) -> vector(%). ~% chunk MẤT VECTOR (dòng giữ '
+                      'nguyên, embedding := NULL) và sẽ KHÔNG truy xuất được cho tới khi chạy '
+                      'KbPipeline.re_index(tenant_id) hoặc scripts/ingest_callisto_v2.py.',
+                      cur_dim, {EMBEDDING_DIM}, n_chunk;
+
+        ALTER TABLE kb.chunks ALTER COLUMN embedding TYPE vector({EMBEDDING_DIM}) USING NULL;
     END IF;
 END $$;
 
