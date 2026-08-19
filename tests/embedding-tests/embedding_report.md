@@ -39,8 +39,8 @@ là CI đỏ.
 `validation-split.json` — **98 case validation / 202 case test**, phân tầng 33%, seed `20260819`,
 sinh bằng `make_validation_split.py` và ĐÓNG BĂNG trong repo. Mọi tham số/ngưỡng phải tune trên
 `validation`; bảng dưới đây báo cáo trên `test`. Đây là gạch 3 của `kb#38` (sai sót phương pháp #2:
-ngưỡng `decoy_fall` 0.35 ở §Gate được chọn bằng cách quét trên chính tập báo cáo — **số 0.35 đó vẫn
-chưa được chọn lại trên validation**, xem §Còn để mở).
+ngưỡng `decoy_fall` được chọn bằng cách quét trên chính tập báo cáo — **đã sửa**: ngưỡng nay là
+**0.38**, dẫn từ validation bằng `tune_decoy_threshold.py`, xem §Gate).
 
 ### Bảng tái lập được — `--part test` (202 case)
 
@@ -274,7 +274,7 @@ qua OpenRouter cũng không gặp — chỉ đường gọi free-tier trực ti�
 **Hai chế độ gate** (`_harness.gate_verdict`):
 - *Tương đối* so baseline dim-8 + margin — `hit1/hit3/hit5/mrr5` (S1 margin 0.02 · S2–S4 margin 0.10)
   và `max_cosine_mean` @S5 (margin 0.05, chiều thấp).
-- *Tuyệt đối* — `decoy_fall` @S3/S4 phải `≤ 0.35`, KHÔNG so với dim-8. Xem §Vì sao `decoy_fall` phải
+- *Tuyệt đối* — `decoy_fall` @S3/S4 phải `≤ 0.38` (dẫn từ validation), KHÔNG so với dim-8. Xem §Vì sao `decoy_fall` phải
   gate tuyệt đối ngay dưới.
 
 | tầng.metric | hash1024 | bge-m3 | e5-large | gemini-001 | gemini-2 | qwen3-8b |
@@ -337,10 +337,38 @@ role, chủ đề kề"), nên metric này **không thể dùng để CHỌN mod
 đầu bảng. Nó chỉ dùng được như **thanh chắn an toàn một chiều**: bắt provider bị bẫy một cách bệnh
 hoạn.
 
-**Ngưỡng 0.35 lấy từ dữ liệu, không phải cảm tính**: giá trị cao nhất từng quan sát ở một provider
-chạy được là **0.2333** (S3, `hash1024` và `bge-m3`); với n=60 ở S3 thì SE ≈ 0.055, nên
-0.2333 + 2·SE ≈ 0.343. Chọn 0.35 để model tệ-ngang-`bge-m3` vẫn qua chắc chắn (gate không nhấp nháy
-vì nhiễu lấy mẫu) nhưng vẫn bắt được thứ thật sự bệnh — ví dụ một nửa số truy vấn rơi vào bẫy.
+**Ngưỡng 0.38 — DẪN TỪ VALIDATION SET, không phải từ tập báo cáo.** Đây là bản sửa của sai sót
+phương pháp #2 (`kb#38`): bản trước dùng **0.35**, quét trên chính 300 case dùng để báo cáo.
+
+Phép dẫn (chạy lại được: `uv run --python 3.14 python tests/embedding-tests/tune_decoy_threshold.py`,
+offline, không API key):
+
+| provider | tầng | `decoy_fall` (validation) | n |
+|---|---|---:|---:|
+| `gemini-embedding-001` @2048 | S3 | **0.2000** | 20 |
+| `hash1024` | S3 | 0.1500 | 20 |
+| `hash1024` | S4 | 0.1111 | 18 |
+| `dim-8` | S3 | 0.1000 | 20 |
+| `gemini-embedding-001` @2048 | S4 | 0.0556 | 18 |
+| `dim-8` | S4 | 0.0000 | 18 |
+
+    max quan sát = 0.2000 (n=20)
+    SE = sqrt(0.20·0.80/20) = 0.0894
+    ngưỡng = 0.2000 + 2·0.0894 = 0.3789  →  làm tròn lên 0.38
+
+Công thức **giữ nguyên** bản trước (max quan sát + 2·SE tại chính `p` quan sát được), chỉ đổi TẬP —
+để chênh lệch kết quả đến từ việc đổi tập chứ không từ việc đổi luật.
+
+**Vì sao ngưỡng NỚI RA (0.35 → 0.38), và vì sao đó không phải nới lỏng gate.** Validation chỉ có
+n=20/18 mỗi tầng so với n=60/55 của cả bộ, nên SE lớn hơn ~1.6× và biên chống-nhấp-nháy phải rộng
+theo. Nói cách khác **0.35 chặt hơn mức có căn cứ**: một provider lành mạnh ở 0.36 sẽ rớt gate vì
+nhiễu lấy mẫu chứ không vì chất lượng. Thanh chắn vốn chỉ để bắt thứ bệnh hoạn (vd một nửa số truy
+vấn rơi bẫy = 0.50) — 0.50 vẫn bị chặn ở cả hai ngưỡng.
+
+**Giới hạn đã biết của phép dẫn này:** chỉ 3 provider chấm được offline. `bge-m3`/`e5-large` cần
+`torch` nên không vào được phép lấy max — mà ở bản đo tay, `bge-m3` CHÍNH LÀ một trong hai provider
+giữ giá trị cao nhất (0.2333). Ngưỡng 0.38 vì thế có thể còn **thấp hơn** ngưỡng đúng. Vá được khi
+nào cache cho hai provider kia được commit.
 
 Đã cài đặt: `_harness.ABSOLUTE_MAX` + `_harness.gate_verdict`, ngưỡng ghi vào `baseline-dim8.json`
 (nằm trong git diff, đổi ngưỡng mà quên re-record thì CI đỏ). Margin `decoy_fall` đã bị **xoá khỏi**
@@ -717,10 +745,11 @@ vô ích** — chỉ tốn thêm một tầng tính toán.
 
 ## Còn để mở
 
-0. **Ngưỡng `decoy_fall` 0.35 chưa được chọn lại trên validation set.** Nó vẫn là con số quét trên
-   chính 300 case dùng để báo cáo (§Gate) — đúng sai sót phương pháp #2 của `kb#38`. Split đã có
-   (`validation-split.json`, 98 case), việc còn lại là chọn lại ngưỡng CHỈ trên tập đó rồi báo cáo
-   trên `test`. Ưu tiên cao nhất trong danh sách này vì nó là gạch DoD đang mở.
+0. ~~**Ngưỡng `decoy_fall` chưa được chọn lại trên validation set.**~~ **XONG** — ngưỡng nay là
+   **0.38**, dẫn từ 98 case validation bằng `tune_decoy_threshold.py` (§Gate). Còn lại một nửa:
+   phép lấy max chỉ gồm 3 provider chạy offline được; `bge-m3`/`e5-large` (cần `torch`) chưa vào
+   được, mà `bge-m3` từng là provider giữ giá trị cao nhất — nên ngưỡng có thể còn thấp hơn mức
+   đúng. Vá khi cache hai provider kia được commit.
 
 Xếp theo đòn bẩy — việc đầu tiên là thứ dữ liệu ở §Trần theo K chỉ thẳng vào.
 

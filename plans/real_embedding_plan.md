@@ -144,21 +144,40 @@ Cả 3 provider API đo ở `output_dimensionality=2048` (`embedding_report.md:7
 `compare_providers.py` + cache, đúng như `kb#38` đòi. Bốn provider local (8/1024) không dính vấn đề
 nào ở trên.
 
-## §5. PR-2 — re-pin dim + migration (chỉ chạy sau khi PR-1 có số)
+## §5. PR-2 — re-pin dim + migration (thay đổi phối hợp 3 repo)
 
 **Điều kiện tiên quyết: `kb#39` phải merge trước.** `re_index` đọc `embed_text` đã lưu là thứ làm
 migration dim tái lập được đúng chuỗi đã embed mà không cần dựng lại corpus. Trước khi có cột đó,
 mọi lần đổi dim sẽ âm thầm đổi vector của mọi chunk.
 
+### §5.0 — Sai sót đã sửa: đổi dim KHÔNG phải kb-local
+
+Bản trước viết: *"Nhiều khả năng đổi dim là kb-local"* — dựa trên việc quét `FakeEmbedding` chứ
+**không quét số 8 ghim cứng ở engine**. Sai. Đổi `EMBEDDING_DIM` bên kb mà không sửa engine thì:
+
+- `StubEmbedding` vẫn replay fixture `smoke-01.json` → vector 8 chiều → **xanh**
+- `EXPECTED_DIM = 8` (`test_embedding_service_contract.py:29`) vẫn khớp stub → **xanh**
+- Docstring `StubEmbedding` (`demo_stubs.py:172-176`) vẫn tuyên bố "width fixed at 8, matching
+  `packages/kb/…::EMBEDDING_DIM`" → **tuyên bố thành sai mà không ai biết**
+- Comment ở `EXPECTED_DIM` (dòng 27-28) viết: *"Đổi một bên mà quên bên kia thì
+  `test_e2_…` đỏ ở đây"* → **điều đó không đúng.** Test chạy trên `_conforming_impls()` (stub
+  của chính engine), không phải vector từ kb. `.importlinter` cấm engine import kb nên hằng số
+  được khai lại bằng tay; **không có cơ chế nào so sánh hai bên với nhau.** Đây là nợ có ý thức,
+  nhưng cơ chế phát hiện mà comment hứa thì **không tồn tại**.
+
+PR-2 thực chất là **thay đổi phối hợp 3 repo**: kb (schema + fixture) · engine (stub + 3 test +
+script, lane AIE-1) · apps/studio (`FakeEmbedding.dim`).
+
+### §5.1 — kb (schema + fixture + migration)
+
 - [ ] **Bỏ HNSW**: xoá `CREATE INDEX ... USING hnsw` (`schema.py:53-54`) + sửa dòng bảng
       `callisto-doc-schema.md:121`. Kèm docstring nêu **ngưỡng quy mô** làm quyết định này hết đúng
       (§2). Migration phải `DROP INDEX IF EXISTS` cho DB đã tồn tại, không chỉ ngừng tạo mới.
-- [ ] `EMBEDDING_DIM = 8` → **2048**. Comment `schema.py:29-32` bảo re-pin **cùng lúc với
-      `FakeEmbedding.dim`** — **kiểm lại: comment này đã cũ.** `FakeEmbedding` chỉ còn được dùng ở
-      `get_embedding()` (dead) và 4 file test của apps/studio, nơi nó được truyền vào
-      `EngineAgentRunner` mà `LlmStepExecutor` không bao giờ gọi. `test_embedding_fixture.py:11`
-      còn nói rõ **cố ý không assert `FakeEmbedding.dim`**. ⇒ Nhiều khả năng đổi dim là
-      **kb-local**. Xác nhận lại rồi sửa comment `schema.py` cho khớp thực tế.
+- [ ] `EMBEDDING_DIM = 8` → **2048**. Sửa comment `schema.py:29-32` — comment cũ bảo pin cùng
+      `FakeEmbedding.dim` nhưng **không nhắc engine**, là thiếu. Comment mới phải liệt cả 3 nơi:
+      `packages/engine/tests/test_embedding_service_contract.py::EXPECTED_DIM` ·
+      `packages/engine/tests/fixtures/embedding/smoke-01.json` ·
+      `apps/studio/src/studio_app/providers/fakes.py::FakeEmbedding.dim`.
 - [ ] Migration cột: `DROP INDEX IF EXISTS kb_chunks_embedding_hnsw_idx` →
       `ALTER COLUMN embedding TYPE vector(2048)` → re-embed qua `re_index`. **Không dựng lại index.**
       Idempotent như `ALTER ... IF NOT EXISTS` của #39.
@@ -169,17 +188,52 @@ mọi lần đổi dim sẽ âm thầm đổi vector của mọi chunk.
   - `apps/studio/providers/factory.py::CallistoEmbedding`
   - `packages/kb/scripts/ingest_callisto.py` (+ `ingest_callisto_v2.py`)
   - `scripts/e2e_smoke_eval.py::_CallistoEmbedding`
-  - `packages/engine/scripts/measure_chunk_embed.py` (**chép công thức có chủ đích**, không import
-    — sẽ KHÔNG tự đổi theo, phải sửa tay)
 - [ ] **Regenerate `golden/embeddings-callisto-v0.json`** — fixture dim-8 recorded
       (`embeddings.py:78 FIXTURE_PATH`), có `test_embedding_fixture.py` soi. Re-pin dim làm nó vô
       hiệu ⇒ regenerate là **một phần của migration**, không phải việc dọn sau.
 - [ ] Re-record `baseline-dim8.json` + xem lại `GATED_METRICS`: baseline đang neo vào dim-8. Đổi
       provider mặc định thì gate "tương đối so dim-8" còn nghĩa gì không — quyết định tường minh,
       đừng để trôi.
-- [ ] `FakeEmbedding` ở dim cao thoái hoá: `fakes.py:114` là `digest[i % len(digest)]` trên
-      blake2b 64 byte → từ ~768 chiều vector thành tuần hoàn, mọi chunk giống nhau. Nếu PR-2 đụng
-      tới nó thì phải kèm công thức fixture mới, kẻo INV-4 (CI 100% fixtures) thành xanh-vô-nghĩa.
+
+### §5.2 — engine (stub + test + script + contract, lane AIE-1)
+
+**`.importlinter` cấm engine import kb.** Mọi hằng số dim ở engine là khai lại bằng tay. Liệt kê
+đầy đủ các chỗ phải sửa (grep `= 8` + `== 8` + `"EMBEDDING_DIM"` trong `packages/engine`):
+
+- [ ] `EXPECTED_DIM = 8` → **2048** (`test_embedding_service_contract.py:29`). Sửa **comment dòng
+      25-28**: bỏ khẳng định sai "đổi một bên mà quên bên kia thì test đỏ ở đây", viết lại cho
+      đúng: *"Nợ có ý thức — không có cơ chế tự động so hai bên, phải đổi bằng tay cùng lúc với
+      `packages/kb/…::EMBEDDING_DIM`."*
+- [ ] Fixture `tests/fixtures/embedding/smoke-01.json` — re-record vector **2048 chiều** (hiện
+      ghi cứng 8 chiều). Nếu không re-record thì `test_e2_…` đỏ vì `StubEmbedding` replay 8 chiều
+      mà `EXPECTED_DIM` đã là 2048.
+- [ ] `test_stub_embedding.py:28` — `assert all(len(vector) == 8 …)` → **2048**.
+- [ ] `test_fixture_missing_fails_loud.py:264` — `assert all(len(vector) == 8 …)` → **2048**.
+- [ ] `StubEmbedding` docstring (`demo_stubs.py:172-176`) — sửa "width fixed at 8" → **2048**.
+- [ ] `scripts/measure_chunk_embed.py` — **chép công thức có chủ đích**, không import. Sẽ KHÔNG tự
+      đổi theo, phải sửa tay.
+- [ ] Contract `docs/contracts/embedding-service.v0.md` — sửa dòng 74 (`hiện \`8\``) và dòng
+      78-81 (khẳng định sai về cơ chế phát hiện). Bảng §3 dòng 98 (`E-2: ✅ (8)`) → 2048.
+
+### §5.3 — apps/studio (`FakeEmbedding`)
+
+- [ ] `FakeEmbedding.dim = 8` → **2048** (`fakes.py:107`).
+- [ ] `FakeEmbedding` ở dim cao **thoái hoá**: `fakes.py:114` là `digest[i % len(digest)]` trên
+      sha256 32 byte → từ chiều thứ 33 trở đi vector tuần hoàn, mọi chunk giống nhau ở đuôi. Nếu
+      PR-2 đụng tới nó thì phải kèm công thức fixture mới, kẻo INV-4 (CI 100% fixtures) thành
+      xanh-vô-nghĩa.
+
+### §5.4 — Làm cho contract kb↔engine có "răng thật"
+
+Hiện tại contract chỉ là **hai hằng số rời nhau cộng một docstring hứa suông**. Không có gì
+chạy ở CI so sánh `EMBEDDING_DIM` (kb) với `EXPECTED_DIM` (engine). Đề xuất:
+
+- [ ] Thêm **CI step** ở kit (`agentcore-studio-kit`) grep cả hai giá trị và fail nếu lệch. Vì
+      `.importlinter` cấm import chéo, đây là cách duy nhất có cơ chế phát hiện **tự động** thay vì
+      dựa vào trí nhớ con người. Hình thức đơn giản nhất: script shell trong `.github/workflows/`
+      parse cả hai file rồi `diff`.
+- [ ] Hoặc: khai hằng số **trong `studio_contracts`** (layer cả engine lẫn kb đều được import) —
+      cần DEC mới vì đụng tới `studio_contracts`. Giải triệt để nhưng chi phí cao hơn.
 
 ## §5b. Ngưỡng chuyển cache sang artifact store (ghi để nhớ, chưa chặn gì)
 

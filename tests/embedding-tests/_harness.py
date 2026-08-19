@@ -344,7 +344,26 @@ GATED_METRICS: dict[str, tuple[str, ...]] = {
 #
 # ĐỌC KÈM: metric này KHÔNG dùng để CHỌN model được (model càng ngẫu nhiên càng "thắng"). Nó là
 # thanh chắn an toàn một chiều: bắt provider bị bẫy một cách bệnh hoạn, KHÔNG xếp hạng provider tốt.
-ABSOLUTE_MAX: dict[str, float] = {"decoy_fall": 0.35}
+ABSOLUTE_MAX: dict[str, float] = {"decoy_fall": 0.38}
+"""Ngưỡng tuyệt đối, DẪN TỪ VALIDATION SET — không phải từ tập báo cáo (kb#38, sai sót #2).
+
+Phép dẫn nằm trong `tune_decoy_threshold.py`, chạy lại được offline; `test_embedding_gate.py::
+test_nguong_decoy_fall_dan_tu_validation_khong_phai_tap_bao_cao` khoá con số ở đây khớp phép dẫn đó.
+
+    max(decoy_fall, 3 provider × {S3,S4}, CHỈ trên validation) = 0.2000  (gemini-001 @ S3, n=20)
+    SE = sqrt(0.20·0.80/20) = 0.0894
+    ngưỡng = 0.2000 + 2·0.0894 = 0.3789  →  làm tròn lên 0.38
+
+**Vì sao NỚI từ 0.35 lên 0.38.** 0.35 của bản trước quét trên chính 300 case dùng để báo cáo (n=60
+mỗi tầng ⇒ SE nhỏ ⇒ ngưỡng chặt). Validation chỉ có n=20/18 mỗi tầng, nên SE lớn gấp ~1.6× và biên
+chống-nhấp-nháy phải rộng theo. Nói cách khác 0.35 **chặt hơn mức có căn cứ**: một provider lành
+mạnh ở 0.36 sẽ rớt gate vì nhiễu lấy mẫu chứ không vì chất lượng. Gate nới ra không làm nó mất tác
+dụng — nó vốn chỉ để bắt thứ bệnh hoạn (vd một nửa số truy vấn rơi bẫy = 0.5), và 0.5 vẫn bị chặn.
+
+**Giới hạn đã biết:** chỉ 3 provider chấm được offline (`dim-8`, `hash1024`, `gemini-001`).
+`bge-m3`/`e5-large` cần `torch` nên không vào được phép lấy max — mà ở bản đo tay, `bge-m3` CHÍNH LÀ
+một trong hai provider giữ giá trị cao nhất. Ngưỡng này vì thế có thể còn THẤP hơn ngưỡng đúng.
+"""
 
 
 def gate_verdict(metric: str, got: float, baseline: float, margin: float | None) -> bool:
