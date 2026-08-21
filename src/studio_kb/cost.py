@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from psycopg import AsyncConnection
+from psycopg import AsyncConnection, sql
 from psycopg_pool import AsyncConnectionPool
 from studio_contracts.trace import Tokens, TraceEvent
 
@@ -125,7 +125,11 @@ ORDER BY run_id
 class PgCostReader:
     """Đọc cost per-run từ Postgres — **tái dùng** `PgTraceReader.read_run` (không dựng lại đường đọc).
 
-    Cùng luật hàng rào: `obs.trace_events` không có RLS, nên mọi truy vấn ở đây phải mang `tenant_id`.
+    RLS production trên `obs.trace_events` đang land (GAP-1, mini-RFC B đã ký đủ 4/4) — mọi truy vấn
+    ở đây vẫn phải mang `tenant_id` (WHERE, lớp phòng thủ thứ hai) VÀ tự `SET LOCAL app.tenant_id`
+    trên connection nó mở (lớp RLS thật). `read_run_cost`/`read_run_cost_with_drift` được vá miễn phí
+    vì đi qua `PgTraceReader.read_run` (đã tự set); `list_run_ids` mở connection RIÊNG với query thô
+    nên phải tự set lấy, không thể mượn.
     """
 
     def __init__(self, pool: Pool) -> None:
@@ -152,6 +156,7 @@ class PgCostReader:
     async def list_run_ids(self, tenant_id: UUID) -> list[str]:
         """Mọi `run_id` của `tenant_id` — để cost table quét từng run. `tenant_id` bắt buộc (hàng rào)."""
         async with self._pool.connection() as conn:
+            await conn.execute(sql.SQL("SET LOCAL app.tenant_id = {}").format(sql.Literal(str(tenant_id))))
             cur = await conn.execute(_LIST_RUNS, (tenant_id,))
             rows = await cur.fetchall()
         return [row[0] for row in rows]

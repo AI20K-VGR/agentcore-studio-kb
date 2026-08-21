@@ -277,9 +277,11 @@ async def test_events_come_from_db_not_memory(pool: Pool, spine: tuple[Recipe, R
 async def test_tenant_fence_on_read(pool: Pool, spine: tuple[Recipe, RunResult, list[TraceEvent]]) -> None:
     """KHÓA: đọc bằng tenant khác trả rỗng.
 
-    `obs.trace_events` **không có RLS** (khác `kb.chunks`), nên mệnh đề `WHERE ... AND tenant_id`
-    trong `_READ_RUN` là hàng rào **duy nhất**. Không có bài này thì ai đó xoá mệnh đề đó đi vẫn
-    xanh cả suite, và lỗ hổng là đọc chéo tenant.
+    `obs.trace_events` nay có RLS thật (GAP-1) CỘNG mệnh đề `WHERE ... AND tenant_id` trong
+    `_READ_RUN` — 2 lớp độc lập, không lớp nào thay được lớp kia. Không có bài này thì ai đó xoá
+    mệnh đề WHERE đi (RLS vẫn đứng) hoặc `SET LOCAL` (WHERE vẫn đứng) đều có thể vẫn xanh cả suite
+    nhờ lớp còn lại — nhưng mất 1 trong 2 lớp là giảm-cấp-âm-thầm, và bài này là bài duy nhất khoá
+    cả hai còn sống cùng lúc.
     """
     _recipe, result, _events = spine
 
