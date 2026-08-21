@@ -130,6 +130,91 @@ DROP POLICY IF EXISTS kb_chunks_tenant_isolation ON kb.chunks;
 CREATE POLICY kb_chunks_tenant_isolation ON kb.chunks
     USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
     WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+-- ---------------------------------------------------------------------------------------------
+-- Target schema từ `G:\\My Drive\\ERD.drawio` (xem `DATABASE-DESIGN-DAY30.md` — 3 bảng này KHÔNG
+-- nằm trong phạm vi demo Day 30, land ở đây SỚM dưới dạng shell (cùng khuôn `obs.costs`/
+-- `obs.golden_sets`: DDL tồn tại, CHƯA có writer nào trong `apps/studio`/`KbPipeline` ghi vào các
+-- bảng này). `kb.chunks` ở trên GIỮ NGUYÊN không đổi — đây là bảng SONG SONG, không phải thay thế;
+-- cắt-sang (cutover) dữ liệu + đổi code đọc/ghi là việc riêng, ngoài phạm vi lần sửa DDL này.
+--
+-- `kb.knowledge_bases` — 1 tenant có nhiều KB theo phòng ban (section_role). `collection_ref` là
+-- CHUỖI ĐỊNH TUYẾN tới vector DB ngoài, KHÔNG PHẢI FK (đúng ERD).
+CREATE TABLE IF NOT EXISTS kb.knowledge_bases (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    section_role TEXT,
+    name TEXT NOT NULL,
+    vector_provider TEXT,
+    collection_ref TEXT,
+    embedding_model TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS kb_knowledge_bases_tenant_id_idx ON kb.knowledge_bases (tenant_id);
+
+ALTER TABLE kb.knowledge_bases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE kb.knowledge_bases FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS kb_knowledge_bases_tenant_isolation ON kb.knowledge_bases;
+CREATE POLICY kb_knowledge_bases_tenant_isolation ON kb.knowledge_bases
+    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+-- `kb.documents` — quản lý file tài liệu upload (1 KB chứa nhiều file). `kb_id` là FK same-schema
+-- (hợp lệ — luật "không cross-schema FK" chỉ áp dụng giữa các schema khác nhau, không áp dụng ở đây).
+CREATE TABLE IF NOT EXISTS kb.documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    kb_id UUID NOT NULL REFERENCES kb.knowledge_bases (id),
+    filename TEXT NOT NULL,
+    filehash TEXT,
+    section_role TEXT,
+    chunk_count INT NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS kb_documents_tenant_id_idx ON kb.documents (tenant_id);
+CREATE INDEX IF NOT EXISTS kb_documents_kb_id_idx ON kb.documents (kb_id);
+
+ALTER TABLE kb.documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE kb.documents FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS kb_documents_tenant_isolation ON kb.documents;
+CREATE POLICY kb_documents_tenant_isolation ON kb.documents
+    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+-- `kb.chunk_pointers` — kế thừa hình dạng `kb.chunks` (text/embed_text/embedding) cộng `doc_id`
+-- (1 file cắt nhiều chunk) + `kb_id` + `external_id` (route qua `knowledge_bases.collection_ref`
+-- tới bản ghi thật trong vector DB ngoài). `embedding` NULLABLE — "cache tuỳ chọn" theo ERD, không
+-- phải nguồn sự thật khi đã có vector DB ngoài đứng sau `external_id`.
+CREATE TABLE IF NOT EXISTS kb.chunk_pointers (
+    chunk_id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    tenant_id UUID NOT NULL,
+    kb_id UUID NOT NULL REFERENCES kb.knowledge_bases (id),
+    doc_id UUID NOT NULL REFERENCES kb.documents (id),
+    section_role TEXT NOT NULL,
+    external_id TEXT,
+    text TEXT NOT NULL,
+    embed_text TEXT,
+    embedding vector({EMBEDDING_DIM}),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS kb_chunk_pointers_tenant_id_idx ON kb.chunk_pointers (tenant_id);
+CREATE INDEX IF NOT EXISTS kb_chunk_pointers_kb_id_idx ON kb.chunk_pointers (kb_id);
+CREATE INDEX IF NOT EXISTS kb_chunk_pointers_doc_id_idx ON kb.chunk_pointers (doc_id);
+
+ALTER TABLE kb.chunk_pointers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE kb.chunk_pointers FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS kb_chunk_pointers_tenant_isolation ON kb.chunk_pointers;
+CREATE POLICY kb_chunk_pointers_tenant_isolation ON kb.chunk_pointers
+    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
 """
 
 
