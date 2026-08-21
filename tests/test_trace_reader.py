@@ -354,8 +354,8 @@ async def test_db_hai_run_xen_ke_khong_lan_nhau(admin_pool: object, pool: object
 
 
 async def test_db_khong_doc_cheo_tenant(admin_pool: object, pool: object) -> None:
-    """`obs.trace_events` **không có RLS** — mệnh đề `tenant_id` trong câu SQL là hàng rào DUY NHẤT
-    ở đây. Cùng `run_id`, khác tenant, phải không thấy gì."""
+    """`obs.trace_events` nay có RLS thật (GAP-1) cộng mệnh đề `tenant_id` trong câu SQL — 2 lớp độc
+    lập. Cùng `run_id`, khác tenant, phải không thấy gì."""
     del admin_pool
     await _write(pool, [_event(NodeType.KB_RETRIEVE, "2026-07-24T09:00:00+00:00", tenant_id=ANKOR_ID)])
 
