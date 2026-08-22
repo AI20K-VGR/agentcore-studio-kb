@@ -103,7 +103,8 @@ def test_aggregate_tron_run_id_raise() -> None:
 
 
 def test_aggregate_tron_tenant_raise_ho_inv1() -> None:
-    """Trộn tenant khi cộng dồn là hở INV-1 (`obs.trace_events` không RLS) — phải từ chối."""
+    """Trộn tenant khi cộng dồn là hở INV-1 — phải từ chối, bất kể RLS DB có bật hay không (lưới
+    thứ hai ở tầng ứng dụng, không thay RLS mà bổ sung — GAP-1, `obs.trace_events` nay đã có RLS)."""
     events = [
         _event(NodeType.LLM_STEP, event_id="a", tenant_id=ANKOR_ID),
         _event(NodeType.LLM_STEP, event_id="b", tenant_id=BOREA_ID),
@@ -244,7 +245,8 @@ async def test_db_read_run_cost_khong_co_run_raise(admin_pool: object, pool: obj
 
 
 async def test_db_tenant_khac_khong_lot_vao_cost(admin_pool: object, pool: object) -> None:
-    """Hàng rào tenant: event borea KHÔNG được lọt vào cost của ankor (obs.trace_events không RLS)."""
+    """Hàng rào tenant: event borea KHÔNG được lọt vào cost của ankor (2 lớp — WHERE tenant_id ở
+    query + RLS thật từ GAP-1; bài này khoá kết quả cuối, không khoá cơ chế nào cụ thể)."""
     del admin_pool
     await _write(pool, [_event(NodeType.LLM_STEP, event_id="bo", run_id="run-x", tenant_id=BOREA_ID, cost=9.9)])
     await _write(pool, [_event(NodeType.LLM_STEP, event_id="an", run_id="run-x", tenant_id=ANKOR_ID, cost=0.01)])

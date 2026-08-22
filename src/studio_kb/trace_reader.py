@@ -27,7 +27,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from psycopg import AsyncConnection
+from psycopg import AsyncConnection, sql
 from psycopg_pool import AsyncConnectionPool
 from studio_contracts.nodes import NodeType
 from studio_contracts.recipe import Dag
@@ -320,10 +320,14 @@ def render_timeline(
 class PgTraceReader:
     """Đọc `obs.trace_events` từ Postgres.
 
-    Bảng này **không có RLS** (khác hẳn `kb.chunks`) — trace là hành động của composition-root, không
-    phải của tenant, nên không có policy nào chặn. Vì thế mệnh đề `tenant_id` trong câu SQL là hàng
-    rào **duy nhất** ở đây, không phải lớp thứ hai bổ cho RLS như bên `kb.chunks`. Bỏ nó ra là đọc
-    chéo tenant, và không có lưới nào đỡ.
+    RLS production trên bảng này đang land (GAP-1, mini-RFC
+    `packages/kb/docs/mini-rfc-tenant-schema-unify.md`, phần B đã ký đủ 4/4) — `apps/studio/obs/
+    schema.py` sẽ bật `ENABLE`+`FORCE ROW LEVEL SECURITY`. Trước đây mệnh đề `tenant_id` trong câu
+    SQL là hàng rào DUY NHẤT; giờ là lớp THỨ HAI bổ cho RLS, đúng khuôn `kb.chunks` đã có — nhưng để
+    lớp RLS đó thật sự cho INSERT/SELECT của kết nối này đi qua, `read_run` phải tự `SET LOCAL
+    app.tenant_id` trên CHÍNH transaction nó mở, cùng idiom `PgTraceWriter.write()`
+    (`apps/studio/obs/trace_writer.py`) đã dùng cho phía ghi — thiếu dòng này, `WITH CHECK`/`USING`
+    của policy sẽ thấy session chưa set gì → 0 dòng, kể cả khi WHERE tenant_id đã đúng.
     """
 
     def __init__(self, pool: Pool) -> None:
@@ -341,6 +345,7 @@ class PgTraceReader:
         event nào được ghi), không phải lỗi.
         """
         async with self._pool.connection() as conn:
+            await conn.execute(sql.SQL("SET LOCAL app.tenant_id = {}").format(sql.Literal(str(tenant_id))))
             cursor = await conn.execute(_READ_RUN, (run_id, tenant_id))
             rows = await cursor.fetchall()
 
