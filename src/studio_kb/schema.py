@@ -140,16 +140,30 @@ CREATE POLICY kb_chunks_tenant_isolation ON kb.chunks
 --
 -- `kb.knowledge_bases` — 1 tenant có nhiều KB theo phòng ban (section_role). `collection_ref` là
 -- CHUỖI ĐỊNH TUYẾN tới vector DB ngoài, KHÔNG PHẢI FK (đúng ERD).
+--
+-- `section_role NOT NULL DEFAULT 'public'` (review kb#47 finding #3): trước là nullable trong khi
+-- `kb.chunks`/`kb.chunk_pointers` (bảng con) đòi NOT NULL — bất đối xứng ngay đúng cột fence nội
+-- dung của `kb.search`. Đối xứng lại: cha KHÔNG được NULL, y hệt con.
+--
+-- `UNIQUE (tenant_id, id)` (review kb#47 finding #1): PK `id` một cột không đủ làm target cho FK
+-- xuyên-tenant an toàn — cần cặp `(tenant_id, id)` để `kb.documents`/`kb.chunk_pointers` FK CHÍNH
+-- XÁC vào cặp đó (xem constraint composite bên dưới) thay vì chỉ vào `id`.
+--
+-- `status` KHÔNG có CHECK giới hạn giá trị (review kb#47 finding #4, nhỏ): chưa writer nào ghi
+-- bảng này, nên tập giá trị hợp lệ (`active`/`archived`/...) chưa có bằng chứng thật — bịa ra CHECK
+-- lúc này là suy đoán logic nghiệp vụ không có căn cứ. Cùng khuôn evalhub#36 (schema.py:118-120):
+-- quyết định khi có writer thật, ghi rõ lý do CHƯA quyết ở đây thay vì đoán liều.
 CREATE TABLE IF NOT EXISTS kb.knowledge_bases (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
-    section_role TEXT,
+    section_role TEXT NOT NULL DEFAULT 'public',
     name TEXT NOT NULL,
     vector_provider TEXT,
     collection_ref TEXT,
     embedding_model TEXT,
     status TEXT NOT NULL DEFAULT 'active',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT kb_knowledge_bases_tenant_id_uq UNIQUE (tenant_id, id)
 );
 
 CREATE INDEX IF NOT EXISTS kb_knowledge_bases_tenant_id_idx ON kb.knowledge_bases (tenant_id);
@@ -164,16 +178,35 @@ CREATE POLICY kb_knowledge_bases_tenant_isolation ON kb.knowledge_bases
 
 -- `kb.documents` — quản lý file tài liệu upload (1 KB chứa nhiều file). `kb_id` là FK same-schema
 -- (hợp lệ — luật "không cross-schema FK" chỉ áp dụng giữa các schema khác nhau, không áp dụng ở đây).
+--
+-- FK composite `(tenant_id, kb_id) REFERENCES kb.knowledge_bases (tenant_id, id)` (review kb#47
+-- finding #1, BLOCK): FK một cột `kb_id -> knowledge_bases(id)` chỉ chứng minh KB đó TỒN TẠI, không
+-- chứng minh nó thuộc CÙNG tenant — Postgres kiểm tra toàn vẹn tham chiếu chạy dưới quyền OWNER và
+-- BỎ QUA row-level security (hành vi có tài liệu, không phải bug). Demo thật (review comment):
+-- tenant A không SELECT được KB của tenant B (RLS đọc đúng), nhưng vẫn INSERT được document có
+-- `kb_id` trỏ thẳng vào KB đó — ghi xuyên tenant lọt qua FK. Composite FK đóng lỗ này: Postgres
+-- không cho `(tenant_id, kb_id)` của hàng con khớp với một `(tenant_id, id)` của KB thuộc tenant
+-- khác, vì cặp đó không tồn tại trong `kb_knowledge_bases_tenant_id_uq`.
+--
+-- `section_role NOT NULL DEFAULT 'public'` — cùng lý do finding #3 ở `kb.knowledge_bases` trên.
+--
+-- `ON DELETE RESTRICT` (tường minh, review kb#47 finding #4): giữ đúng hành vi mặc định (không
+-- clause = RESTRICT), nhưng ghi rõ ra thay vì ngầm định — xoá một KB còn document con sẽ báo lỗi
+-- FK thay vì âm thầm cascade mất nội dung. Cùng tinh thần thận trọng với mất dữ liệu đã có ở
+-- `kb.chunks` (cảnh báo TRUNCATE phía trên).
 CREATE TABLE IF NOT EXISTS kb.documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
-    kb_id UUID NOT NULL REFERENCES kb.knowledge_bases (id),
+    kb_id UUID NOT NULL,
     filename TEXT NOT NULL,
     filehash TEXT,
-    section_role TEXT,
+    section_role TEXT NOT NULL DEFAULT 'public',
     chunk_count INT NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT kb_documents_tenant_id_uq UNIQUE (tenant_id, id),
+    CONSTRAINT kb_documents_kb_fk FOREIGN KEY (tenant_id, kb_id)
+        REFERENCES kb.knowledge_bases (tenant_id, id) ON DELETE RESTRICT
 );
 
 CREATE INDEX IF NOT EXISTS kb_documents_tenant_id_idx ON kb.documents (tenant_id);
@@ -191,17 +224,25 @@ CREATE POLICY kb_documents_tenant_isolation ON kb.documents
 -- (1 file cắt nhiều chunk) + `kb_id` + `external_id` (route qua `knowledge_bases.collection_ref`
 -- tới bản ghi thật trong vector DB ngoài). `embedding` NULLABLE — "cache tuỳ chọn" theo ERD, không
 -- phải nguồn sự thật khi đã có vector DB ngoài đứng sau `external_id`.
+--
+-- Cả 2 FK composite theo cặp `(tenant_id, x)` — cùng lý do finding #1 ở `kb.documents` trên, áp
+-- riêng cho TỪNG FK (không dựa transitively vào FK còn lại): `kb_id` có thể trỏ đúng tenant trong
+-- khi `doc_id` trỏ sai tenant hoặc ngược lại, nên cả hai phải tự chặn độc lập.
 CREATE TABLE IF NOT EXISTS kb.chunk_pointers (
     chunk_id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     tenant_id UUID NOT NULL,
-    kb_id UUID NOT NULL REFERENCES kb.knowledge_bases (id),
-    doc_id UUID NOT NULL REFERENCES kb.documents (id),
+    kb_id UUID NOT NULL,
+    doc_id UUID NOT NULL,
     section_role TEXT NOT NULL,
     external_id TEXT,
     text TEXT NOT NULL,
     embed_text TEXT,
     embedding vector({EMBEDDING_DIM}),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT kb_chunk_pointers_kb_fk FOREIGN KEY (tenant_id, kb_id)
+        REFERENCES kb.knowledge_bases (tenant_id, id) ON DELETE RESTRICT,
+    CONSTRAINT kb_chunk_pointers_doc_fk FOREIGN KEY (tenant_id, doc_id)
+        REFERENCES kb.documents (tenant_id, id) ON DELETE RESTRICT
 );
 
 CREATE INDEX IF NOT EXISTS kb_chunk_pointers_tenant_id_idx ON kb.chunk_pointers (tenant_id);
