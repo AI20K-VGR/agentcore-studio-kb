@@ -191,9 +191,12 @@ async def test_force_rls_and_with_check(fixture: _TableFixture, admin_pool: obje
     if fixture.table in ("kb.documents", "kb.chunk_pointers"):
         kb_id = uuid4()
         await _seed_kb(admin_pool, TENANT_B, kb_id, name="mismatch-parent-kb")
-    if fixture.table == "kb.chunk_pointers":
-        doc_id = uuid4()
-        await _seed_document(admin_pool, TENANT_B, doc_id, kb_id, filename="mismatch-parent-doc.pdf")
+        # Nested (not a sibling `if`): "kb.chunk_pointers" is a subset of the outer condition, so
+        # this is the same runtime behavior — but nesting lets mypy narrow `kb_id` from
+        # `UUID | None` to `UUID` here, which two independent `if`s cannot (arg-type false positive).
+        if fixture.table == "kb.chunk_pointers":
+            doc_id = uuid4()
+            await _seed_document(admin_pool, TENANT_B, doc_id, kb_id, filename="mismatch-parent-doc.pdf")
 
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         async with admin_pool.connection() as conn:  # type: ignore[attr-defined]
