@@ -313,3 +313,54 @@ async def test_fk_chunk_pointers_doc_id_rejects_cross_tenant(admin_pool: object)
     own_doc_id = uuid4()
     await _seed_document(admin_pool, TENANT_A, own_doc_id, own_kb_id, filename="own-doc.pdf")
     await _seed_chunk_pointer(admin_pool, TENANT_A, str(uuid4()), own_kb_id, own_doc_id, text="legit")  # still works
+
+
+# ---------------------------------------------------------------------------------------------
+# kb#48 (nợ tách từ review kb#47, finding B): 3 bài trên chỉ có răng trên DB SẠCH. `CREATE TABLE
+# IF NOT EXISTS` (schema.py) là no-op trên bảng đã tồn tại — không có DROP TABLE nào ở
+# `conftest.py`/`ensure_all_schemas`, nên nếu 3 bảng này đã có sẵn (vd DB dev checkout nhánh
+# kb#47 ở bản TRƯỚC bản vá composite-FK), `ddl()` không bao giờ nâng cấp ràng buộc — DB tình cờ
+# giữ nguyên ràng buộc CŨ, và 3 bài trên (test HÀNH VI: insert cross-tenant có raise không) vẫn
+# xanh nhờ ràng buộc cũ đó, bất kể `schema.py` hiện khai gì. Đo bằng cách gieo mutation (composite
+# FK -> FK đơn cột) rồi KHÔNG drop bảng trước khi chạy lại: `20 passed` — xanh giả.
+#
+# Bài dưới đây khác 3 bài trên ở CHỖ NÓ SO SÁNH VỚI: không so kết quả một INSERT (hành vi, gián
+# tiếp), mà đọc THẲNG `pg_get_constraintdef` từ `pg_constraint` — định nghĩa ràng buộc THẬT đang
+# có trên DB — rồi so với một chuỗi HẰNG SỐ khai ngay trong bài test (không dựng lại từ
+# `schema.py`, cố ý: nếu so với chính `schema.py` thì bài test và code luôn đồng bộ với NHAU,
+# không đồng bộ với DB — mất đúng thứ cần bắt). `CREATE TABLE IF NOT EXISTS` là no-op nên bài này
+# CŨNG mù trước đúng kịch bản "sửa `schema.py`, không đụng DB" như 3 bài kia — đó không phải lỗ hổng
+# của bài này, đó là giới hạn vật lý của MỌI bài chỉ đọc DB. Giá trị thật của bài này là bắt được
+# một lớp khác: DB đã trôi khỏi ý định `schema.py` vì lý do KHÁC ngoài "vừa sửa code chưa deploy"
+# — hotfix tay, migration chạy dở, restore từ backup cũ. Verify bằng `ALTER TABLE` tay thẳng vào DB
+# test (không qua `schema.py`) — xem PR description.
+async def test_fk_constraint_dinh_nghia_khop_pg_catalog(admin_pool: object) -> None:
+    """3 FK composite (`documents.kb_fk`, `chunk_pointers.kb_fk`, `chunk_pointers.doc_fk`) phải
+    khớp ĐÚNG chuỗi `pg_get_constraintdef` kỳ vọng — không chỉ "có FK nào đó", mà đúng hình dạng
+    composite `(tenant_id, x)` chặn cross-tenant (kb#47 finding #1), đọc trực tiếp từ DB đang chạy
+    chứ không suy luận qua hành vi INSERT."""
+    ky_vong = {
+        "kb_documents_kb_fk": (
+            "FOREIGN KEY (tenant_id, kb_id) REFERENCES kb.knowledge_bases(tenant_id, id) ON DELETE RESTRICT"
+        ),
+        "kb_chunk_pointers_kb_fk": (
+            "FOREIGN KEY (tenant_id, kb_id) REFERENCES kb.knowledge_bases(tenant_id, id) ON DELETE RESTRICT"
+        ),
+        "kb_chunk_pointers_doc_fk": (
+            "FOREIGN KEY (tenant_id, doc_id) REFERENCES kb.documents(tenant_id, id) ON DELETE RESTRICT"
+        ),
+    }
+    async with admin_pool.connection() as conn:  # type: ignore[attr-defined]
+        cur = await conn.execute(
+            "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
+            "WHERE conrelid IN ('kb.documents'::regclass, 'kb.chunk_pointers'::regclass) AND contype = 'f'"
+        )
+        thuc_te = dict(await cur.fetchall())
+
+    for conname, dinh_nghia in ky_vong.items():
+        assert conname in thuc_te, f"{conname} không tồn tại trên DB — bảng chưa được tạo hoặc constraint bị đổi tên"
+        assert thuc_te[conname] == dinh_nghia, (
+            f"{conname}: DB có {thuc_te[conname]!r}, kỳ vọng {dinh_nghia!r} — "
+            "DB đã trôi khỏi schema.py (CREATE TABLE IF NOT EXISTS là no-op trên bảng đã tồn tại, "
+            "kb#48)"
+        )
