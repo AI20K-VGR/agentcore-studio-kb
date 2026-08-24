@@ -35,6 +35,26 @@ class GoldenCase:
     expected: str
     expected_citation: tuple[str, ...]
     note: str
+    source: str | None = None
+    """`"ai"` (sinh máy, `golden_from_kb`) hay `"human"` (người viết/sửa) — `None` = **chưa khai**.
+
+    Mặc định `None` chứ không `"ai"`: 60 case viết tay của bộ 1.0/2.0 không mang field này, và một
+    mặc định `"ai"` sẽ **khai hộ nguồn gốc** cho cả 60. Cùng luật `manual_label` ngay dưới. Tập giá
+    trị đóng ở phía tiêu thụ (`studio_evalhub.GoldenCase`, `Literal["ai","human"]`); ở đây để `str`
+    vì module này là bút tác giả, không phải cổng kiểm."""
+
+    is_critical: bool | None = None
+    """Case thuộc nhánh **không được sai một lần nào** — đầu vào cổng bảo mật zero-tolerance.
+
+    `None` = chưa phân loại, KHÔNG phải `False`: mặc định `False` dán *"không quan trọng"* lên mọi
+    case sẵn có, nên cổng đọc trục này sẽ gác một tập **rỗng** và vẫn xanh."""
+
+    tier: str | None = None
+    """`"core"` (chạy lúc gate Publish) hay `"full"` (chạy nền) — `None` = chưa phân tầng.
+
+    Người bấm Publish chờ được 15–30s; bộ Core 30–50 case vừa khoảng đó, còn Full 100–500 case mất
+    5–10 phút ⇒ spinner treo hoặc HTTP 504."""
+
     manual_label: str | None = None
     """Nhãn tay ground-truth (D18, DE) — chỉ subset có, còn lại `None`. Giá trị trong `MANUAL_LABEL_VALUES`:
     `"pass"` (case trả-lời-được: đáp án grounded, agent PHẢI trả lời đúng) · `"refuse"` (case bẫy hàng rào:
@@ -81,5 +101,14 @@ def render_cases(header: tuple[str, ...], golden_set_ref: str, cases: tuple[Gold
         lines.append(f"    expected_citation: {_render_citation(case.expected_citation)}")
         if case.manual_label is not None:
             lines.append(f"    manual_label: {case.manual_label}")
+        # Ba field dưới chỉ render KHI khai — bộ 1.0/2.0 để `None` nên byte render không đổi một ký
+        # tự, và bài so byte-identical với file trên đĩa vẫn xanh. Emit vô điều kiện sẽ làm mọi bài
+        # đó đỏ vì một thay đổi không liên quan tới nội dung case nào.
+        if case.source is not None:
+            lines.append(f"    source: {case.source}")
+        if case.is_critical is not None:
+            lines.append(f"    is_critical: {str(case.is_critical).lower()}")
+        if case.tier is not None:
+            lines.append(f"    tier: {case.tier}")
         lines.append("")
     return "\n".join(lines[:-1]) + "\n"
