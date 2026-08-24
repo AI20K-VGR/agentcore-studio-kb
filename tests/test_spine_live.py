@@ -37,13 +37,13 @@ from studio_app.core._db import Pool
 from studio_app.obs.trace_writer import PgTraceWriter
 from studio_contracts.kb import KbSearch, KbSearchResultItem
 from studio_contracts.nodes import NodeType
-from studio_contracts.recipe import Recipe
+from studio_contracts.recipe import Edge, Node, Recipe
 from studio_contracts.trace import TraceEvent
 from studio_engine import RunResult, run
 from studio_kb.doc_factory import TENANT_IDS
 from studio_kb.static_search import StaticKbSearch
 from studio_kb.trace_reader import PgTraceReader, check_walk, walk_from_dag
-from studio_workbench import create_recipe_d4
+from studio_workbench import create_recipe
 from studio_workbench.tenant_wall import resolve_session
 
 ANKOR_ID = TENANT_IDS["ankor"]
@@ -157,7 +157,6 @@ async def _run_spine(
     answer: str,
     tenant_id: UUID = ANKOR_ID,
     recipe_tenant_id: UUID | None = None,
-    scope: str = "ankor/public",
     session_roles: list[str] | None = None,
     spoofed_section_roles: list[str] | None = None,
     query: str | None = None,
@@ -181,14 +180,25 @@ async def _run_spine(
     `kb_search` tiêm được để bài T6 quan sát **giá trị thực** đi vào `kb.search`; mặc định vẫn là
     `StaticKbSearch()` thật như trước.
     """
-    # Hai nhánh gọi tường minh thay vì `**{...}` có điều kiện: `query=None` KHÔNG truyền được (nó là
-    # `str` ở `create_recipe_d4`), mà chép lại giá trị mặc định của workbench vào đây thì tạo nguồn
-    # sự thật thứ hai — ngày workbench đổi câu mặc định, bản chép ở test âm thầm lệch.
+    # workbench#41 — create_recipe_d4() đã bị xoá (cùng _parse_kb_scope, và kb_binding.scope không
+    # còn ý nghĩa gì trong suite này — không bài nào assert lên nó, vector tấn công thật của T6 đi
+    # qua _voi_recipe_tu_che_khai_section_roles ở node.params, không qua scope). Dựng thủ công cùng
+    # hình dạng DAG 3-node create_recipe_d4 từng tự sinh, embed "query" vào params node n1 nếu có.
     recipe_tenant = tenant_id if recipe_tenant_id is None else recipe_tenant_id
-    recipe = (
-        create_recipe_d4(tenant_id=recipe_tenant, scope=scope)
-        if query is None
-        else create_recipe_d4(tenant_id=recipe_tenant, scope=scope, query=query)
+    kb_retrieve_params: dict[str, object] = {"top_k": 3}
+    if query is not None:
+        kb_retrieve_params["query"] = query
+    recipe = create_recipe(
+        agent_id="agent-callisto-d4",
+        tenant_id=recipe_tenant,
+        instructions="Tra cứu quy trình và bảo mật Callisto.",
+        tool_whitelist=[],
+        nodes=[
+            Node(id="n1", type=NodeType.KB_RETRIEVE, params=kb_retrieve_params),
+            Node(id="n2", type=NodeType.LLM_STEP, params={"temperature": 0.0}),
+            Node(id="n4", type=NodeType.END, params={}),
+        ],
+        edges=[Edge(from_="n1", to="n2"), Edge(from_="n2", to="n4")],
     )
     if spoofed_section_roles is not None:
         recipe = _voi_recipe_tu_che_khai_section_roles(recipe, spoofed_section_roles)
@@ -412,8 +422,9 @@ async def test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang(pool: Pool)
     **Bài anh em của `test_inv1_recipe_tu_khai_tenant_khac_thi_phien_thang`, trục thứ hai.** Bài kia
     tách `tenant_id` (bạn là ai); bài này tách `section_roles` (bạn được đọc mục nào). Cùng một
     tenant hợp lệ, cùng một phiên thật — kẻ tấn công không giả danh tenant khác mà **tự nới quyền
-    trong tenant của chính mình**: recipe khai `kb_binding.scope="ankor/finance"`, phiên chỉ được
-    server-resolve ra `roles=["public"]`.
+    trong tenant của chính mình**: recipe tự chế khai `node.params["section_roles"]=["finance"]`
+    (workbench#41 — `kb_binding.scope` không còn ý nghĩa gì ở đây, hardcode cố định), phiên chỉ
+    được server-resolve ra `roles=["public"]`.
 
     **Vì sao kb phải có bài này dù engine đã có bài của riêng nó.** `packages/engine/tests/
     test_section_roles_server_resolve.py` chứng minh override tại biên executor, bằng double của
@@ -455,7 +466,6 @@ async def test_t6_recipe_khai_section_roles_rong_hon_thi_phien_thang(pool: Pool)
     recipe, result = await _run_spine(
         pool,
         answer="Ngân sách nội bộ điều chỉnh theo quy định của bộ phận tài chính.",
-        scope="ankor/finance",  # scope recipe khai (workbench vẫn validate cấu trúc chuỗi này)
         spoofed_section_roles=["finance"],  # recipe TỰ CHẾ nhét thẳng vào params — vai kẻ tấn công
         session_roles=["public"],  # phiên: server-resolve, hẹp hơn hẳn
         query=_FINANCE_QUERY,
