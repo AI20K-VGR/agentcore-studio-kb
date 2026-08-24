@@ -1,0 +1,28 @@
+{
+  "500_100": {
+    "n_queries": 50,
+    "n_chunks_corpus": 53,
+    "hit@1": 38,
+    "hit@1_rate": 0.76,
+    "hit@3": 47,
+    "hit@3_rate": 0.94,
+    "hit@5": 49,
+    "hit@5_rate": 0.98,
+    "mrr@5": 0.8567,
+    "mean_top1_cosine": 0.7546,
+    "snippet_intact_rate": 1.0
+  },
+  "850_170": {
+    "n_queries": 50,
+    "n_chunks_corpus": 33,
+    "hit@1": 37,
+    "hit@1_rate": 0.74,
+    "hit@3": 48,
+    "hit@3_rate": 0.96,
+    "hit@5": 49,
+    "hit@5_rate": 0.98,
+    "mrr@5": 0.8473,
+    "mean_top1_cosine": 0.7401,
+    "snippet_intact_rate": 1.0
+  }
+}

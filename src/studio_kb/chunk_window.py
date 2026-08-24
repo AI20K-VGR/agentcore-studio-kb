@@ -11,7 +11,19 @@ OUTPUT, trùng số NGẪU NHIÊN). Repo không có tokenizer nào và cố ý K
 file thật `docs/callisto/*.md` (tiếng Việt có dấu): tỉ lệ trung bình **2.20 token/từ**, xấu nhất đo
 được **2.32 token/từ**. Ở `WORDS_PER_CHUNK=850`, ratio xấu nhất cho ~1972 token — dưới trần 2048,
 còn đệm ~76 token cho sai số ước lượng (tiếng Việt bị BPE tách vụn hơn latin thuần nhiều, ~1.3
-token/từ)."""
+token/từ).
+
+**850/170 (không phải 500/100 hay 200/50) — chốt bằng A/B/C benchmark thật, không phải suy luận.**
+Từng thử hạ xuống 500/100 với giả thuyết "chunk ngắn hơn bắt ngữ nghĩa chính xác hơn" (ít pha loãng
+vector) — đúng một phần nhưng có giới hạn: đo A/B/C thật (100 câu hỏi, 3 cấu hình, embedding thật
+`gemini-embedding-001`, xem `chunking/report.md` ở repo cha) cho thấy hẹp hơn làm TĂNG số lượng chunk
+cạnh tranh (200/50 sinh 140 chunk từ cùng corpus so với 33 chunk ở 850/170), khiến nhiều chunk "gần
+đúng chủ đề" chen vào top-k — điểm cosine cao hơn không đồng nghĩa tìm đúng nhiều hơn. Stress test bổ
+sung (kéo dài ngữ cảnh cần thiết lên 150 từ, mô phỏng câu trả lời nhiều điều khoản) cho kết quả dứt
+khoát: 850/170 không suy giảm gì (Hit@1 không đổi), còn 200/50 sụp đổ (Hit@1 rớt hơn nửa, tỉ lệ giữ
+nguyên vẹn ngữ cảnh trong 1 chunk chỉ còn 31.6%). 500/100 nằm giữa, vẫn suy giảm đáng kể so với
+850/170. Overlap giữ tỉ lệ ~20% (`WORDS_OVERLAP=170`) để không mất ngữ cảnh nối tiếp qua ranh giới
+cắt."""
 
 from __future__ import annotations
 
