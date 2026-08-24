@@ -42,8 +42,8 @@ def _pipe(pool: object = None, embedding: object | None = None) -> KbPipeline:
     return KbPipeline(pool, embedding or _Embedding())  # type: ignore[arg-type]
 
 
-def _mk(chunk_id: str, tenant_id: UUID, role: str, text: str) -> Chunk:
-    return Chunk(chunk_id=chunk_id, text=text, tenant_id=tenant_id, section_role=role)
+def _mk(chunk_id: str, tenant_id: UUID, role: str, text: str, *, doc_id: str = "") -> Chunk:
+    return Chunk(chunk_id=chunk_id, text=text, tenant_id=tenant_id, section_role=role, doc_id=doc_id)
 
 
 async def _count_rows(pool: object, tenant_id: UUID) -> int:
@@ -121,6 +121,50 @@ async def test_index_hai_tenant_gom_theo_tenant(pool: object) -> None:
     assert await _count_rows(pool, BOREA_ID) == 1
 
 
+async def test_index_ghi_doc_id_column(pool: object) -> None:
+    """`index` phải ghi cột `doc_id` MỚI (tách khỏi vai trò PK của `chunk_id`), không chỉ nhúng nó
+    vào tiền tố `chunk_id` như trước — nếu không thì `delete_by_doc_id` không có gì để so khớp."""
+    pipe = _pipe(pool)
+    chunks = [_mk("ankor-hr-leave#c1", ANKOR_ID, "hr", "báo trước 3 ngày", doc_id="leave")]
+    await pipe.index(chunks, await pipe.embed_invoke(chunks))
+    async with pool.connection() as conn, conn.transaction():  # type: ignore[attr-defined]
+        await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(ANKOR_ID),))
+        cur = await conn.execute("SELECT doc_id FROM kb.chunks WHERE chunk_id = %s", ("ankor-hr-leave#c1",))
+        row = await cur.fetchone()
+    assert row == ("leave",)
+
+
+async def test_delete_by_doc_id_chi_xoa_dung_doc_cung_tenant(pool: object) -> None:
+    """Xoá theo `doc_id` chỉ đụng đúng document đó — document khác cùng tenant phải nguyên vẹn."""
+    pipe = _pipe(pool)
+    chunks = [
+        _mk("ankor-hr-leave#c1", ANKOR_ID, "hr", "leave 1", doc_id="leave"),
+        _mk("ankor-hr-leave#c2", ANKOR_ID, "hr", "leave 2", doc_id="leave"),
+        _mk("ankor-hr-expense#c1", ANKOR_ID, "hr", "expense 1", doc_id="expense"),
+    ]
+    await pipe.index(chunks, await pipe.embed_invoke(chunks))
+    assert await pipe.delete_by_doc_id(ANKOR_ID, "leave") == 2
+    assert await _count_rows(pool, ANKOR_ID) == 1  # "expense" còn nguyên
+
+
+async def test_delete_by_doc_id_tenant_khac_khong_dung(pool: object) -> None:
+    """Cùng chuỗi `doc_id` nhưng khác `tenant_id` — fail-closed, không đụng nhầm tenant kia
+    (mirror `test_consent_purge_chi_xoa_dung_tenant`)."""
+    pipe = _pipe(pool)
+    chunks = [
+        _mk("ankor-hr-leave#c1", ANKOR_ID, "hr", "ankor leave", doc_id="leave"),
+        _mk("borea-hr-leave#c1", BOREA_ID, "hr", "borea leave", doc_id="leave"),
+    ]
+    await pipe.index(chunks, await pipe.embed_invoke(chunks))
+    assert await pipe.delete_by_doc_id(ANKOR_ID, "leave") == 1
+    assert await _count_rows(pool, ANKOR_ID) == 0
+    assert await _count_rows(pool, BOREA_ID) == 1  # tenant khác nguyên vẹn
+
+
+async def test_delete_by_doc_id_khong_ton_tai_tra_0(pool: object) -> None:
+    assert await _pipe(pool).delete_by_doc_id(ANKOR_ID, "khong-ton-tai") == 0
+
+
 async def test_consent_purge_chi_xoa_dung_tenant(pool: object) -> None:
     """Xoá của A → A rỗng; B **không đụng** (fail-closed). Trả số dòng đã xoá."""
     pipe = _pipe(pool)
@@ -151,6 +195,20 @@ async def test_re_index_giu_chunk_id_va_so_luong(pool: object) -> None:
 
 async def test_re_index_tenant_rong_tra_0(pool: object) -> None:
     assert await _pipe(pool).re_index(ANKOR_ID) == 0
+
+
+async def test_re_index_giu_doc_id(pool: object) -> None:
+    """`re_index` dựng lại `Chunk` TỪ DB — phải giữ cột `doc_id`, không rơi về rỗng (nếu không thì
+    một vòng re-index âm thầm làm `delete_by_doc_id` hết tác dụng cho mọi chunk đã re-index)."""
+    pipe = _pipe(pool)
+    chunks = [_mk("ankor-hr-leave#c1", ANKOR_ID, "hr", "báo trước 3 ngày", doc_id="leave")]
+    await pipe.index(chunks, await pipe.embed_invoke(chunks))
+    assert await pipe.re_index(ANKOR_ID) == 1
+    async with pool.connection() as conn, conn.transaction():  # type: ignore[attr-defined]
+        await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(ANKOR_ID),))
+        cur = await conn.execute("SELECT doc_id FROM kb.chunks WHERE chunk_id = %s", ("ankor-hr-leave#c1",))
+        row = await cur.fetchone()
+    assert row == ("leave",)
 
 
 # ── embed-view + re_index: chuỗi đem embed phải TÁI LẬP ĐƯỢC sau vòng đời DB ──
