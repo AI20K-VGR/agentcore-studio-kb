@@ -1,0 +1,22 @@
+{
+  "500_100": {
+    "n_queries": 50,
+    "n_separated_correctly": 38,
+    "separated_rate": 0.76,
+    "mean_margin": 0.0235,
+    "median_margin": 0.0311,
+    "min_margin": -0.0615,
+    "max_margin": 0.1028,
+    "n_negative_margin": 12
+  },
+  "850_170": {
+    "n_queries": 50,
+    "n_separated_correctly": 37,
+    "separated_rate": 0.74,
+    "mean_margin": 0.0209,
+    "median_margin": 0.02,
+    "min_margin": -0.0503,
+    "max_margin": 0.1239,
+    "n_negative_margin": 13
+  }
+}

@@ -1,0 +1,302 @@
+[
+  {
+    "doc": "Chế độ lương thưởng - hr.md",
+    "question": "Mức lương khởi điểm dành cho nhân viên FPT mới tốt nghiệp là bao nhiêu?",
+    "expected_answer": "9 triệu/ tháng",
+    "expected_snippet": "lương FPT khởi điểm của bạn sẽ bắt đầu từ con số 9 triệu/ tháng."
+  },
+  {
+    "doc": "Chế độ lương thưởng - hr.md",
+    "question": "Mức lương cho vị trí quản lý tại FPT thường bắt đầu từ bao nhiêu?",
+    "expected_answer": "30 triệu/ tháng",
+    "expected_snippet": "các quản lý sẽ có được mức đãi ngộ tối thiểu là 30 triệu/ tháng"
+  },
+  {
+    "doc": "Chế độ lương thưởng - hr.md",
+    "question": "Trong năm 2021, chi phí chi trả lương cho nhân viên của FPT là bao nhiêu?",
+    "expected_answer": "15.080 tỷ đồng",
+    "expected_snippet": "Năm 2021, chi phí chi trả lương cho nhân viên của FPT là 15.080 tỷ đồng"
+  },
+  {
+    "doc": "Nội quy an toàn lao động - engineeringdocx.docx",
+    "question": "Giờ làm việc của công trường vào buổi sáng bắt đầu từ mấy giờ?",
+    "expected_answer": "7 giờ 30",
+    "expected_snippet": "Giờ làm việc : – SÁNG từ 7 giờ 30 đến 11 giờ 30"
+  },
+  {
+    "doc": "Nội quy an toàn lao động - engineeringdocx.docx",
+    "question": "Công nhân làm việc cần mặc trang phục gì theo nội quy công trường?",
+    "expected_answer": "mũ bảo hộ, giày bảo hộ",
+    "expected_snippet": "Công nhân làm việc trực tiếp phải mặc trang phục bảo hộ lao động, mũ bảo hộ, giày bảo hộ do Công ty cấp phát."
+  },
+  {
+    "doc": "Nội quy an toàn lao động - engineeringdocx.docx",
+    "question": "Thời gian ra vào công trường theo mẫu nội quy thứ ba là gì?",
+    "expected_answer": "6g00 đến 21g00",
+    "expected_snippet": "Thời gian ra vào công trường: từ 6g00 đến 21g00."
+  },
+  {
+    "doc": "Nội quy an toàn lao động - engineeringdocx.docx",
+    "question": "Công nhân không được làm gì dưới bất kỳ hình thức nào trong công trường?",
+    "expected_answer": "sử dụng rượu bia, ma túy",
+    "expected_snippet": "Cấm sử dụng rượu bia, ma túy hoặc các chất kích thích khác, bài bạc dưới mọi hình thức, mại dâm trong công trường."
+  },
+  {
+    "doc": "Quy định nghỉ phép 2 - public.txt",
+    "question": "Số ngày nghỉ phép năm cho người lao động làm việc trong điều kiện bình thường là bao nhiêu ngày?",
+    "expected_answer": "12 ngày",
+    "expected_snippet": "Nhóm 12 ngày làm việc: Dành cho người lao động làm việc trong điều kiện bình thường."
+  },
+  {
+    "doc": "Quy định nghỉ phép 2 - public.txt",
+    "question": "Theo quy định, sau bao nhiêu năm làm việc sẽ được tăng thêm 1 ngày nghỉ phép?",
+    "expected_answer": "5 năm",
+    "expected_snippet": "Cứ mỗi đủ 05 năm làm việc liên tục cho một người sử dụng lao động, số ngày nghỉ hằng năm theo quy định nghỉ phép năm của bạn sẽ được tăng thêm 01 ngày."
+  },
+  {
+    "doc": "Quy định nghỉ phép 2 - public.txt",
+    "question": "Từ năm nào, ngày 24/11 sẽ chính thức được chọn là ngày Văn hóa Việt Nam?",
+    "expected_answer": "2026",
+    "expected_snippet": "kể từ năm 2026, nước ta chính thức chọn ngày 24/11 hằng năm là “Ngày Văn hóa Việt Nam”."
+  },
+  {
+    "doc": "Quy định nghỉ phép 2 - public.txt",
+    "question": "Theo quy định mới, mức phạt đối với doanh nghiệp vi phạm về nghỉ phép năm sẽ gấp bao nhiêu lần mức phạt đối với cá nhân?",
+    "expected_answer": "2 lần",
+    "expected_snippet": "theo Điều 6 Nghị định này, mức phạt đối với doanh nghiệp gấp 2 lần mức phạt áp dụng cho cá nhân."
+  },
+  {
+    "doc": "Quy định nghỉ phép 2 - public.txt",
+    "question": "Theo quy định, cứ đủ bao nhiêu năm làm việc cho một doanh nghiệp thì số ngày phép sẽ được tăng thêm 1 ngày?",
+    "expected_answer": "5 năm",
+    "expected_snippet": "cứ đủ 5 năm làm việc cho một doanh nghiệp thì số ngày phép sẽ được tăng thêm tương ứng 1 ngày"
+  },
+  {
+    "doc": "Quy định bảo mật - engineering.md",
+    "question": "Quyết định ban hành Quy chế bảo mật thông tin nội bộ có số hiệu là gì?",
+    "expected_answer": "…/QĐ-…",
+    "expected_snippet": "Ban hành kèm theo Quyết định số .../QĐ-... ngày .../ .../ ..."
+  },
+  {
+    "doc": "Quy định bảo mật - engineering.md",
+    "question": "Ai có trách nhiệm kiểm tra, điều tra các vụ việc tiết lộ thông tin thuộc phạm vi bảo mật?",
+    "expected_answer": "P. Nhân sự",
+    "expected_snippet": "Tổng Giám đốc giao cho P. Nhân sự chịu trách nhiệm kiểm tra, điều tra làm rõ"
+  },
+  {
+    "doc": "Quy định bảo mật - engineering.md",
+    "question": "Hình thức xử lý vi phạm bảo mật thông tin nào có thể dẫn đến khởi tố trước pháp luật?",
+    "expected_answer": "sa thải",
+    "expected_snippet": "Cán bộ – nhân viên cố tình cung cấp thông tin cho bên ngoài vì động cơ lợi ích cá nhân thì bị xử lý sa thải."
+  },
+  {
+    "doc": "nội quy lao động - public.docx",
+    "question": "Nội quy lao động áp dụng cho những ai?",
+    "expected_answer": "Tất cả người lao động",
+    "expected_snippet": "Nội quy lao động áp dụng đối với tất cả mọi người lao động làm việc trong doanh nghiệp"
+  },
+  {
+    "doc": "nội quy lao động - public.docx",
+    "question": "Người lao động được nghỉ bao nhiêu ngày lễ trong năm?",
+    "expected_answer": "10 ngày lễ",
+    "expected_snippet": "Người lao động được nghỉ làm việc, hưởng nguyên lương 10 ngày lễ trong năm"
+  },
+  {
+    "doc": "nội quy lao động - public.docx",
+    "question": "Thời gian tối đa người lao động được hưởng trợ cấp ốm đau cho BHXH từ 30 năm trở lên là bao nhiêu ngày?",
+    "expected_answer": "60 ngày/năm",
+    "expected_snippet": "60 ngày/năm nếu đã đóng BHXH từ 30 năm trở lên."
+  },
+  {
+    "doc": "nội quy lao động - public.docx",
+    "question": "Thời gian nghỉ thai sản đối với lao động nữ sinh đôi trở lên là bao nhiêu tháng cho mỗi con từ con thứ hai trở đi?",
+    "expected_answer": "01 tháng",
+    "expected_snippet": "cứ mỗi con, người mẹ được nghỉ thêm 01 tháng."
+  },
+  {
+    "doc": "nội quy lao động - public.docx",
+    "question": "Lao động nữ được nghỉ thai sản tối đa bao nhiêu tháng?",
+    "expected_answer": "06 tháng",
+    "expected_snippet": "Lao động nữ được nghỉ trước và sau khi sinh con là 06 tháng"
+  },
+  {
+    "doc": "nội quy lao động - public.docx",
+    "question": "Thời gian tạm đình chỉ công việc không được quá bao nhiêu ngày?",
+    "expected_answer": "15 ngày",
+    "expected_snippet": "Thời hạn tạm đình chỉ công việc không được quá 15 ngày"
+  },
+  {
+    "doc": "nội quy lao động - public.docx",
+    "question": "Thời gian tạm đình chỉ công việc theo quy định không được quá bao nhiêu ngày?",
+    "expected_answer": "15 ngày",
+    "expected_snippet": "Thời hạn tạm đình chỉ công việc không được quá 15 ngày, trường hợp đặc biệt không được quá 90 ngày."
+  },
+  {
+    "doc": "nội quy lao động - public.docx",
+    "question": "Lao động nữ được nghỉ thai sản thêm bao nhiêu tháng cho mỗi con từ con thứ hai trở đi?",
+    "expected_answer": "01 tháng",
+    "expected_snippet": "tính từ con thứ hai trở đi, cứ mỗi con, người mẹ được nghỉ thêm 01 tháng."
+  },
+  {
+    "doc": "nội quy lao động 2- public.docx",
+    "question": "Năm nào Bộ luật Lao động nước Cộng hòa xã hội chủ nghĩa Việt Nam được ban hành?",
+    "expected_answer": "2019",
+    "expected_snippet": "Căn cứ Bộ luật Lao động nước Cộng hòa xã hội chủ nghĩa Việt Nam ngày 20/11/2019;"
+  },
+  {
+    "doc": "nội quy lao động 2- public.docx",
+    "question": "Thời gian làm việc của bộ phận Marketing vào ngày thứ Bảy là từ mấy giờ đến mấy giờ?",
+    "expected_answer": "14:00 đến 17:30",
+    "expected_snippet": "Thứ 7 chiều : 14:00 đến 17:30"
+  },
+  {
+    "doc": "nội quy lao động 2- public.docx",
+    "question": "Người lao động phải báo cáo lý do đến trễ hoặc vắng mặt qua hình thức nào?",
+    "expected_answer": "qua điện thoại",
+    "expected_snippet": "người lao động phải thông báo ngay cho người quản lý hoặc giám đốc qua điện thoại"
+  },
+  {
+    "doc": "quy chế lương thưởng - hr.docx",
+    "question": "Quy chế trả lương của công ty sẽ có hiệu lực từ ngày nào?",
+    "expected_answer": "01 tháng 01 năm 2026",
+    "expected_snippet": "quy chế trả lương, thưởng của công ty từ ngày 01 tháng 01 năm 2026."
+  },
+  {
+    "doc": "quy chế lương thưởng - hr.docx",
+    "question": "Mức lương thử việc người lao động được hưởng là bao nhiêu phần trăm?",
+    "expected_answer": "85%",
+    "expected_snippet": "Lương thử việc: hưởng 85% lương mức lương của công việc đó."
+  },
+  {
+    "doc": "quy chế lương thưởng - hr.docx",
+    "question": "Theo quy định, ngày cuối cùng của tháng tiền lương sẽ được trả vào khi nào?",
+    "expected_answer": "Ngày cuối cùng của tháng",
+    "expected_snippet": "Toàn bộ lãnh đạo và nhân viên trong công ty được trả lương vào ngày cuối cùng của tháng."
+  },
+  {
+    "doc": "quy chế lương thưởng - hr.docx",
+    "question": "Mức thưởng cuối năm tùy thuộc vào yếu tố nào?",
+    "expected_answer": "Lợi nhuận mỗi năm",
+    "expected_snippet": "Hàng năm nếu Công Ty kinh doanh có lãi Công Ty sẽ thưởng cuối năm cho người lao động mức thưởng tùy thuộc vào lợi nhuận mỗi năm."
+  },
+  {
+    "doc": "quy chế lương thưởng - hr.md",
+    "question": "Bộ luật Lao động số 45/2019/QH14 được Quốc hội ban hành vào năm nào?",
+    "expected_answer": "2019",
+    "expected_snippet": "Bộ luật Lao động số 45/2019/QH14 được Quốc hội ban hành."
+  },
+  {
+    "doc": "quy chế lương thưởng - hr.md",
+    "question": "Mức lương thử việc được quy định là bao nhiêu phần trăm của mức lương cơ bản?",
+    "expected_answer": "85%",
+    "expected_snippet": "Bằng **85%** mức lương cơ bản của vị trí công việc chính thức tương đương."
+  },
+  {
+    "doc": "quy chế lương thưởng - hr.md",
+    "question": "Khoản phụ cấp đi lại và xăng xe có mức hỗ trợ cố định từ bao nhiêu đến bao nhiêu VNĐ/tháng?",
+    "expected_answer": "500.000 VNĐ - 1.500.000 VNĐ",
+    "expected_snippet": "Hỗ trợ cố định từ **500.000 VNĐ - 1.500.000 VNĐ/tháng** tùy thuộc vào tính chất công việc thường xuyên di chuyển."
+  },
+  {
+    "doc": "quy chế lương thưởng - hr.md",
+    "question": "Tiền thưởng Tết Nguyên Đán căn cứ vào những yếu tố nào?",
+    "expected_answer": "Kết quả kinh doanh và thâm niên",
+    "expected_snippet": "Mức thưởng căn cứ vào kết quả kinh doanh tổng thể của Công ty và thâm niên làm việc thực tế của người lao động."
+  },
+  {
+    "doc": "quy định nghỉ phép - public.txt",
+    "question": "Người lao động khi nghỉ phép dưới 2 ngày cần thông báo trước bao nhiêu ngày làm việc?",
+    "expected_answer": "1 ngày làm việc",
+    "expected_snippet": "Đối với thời gian nghỉ phép dưới 2 ngày: Thông báo trước ít nhất 1 ngày làm việc."
+  },
+  {
+    "doc": "quy định nghỉ phép - public.txt",
+    "question": "Thời gian nghỉ thai sản của lao động nữ theo quy định là bao lâu?",
+    "expected_answer": "6 tháng",
+    "expected_snippet": "Lao động nữ được nghỉ thai sản 6 tháng trước và sau khi sinh theo quy định chung của pháp luật hiện hành"
+  },
+  {
+    "doc": "quy định nghỉ phép - public.txt",
+    "question": "Người lao động được nghỉ chăm sóc con ốm tổng cộng bao nhiêu ngày trong một năm nếu con dưới 3 tuổi?",
+    "expected_answer": "20 ngày",
+    "expected_snippet": "Tổng cộng 20 ngày một năm nếu con dưới 3 tuổi"
+  },
+  {
+    "doc": "quy định nghỉ phép - public.txt",
+    "question": "Người lao động cần có giấy xác nhận từ ai khi nghỉ không hưởng lương kéo dài trên 4 ngày?",
+    "expected_answer": "Ba cấp",
+    "expected_snippet": "người lao động cần có giấy xác nhận đồng ý từ ba cấp gồm: Trưởng phòng ban, Trưởng phòng Nhân sự và Giám đốc điều hành."
+  },
+  {
+    "doc": "Chế độ lương thưởng - hr.md",
+    "question": "Trong năm 2021, FPT có bao nhiêu nhân viên vào cuối năm?",
+    "expected_answer": "37.180 nhân viên",
+    "expected_snippet": "Tại ngày 31/12/2021, Tập đoàn FPT có 37.180 nhân viên"
+  },
+  {
+    "doc": "Chế độ lương thưởng - hr.md",
+    "question": "Mức phụ cấp trách nhiệm cho phó giám đốc tại FPT là bao nhiêu đồng/tháng?",
+    "expected_answer": "3.000.000 đồng",
+    "expected_snippet": "Phó giám đốc: 3,000,000 đồng/ tháng"
+  },
+  {
+    "doc": "Chế độ lương thưởng - hr.md",
+    "question": "Mức lương trung bình mỗi tháng cho mỗi nhân viên FPT trong năm 2021 là bao nhiêu?",
+    "expected_answer": "33,8 triệu đồng",
+    "expected_snippet": "mỗi nhân viên của FPT sẽ nhận lương 405,6 triệu đồng trong năm, tương đương với 33,8 triệu đồng mỗi tháng"
+  },
+  {
+    "doc": "Chế độ lương thưởng - hr.md",
+    "question": "Số lượng cổ phiếu ESOP được phát hành cho nhân viên có thành tích xuất sắc trong năm 2021 là bao nhiêu?",
+    "expected_answer": "3.919.468",
+    "expected_snippet": "công ty có thêm những đãi ngộ cho nhân viên có thành tích và đóng góp xuất sắc trong năm 2020 bằng cách phát hành thêm 3.919.468 cổ phiếu ESOP"
+  },
+  {
+    "doc": "Chế độ lương thưởng - hr.md",
+    "question": "Lương cứng cho nhân viên cộng tác viên kinh doanh là bao nhiêu VNĐ/tháng?",
+    "expected_answer": "2.500.000",
+    "expected_snippet": "Đối với cộng tác viên kinh doanh: lương cứng 2.500.000 VNĐ/ tháng"
+  },
+  {
+    "doc": "Chế độ lương thưởng - hr.md",
+    "question": "Mỗi năm, nhân viên FPT còn được hưởng thêm tháng lương thứ 13 không?",
+    "expected_answer": "Có",
+    "expected_snippet": "Ngoài ra tuỳ theo kết quả kinh doanh hàng năm của công ty, đơn vị, nhân viên FPT còn được hưởng lương kinh doanh, lương mềm vào cuối năm"
+  },
+  {
+    "doc": "Quy định nghỉ phép 2 - public.txt",
+    "question": "Nhóm nào được hưởng số ngày nghỉ phép năm là 14 ngày làm việc?",
+    "expected_answer": "Lao động chưa thành niên, lao động khuyết tật",
+    "expected_snippet": "Nhóm 14 ngày làm việc: Dành cho lao động chưa thành niên, lao động là người khuyết tật, hoặc những người làm nghề, công việc nặng nhọc, độc hại, nguy hiểm."
+  },
+  {
+    "doc": "nội quy lao động - public.docx",
+    "question": "Người lao động được nghỉ việc riêng có lương trong trường hợp nào sau đây?",
+    "expected_answer": "Kết hôn",
+    "expected_snippet": "Người lao động có quyền nghỉ việc riêng và hưởng đủ lương trong các trường hợp sau: Kết hôn: nghỉ 03 ngày;"
+  },
+  {
+    "doc": "nội quy lao động - public.docx",
+    "question": "Lao động nam được nghỉ việc hưởng chế độ thai sản bao nhiêu ngày khi vợ sinh thường?",
+    "expected_answer": "05 ngày",
+    "expected_snippet": "Lao động nam đang đóng BHXH khi vợ sinh con được nghỉ việc hưởng chế độ thai sản như sau: 05 ngày làm việc nếu sinh thường;"
+  },
+  {
+    "doc": "nội quy lao động - public.docx",
+    "question": "Công ty có quyền tạm đình chỉ công việc của người lao động trong trường hợp nào?",
+    "expected_answer": "Vụ việc vi phạm có những tình tiết phức tạp",
+    "expected_snippet": "Công ty có quyền tạm đình chỉ công việc của người lao động khi vụ việc vi phạm có những tình tiết phức tạp"
+  },
+  {
+    "doc": "nội quy lao động 2- public.docx",
+    "question": "Thời gian nghỉ trưa của Bộ phận Marketing là từ mấy giờ đến mấy giờ?",
+    "expected_answer": "12:00 đến 14:00",
+    "expected_snippet": "Nghỉ trưa: Từ 12:00 đến 14:00 ( Riêng Đội Sale Từ 12:00 đến 13:00)"
+  },
+  {
+    "doc": "quy chế lương thưởng - hr.docx",
+    "question": "Mức thưởng cụ thể cho mỗi nhân viên trong dịp Tết âm lịch phụ thuộc vào những yếu tố nào?",
+    "expected_answer": "Sự đóng góp, kết quả công việc",
+    "expected_snippet": "Mức thưởng cụ thể cho từng người lao động sẽ tùy thuộc vào sự đóng góp, kết quả công việc, chấp hành nội quy, các quy định của Công ty."
+  }
+]

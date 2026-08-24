@@ -1,0 +1,32 @@
+{
+  "500_100": {
+    "n_queries": 100,
+    "n_separated_correctly": 60,
+    "separated_rate": 0.6,
+    "mean_margin": 0.0064,
+    "median_margin": 0.0088,
+    "min_margin": -0.1154,
+    "max_margin": 0.1028,
+    "n_negative_margin": 40
+  },
+  "850_170": {
+    "n_queries": 100,
+    "n_separated_correctly": 61,
+    "separated_rate": 0.61,
+    "mean_margin": 0.0082,
+    "median_margin": 0.0101,
+    "min_margin": -0.0878,
+    "max_margin": 0.1239,
+    "n_negative_margin": 39
+  },
+  "200_50": {
+    "n_queries": 100,
+    "n_separated_correctly": 58,
+    "separated_rate": 0.58,
+    "mean_margin": 0.0099,
+    "median_margin": 0.0103,
+    "min_margin": -0.1175,
+    "max_margin": 0.1227,
+    "n_negative_margin": 41
+  }
+}

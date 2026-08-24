@@ -1,0 +1,29 @@
+{
+  "200_50": {
+    "n": 19,
+    "intact_short_rate": 1.0,
+    "intact_long_rate": 0.316,
+    "hit1_short_rate": 0.421,
+    "hit1_long_rate": 0.158,
+    "hit5_short_rate": 0.789,
+    "hit5_long_rate": 0.316
+  },
+  "500_100": {
+    "n": 19,
+    "intact_short_rate": 1.0,
+    "intact_long_rate": 0.895,
+    "hit1_short_rate": 0.474,
+    "hit1_long_rate": 0.421,
+    "hit5_short_rate": 0.789,
+    "hit5_long_rate": 0.684
+  },
+  "850_170": {
+    "n": 19,
+    "intact_short_rate": 1.0,
+    "intact_long_rate": 1.0,
+    "hit1_short_rate": 0.526,
+    "hit1_long_rate": 0.526,
+    "hit5_short_rate": 0.842,
+    "hit5_long_rate": 0.789
+  }
+}
