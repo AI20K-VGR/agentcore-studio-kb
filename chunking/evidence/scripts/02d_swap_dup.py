@@ -20,12 +20,15 @@ BENCH = Path(
 )
 SRC = "nội quy lao động 2- public.docx"
 
-PROMPT_TMPL = """Bạn là công cụ sinh câu hỏi kiểm tra retrieval cho một hệ thống RAG. Đọc tài liệu dưới đây (nguyên văn) và sinh ĐÚNG 1 câu hỏi trắc nghiệm-sự-kiện MỚI.
+PROMPT_TMPL = (
+    """Bạn là công cụ sinh câu hỏi kiểm tra retrieval cho một hệ thống RAG. Đọc tài liệu dưới đây """
+    """(nguyên văn) và sinh ĐÚNG 1 câu hỏi trắc nghiệm-sự-kiện MỚI.
 
 BẮT BUỘC: KHÔNG hỏi lại (kể cả diễn đạt khác) bất kỳ sự kiện nào đã dùng ở các đoạn trích sau:
 {avoid_list}
 
-Trả về đúng 3 trường: "question", "expected_answer", "expected_snippet" (NGUYÊN VĂN, copy chính xác từng ký tự, tối đa 25 từ, phải chứa đáp án).
+Trả về đúng 3 trường: "question", "expected_answer", "expected_snippet" (NGUYÊN VĂN, copy chính xác """
+    """từng ký tự, tối đa 25 từ, phải chứa đáp án).
 CHỈ trả JSON array 1 phần tử, không markdown, không giải thích.
 
 TÀI LIỆU:
@@ -33,6 +36,7 @@ TÀI LIỆU:
 {doc}
 ---
 """
+)
 
 
 def _normalize(s: str) -> str:
@@ -42,7 +46,7 @@ def _normalize(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def _extract_json(raw: str):
+def _extract_json(raw: str) -> list[dict[str, str]] | None:
     cleaned = raw.strip()
     if cleaned.startswith("```"):
         cleaned = re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
@@ -75,7 +79,9 @@ async def main() -> None:
         if not items:
             continue
         it = items[0]
-        q, a, snip = str(it.get("question", "")), str(it.get("expected_answer", "")), str(it.get("expected_snippet", ""))
+        q = str(it.get("question", ""))
+        a = str(it.get("expected_answer", ""))
+        snip = str(it.get("expected_snippet", ""))
         if not (q and a and snip):
             continue
         if _normalize(snip) not in norm_text:

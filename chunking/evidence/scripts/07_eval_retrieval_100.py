@@ -5,6 +5,7 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, "apps/studio/src")
 
@@ -30,7 +31,7 @@ def _normalize(s: str) -> str:
 
 
 def cos(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
     na = math.sqrt(sum(x * x for x in a))
     nb = math.sqrt(sum(x * x for x in b))
     return dot / (na * nb)
@@ -44,7 +45,7 @@ async def main() -> None:
 
     chunks_by_cfg = {cfg: json.loads((BENCH / f"chunks_{cfg}.json").read_text(encoding="utf-8")) for cfg in CONFIGS}
 
-    results = {cfg: [] for cfg in CONFIGS}
+    results: dict[str, list[dict[str, Any]]] = {cfg: [] for cfg in CONFIGS}
 
     for qi, q in enumerate(qa):
         qvec = qvecs[qi]
@@ -127,7 +128,9 @@ async def main() -> None:
         }
         print(f"[{cfg}] {json.dumps(summary[cfg], ensure_ascii=False, indent=2)}")
 
-    (BENCH / "retrieval_summary_100q.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    (BENCH / "retrieval_summary_100q.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 if __name__ == "__main__":

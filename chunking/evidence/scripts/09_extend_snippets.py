@@ -30,7 +30,6 @@ def find_word_span(doc_words: list[str], snippet_words: list[str]) -> tuple[int,
 
 def main() -> None:
     qa = json.loads((BENCH / "qa_set_100.json").read_text(encoding="utf-8"))
-    manifest = json.loads((BENCH / "manifest.json").read_text(encoding="utf-8"))
 
     last20_idx = list(range(80, 100))
     updated = []

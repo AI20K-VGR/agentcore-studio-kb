@@ -26,15 +26,21 @@ SHORTFALL = {
     "quy chế lương thưởng - hr.docx": 1,
 }
 
-PROMPT_TMPL = """Bạn là công cụ sinh bộ câu hỏi kiểm tra retrieval cho một hệ thống RAG. Đọc tài liệu dưới đây (nguyên văn, CHƯA bị cắt chunk) và sinh ra ĐÚNG {n} câu hỏi trắc nghiệm-sự-kiện (factual) MỚI, mỗi câu bám 1 sự kiện CỤ THỂ, KHÁC NHAU trong tài liệu.
+PROMPT_TMPL = (
+    """Bạn là công cụ sinh bộ câu hỏi kiểm tra retrieval cho một hệ thống RAG. Đọc tài liệu dưới đây """
+    """(nguyên văn, CHƯA bị cắt chunk) và sinh ra ĐÚNG {n} câu hỏi trắc nghiệm-sự-kiện (factual) MỚI, """
+    """mỗi câu bám 1 sự kiện CỤ THỂ, KHÁC NHAU trong tài liệu.
 
-BẮT BUỘC: KHÔNG được hỏi lại (kể cả diễn đạt khác) bất kỳ sự kiện nào đã dùng ở các đoạn trích sau (đã có câu hỏi rồi, cấm trùng):
+BẮT BUỘC: KHÔNG được hỏi lại (kể cả diễn đạt khác) bất kỳ sự kiện nào đã dùng ở các đoạn trích sau """
+    """(đã có câu hỏi rồi, cấm trùng):
 {avoid_list}
 
 Với MỖI câu hỏi, trả về đúng 3 trường:
 - "question": câu hỏi tiếng Việt, tự nhiên, không lộ đáp án.
 - "expected_answer": đáp án ngắn gọn (vài từ, ưu tiên số liệu/tên riêng nếu có).
-- "expected_snippet": một đoạn trích NGUYÊN VĂN, COPY CHÍNH XÁC TỪNG KÝ TỰ liên tục từ tài liệu bên dưới (không diễn giải, không tự thêm dấu "...", không sửa dấu câu/khoảng trắng/gạch đầu dòng), TỐI ĐA 25 từ, PHẢI chứa đáp án.
+- "expected_snippet": một đoạn trích NGUYÊN VĂN, COPY CHÍNH XÁC TỪNG KÝ TỰ liên tục từ tài liệu bên dưới """
+    """(không diễn giải, không tự thêm dấu "...", không sửa dấu câu/khoảng trắng/gạch đầu dòng), """
+    """TỐI ĐA 25 từ, PHẢI chứa đáp án.
 
 CHỈ trả về JSON array hợp lệ, KHÔNG markdown, KHÔNG giải thích. Hình dạng:
 [{{"question": "...", "expected_answer": "...", "expected_snippet": "..."}}]
@@ -44,6 +50,7 @@ TÀI LIỆU:
 {doc}
 ---
 """
+)
 
 
 def _normalize(s: str) -> str:
@@ -92,7 +99,9 @@ async def main() -> None:
                 print(f"[{src_name}] lô {attempts}: parse thất bại")
                 continue
             for it in items:
-                q, a, snip = str(it.get("question", "")), str(it.get("expected_answer", "")), str(it.get("expected_snippet", ""))
+                q = str(it.get("question", ""))
+                a = str(it.get("expected_answer", ""))
+                snip = str(it.get("expected_snippet", ""))
                 if not (q and a and snip):
                     continue
                 if _normalize(snip) not in norm_text:

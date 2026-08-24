@@ -5,6 +5,7 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, "apps/studio/src")
 
@@ -30,7 +31,7 @@ def _normalize(s: str) -> str:
 
 
 def cos(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
     na = math.sqrt(sum(x * x for x in a))
     nb = math.sqrt(sum(x * x for x in b))
     return dot / (na * nb)
@@ -47,7 +48,7 @@ async def main() -> None:
 
     chunks_by_cfg = {cfg: json.loads((BENCH / f"chunks_{cfg}.json").read_text(encoding="utf-8")) for cfg in CONFIGS}
 
-    all_results = {cfg: [] for cfg in CONFIGS}
+    all_results: dict[str, list[dict[str, Any]]] = {cfg: [] for cfg in CONFIGS}
 
     for local_i, qi in enumerate(subset_idx):
         item = qa[qi]
@@ -66,7 +67,7 @@ async def main() -> None:
 
             first_hit_rank_short = None
             first_hit_rank_long = None
-            for rank, (c, score) in enumerate(topk, start=1):
+            for rank, (c, _score) in enumerate(topk, start=1):
                 ctext = _normalize(c["text"])
                 if norm_snip_short in ctext and first_hit_rank_short is None:
                     first_hit_rank_short = rank
@@ -94,7 +95,10 @@ async def main() -> None:
             json.dumps(all_results[cfg], ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
-    print(f"\n{'cfg':<10} {'n':>4} {'intact_short':>13} {'intact_long':>12} {'hit1_short':>11} {'hit1_long':>10} {'hit5_short':>11} {'hit5_long':>10}")
+    print(
+        f"\n{'cfg':<10} {'n':>4} {'intact_short':>13} {'intact_long':>12} "
+        f"{'hit1_short':>11} {'hit1_long':>10} {'hit5_short':>11} {'hit5_long':>10}"
+    )
     summary = {}
     for cfg in CONFIGS:
         rows = all_results[cfg]
@@ -114,9 +118,14 @@ async def main() -> None:
             "hit5_short_rate": round(h5s / n, 3),
             "hit5_long_rate": round(h5l / n, 3),
         }
-        print(f"{cfg:<10} {n:>4} {intact_short/n:>13.1%} {intact_long/n:>12.1%} {h1s/n:>11.1%} {h1l/n:>10.1%} {h5s/n:>11.1%} {h5l/n:>10.1%}")
+        print(
+            f"{cfg:<10} {n:>4} {intact_short / n:>13.1%} {intact_long / n:>12.1%} "
+            f"{h1s / n:>11.1%} {h1l / n:>10.1%} {h5s / n:>11.1%} {h5l / n:>10.1%}"
+        )
 
-    (BENCH / "long_snippet_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    (BENCH / "long_snippet_summary.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 if __name__ == "__main__":

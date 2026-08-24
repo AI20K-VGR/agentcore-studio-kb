@@ -2,6 +2,7 @@ import asyncio
 import json
 import sys
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 sys.path.insert(0, "packages/kb/src")
@@ -33,13 +34,15 @@ async def main() -> None:
     manifest = json.loads((BENCH / "manifest.json").read_text(encoding="utf-8"))
 
     for cfg_name, params in CONFIGS.items():
-        all_chunks = []
+        all_chunks: list[dict[str, Any]] = []
         for src_name in manifest:
             text = (BENCH / f"{src_name}.extracted.txt").read_text(encoding="utf-8")
             doc_id = src_name  # ổn định, không cần slug — chỉ dùng nội bộ benchmark
             chunks = cut_window(text, doc_id, _TENANT, "bench", size=params["size"], overlap=params["overlap"])
             for c in chunks:
-                all_chunks.append({"doc": src_name, "chunk_id": c.chunk_id, "text": c.text, "n_words": len(c.text.split())})
+                all_chunks.append(
+                    {"doc": src_name, "chunk_id": c.chunk_id, "text": c.text, "n_words": len(c.text.split())}
+                )
 
         print(f"[{cfg_name}] tổng {len(all_chunks)} chunk từ {len(manifest)} file")
 
@@ -47,8 +50,8 @@ async def main() -> None:
         # rồi — gọi thẳng 1 lần với toàn bộ list, để provider tự chia lô)
         texts = [c["text"] for c in all_chunks]
         vectors = await embedding.embed(texts)
-        for c, v in zip(all_chunks, vectors, strict=True):
-            c["vector"] = v
+        for entry, v in zip(all_chunks, vectors, strict=True):
+            entry["vector"] = v
 
         out_path = BENCH / f"chunks_{cfg_name}.json"
         out_path.write_text(json.dumps(all_chunks, ensure_ascii=False), encoding="utf-8")

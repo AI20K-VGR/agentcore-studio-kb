@@ -31,12 +31,17 @@ TARGET_N = {
 }
 BATCH = 4  # <=4 câu/lời gọi — tránh output bị cắt cụt (đo được ở lần chạy trước: 8 câu/lời gọi bị truncate)
 
-PROMPT_TMPL = """Bạn là công cụ sinh bộ câu hỏi kiểm tra retrieval cho một hệ thống RAG. Đọc tài liệu dưới đây (nguyên văn, CHƯA bị cắt chunk) và sinh ra ĐÚNG {n} câu hỏi trắc nghiệm-sự-kiện (factual), mỗi câu bám 1 sự kiện CỤ THỂ, KHÁC NHAU trong tài liệu (số liệu, tên, mốc thời gian, quy định...). {avoid_clause}
+PROMPT_TMPL = (
+    """Bạn là công cụ sinh bộ câu hỏi kiểm tra retrieval cho một hệ thống RAG. Đọc tài liệu dưới đây """
+    """(nguyên văn, CHƯA bị cắt chunk) và sinh ra ĐÚNG {n} câu hỏi trắc nghiệm-sự-kiện (factual), mỗi câu """
+    """bám 1 sự kiện CỤ THỂ, KHÁC NHAU trong tài liệu (số liệu, tên, mốc thời gian, quy định...). {avoid_clause}
 
 Với MỖI câu hỏi, trả về đúng 3 trường:
 - "question": câu hỏi tiếng Việt, tự nhiên, không lộ đáp án.
 - "expected_answer": đáp án ngắn gọn (vài từ, ưu tiên số liệu/tên riêng nếu có).
-- "expected_snippet": một đoạn trích NGUYÊN VĂN, COPY CHÍNH XÁC TỪNG KÝ TỰ liên tục từ tài liệu bên dưới (không diễn giải, không tự thêm dấu "...", không sửa dấu câu/khoảng trắng/gạch đầu dòng), TỐI ĐA 25 từ, PHẢI chứa đáp án.
+- "expected_snippet": một đoạn trích NGUYÊN VĂN, COPY CHÍNH XÁC TỪNG KÝ TỰ liên tục từ tài liệu bên dưới """
+    """(không diễn giải, không tự thêm dấu "...", không sửa dấu câu/khoảng trắng/gạch đầu dòng), """
+    """TỐI ĐA 25 từ, PHẢI chứa đáp án.
 
 CHỈ trả về JSON array hợp lệ, KHÔNG markdown, KHÔNG giải thích, KHÔNG suy luận trước khi trả JSON. Hình dạng:
 [{{"question": "...", "expected_answer": "...", "expected_snippet": "..."}}]
@@ -46,6 +51,7 @@ TÀI LIỆU:
 {doc}
 ---
 """
+)
 
 
 def _normalize(s: str) -> str:
@@ -73,14 +79,16 @@ def _extract_json(raw: str) -> list[dict[str, str]] | None:
         return None
 
 
-async def gen_for_doc(llm: object, src_name: str, n_target: int) -> tuple[list[dict], list[dict], list[str]]:
+async def gen_for_doc(
+    llm: object, src_name: str, n_target: int
+) -> tuple[list[dict[str, str]], list[dict[str, str]], list[str]]:
     """Trả (candidates_raw, valid_qa, raw_responses) — gọi nhiều lô <=BATCH câu/lời gọi."""
     path = BENCH / f"{src_name}.extracted.txt"
     text = path.read_text(encoding="utf-8")
     norm_text = _normalize(text)
 
-    all_candidates: list[dict] = []
-    valid: list[dict] = []
+    all_candidates: list[dict[str, str]] = []
+    valid: list[dict[str, str]] = []
     raw_responses: list[str] = []
     asked_questions: list[str] = []
 
@@ -113,7 +121,10 @@ async def gen_for_doc(llm: object, src_name: str, n_target: int) -> tuple[list[d
                 asked_questions.append(q)
                 got_this_round += 1
         remaining = n_target - len(valid)
-        print(f"  [{src_name}] lô {attempts}: xin {batch_n} · nhận {len(items)} · verbatim hợp lệ +{got_this_round} (tổng {len(valid)}/{n_target})")
+        print(
+            f"  [{src_name}] lô {attempts}: xin {batch_n} · nhận {len(items)} · "
+            f"verbatim hợp lệ +{got_this_round} (tổng {len(valid)}/{n_target})"
+        )
 
     return all_candidates, valid, raw_responses
 
@@ -130,10 +141,14 @@ async def main() -> None:
         all_candidates.extend(candidates)
         all_qa.extend(valid)
         stats[src_name] = {"requested": n, "candidates": len(candidates), "valid_snippet": len(valid)}
-        (BENCH / f"_raw_{src_name.replace('/', '_')}.txt").write_text("\n\n===LÔ MỚI===\n\n".join(raw_responses), encoding="utf-8")
+        (BENCH / f"_raw_{src_name.replace('/', '_')}.txt").write_text(
+            "\n\n===LÔ MỚI===\n\n".join(raw_responses), encoding="utf-8"
+        )
 
     (BENCH / "qa_set.json").write_text(json.dumps(all_qa, ensure_ascii=False, indent=2), encoding="utf-8")
-    (BENCH / "qa_candidates_all.json").write_text(json.dumps(all_candidates, ensure_ascii=False, indent=2), encoding="utf-8")
+    (BENCH / "qa_candidates_all.json").write_text(
+        json.dumps(all_candidates, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     (BENCH / "qa_gen_stats.json").write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\nTổng QA hợp lệ (verbatim-checked): {len(all_qa)} / mục tiêu {sum(TARGET_N.values())}")
 

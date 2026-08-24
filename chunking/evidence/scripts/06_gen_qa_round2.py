@@ -75,7 +75,7 @@ def _normalize(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def _extract_json(raw: str):
+def _extract_json(raw: str) -> list[dict[str, str]] | None:
     cleaned = raw.strip()
     if cleaned.startswith("```"):
         cleaned = re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
@@ -90,11 +90,11 @@ def _extract_json(raw: str):
         return None
 
 
-async def gen_for_doc(llm, src_name: str, n_target: int, round1_snippets: list[str]) -> list[dict]:
+async def gen_for_doc(llm: object, src_name: str, n_target: int, round1_snippets: list[str]) -> list[dict[str, str]]:
     text = (BENCH / f"{src_name}.extracted.txt").read_text(encoding="utf-8")
     norm_text = _normalize(text)
 
-    valid: list[dict] = []
+    valid: list[dict[str, str]] = []
     avoid = list(round1_snippets)  # trùng với vòng 1 cũng bị cấm ngay từ đầu
     attempts = 0
     while len(valid) < n_target and attempts < 8:
@@ -102,7 +102,7 @@ async def gen_for_doc(llm, src_name: str, n_target: int, round1_snippets: list[s
         batch_n = min(BATCH, n_target - len(valid))
         avoid_str = "\n".join(f"- {s}" for s in avoid)
         prompt = PROMPT_TMPL.format(n=batch_n, doc=text, avoid_list=avoid_str)
-        raw = await llm.complete(prompt)
+        raw = await llm.complete(prompt)  # type: ignore[attr-defined]
         items = _extract_json(raw)
         if not items:
             print(f"  [{src_name}] lô {attempts}: parse thất bại")
@@ -124,7 +124,10 @@ async def gen_for_doc(llm, src_name: str, n_target: int, round1_snippets: list[s
             valid.append({"doc": src_name, "question": q, "expected_answer": a, "expected_snippet": snip})
             avoid.append(snip)
             got += 1
-        print(f"  [{src_name}] lô {attempts}: xin {batch_n} · nhận {len(items)} · hợp lệ +{got} (tổng {len(valid)}/{n_target})")
+        print(
+            f"  [{src_name}] lô {attempts}: xin {batch_n} · nhận {len(items)} · "
+            f"hợp lệ +{got} (tổng {len(valid)}/{n_target})"
+        )
 
     return valid
 
@@ -133,7 +136,7 @@ async def main() -> None:
     llm = build_llm()
     round1 = json.loads((BENCH / "qa_set_final.json").read_text(encoding="utf-8"))
 
-    round2: list[dict] = []
+    round2: list[dict[str, str]] = []
     for src_name, n in TARGET_N.items():
         print(f"[{src_name}] mục tiêu {n} câu (vòng 2)")
         r1_snips = [q["expected_snippet"] for q in round1 if q["doc"] == src_name]
