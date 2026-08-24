@@ -183,18 +183,21 @@ async def _run_spine(
     # workbench#41 — create_recipe_d4() đã bị xoá (cùng _parse_kb_scope, và kb_binding.scope không
     # còn ý nghĩa gì trong suite này — không bài nào assert lên nó, vector tấn công thật của T6 đi
     # qua _voi_recipe_tu_che_khai_section_roles ở node.params, không qua scope). Dựng thủ công cùng
-    # hình dạng DAG 3-node create_recipe_d4 từng tự sinh, embed "query" vào params node n1 nếu có.
+    # hình dạng DAG 3-node create_recipe_d4 từng tự sinh, embed "query" vào params node n1.
+    #
+    # `query=None` (mặc định tham số hàm này) nghĩa là "dùng câu hỏi mặc định" — CÙNG default
+    # `create_recipe_d4` từng có (`str`, không phải `str | None`), KHÔNG phải "không có query nào".
+    # Bỏ sót default này (bản vá đầu của workbench#41) làm node kb-retrieve không có "query" —
+    # kb.search nhận query rỗng, trả 0 chunk, 3 bài đỏ im lặng (không exception nào).
     recipe_tenant = tenant_id if recipe_tenant_id is None else recipe_tenant_id
-    kb_retrieve_params: dict[str, object] = {"top_k": 3}
-    if query is not None:
-        kb_retrieve_params["query"] = query
+    effective_query = "Nhân viên xin nghỉ phép cần báo trước bao lâu?" if query is None else query
     recipe = create_recipe(
         agent_id="agent-callisto-d4",
         tenant_id=recipe_tenant,
         instructions="Tra cứu quy trình và bảo mật Callisto.",
         tool_whitelist=[],
         nodes=[
-            Node(id="n1", type=NodeType.KB_RETRIEVE, params=kb_retrieve_params),
+            Node(id="n1", type=NodeType.KB_RETRIEVE, params={"query": effective_query, "top_k": 3}),
             Node(id="n2", type=NodeType.LLM_STEP, params={"temperature": 0.0}),
             Node(id="n4", type=NodeType.END, params={}),
         ],
