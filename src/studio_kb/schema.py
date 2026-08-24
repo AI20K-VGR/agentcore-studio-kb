@@ -59,6 +59,19 @@ CREATE TABLE IF NOT EXISTS kb.chunks (
 -- embed_text does not exist". NULL cho dòng cũ là đúng: `re_index` rơi về `text` y như trước.
 ALTER TABLE kb.chunks ADD COLUMN IF NOT EXISTS embed_text TEXT;
 
+-- `doc_id` — khoá xoá theo TÀI LIỆU (`KbPipeline.delete_by_doc_id`), tách khỏi vai trò PK của
+-- `chunk_id` (xem docstring `Chunk` ở `doc_factory_core.py`). Cùng pattern vá cột như `embed_text`
+-- ở trên: dòng ghi TRƯỚC khi cột này tồn tại giữ `doc_id IS NULL` — không xoá được qua
+-- `delete_by_doc_id` cho tới khi chạy `KbPipeline.re_index(tenant_id)` (đọc lại từ DB, ghi lại cột
+-- này) — mất khả năng xoá-theo-doc_id tạm thời cho dòng cũ, KHÔNG mất dữ liệu, cùng mức độ hạ cấp
+-- đã chấp nhận cho `embedding IS NULL` ở migration chiều vector bên dưới. Không NOT NULL vì lý do
+-- tương tự embed_text: bắt buộc NOT NULL sẽ đỏ ngay ở ALTER TABLE với dòng cũ.
+ALTER TABLE kb.chunks ADD COLUMN IF NOT EXISTS doc_id TEXT;
+
+-- Index cho đúng truy vấn `delete_by_doc_id` (`WHERE tenant_id = %s AND doc_id = %s`) — không có
+-- index này thì mỗi lần xoá là Seq Scan toàn bảng theo tenant.
+CREATE INDEX IF NOT EXISTS kb_chunks_doc_id_idx ON kb.chunks (tenant_id, doc_id);
+
 -- KHÔNG dựng index HNSW trên `embedding` (DL-22.2). Ba lý do, đầy đủ ở
 -- `plans/real_embedding_plan.md` §2:
 --   1. ở 800 chunk brute force là 800 phép cosine (đo được p50 2.03ms · p95 4.24ms · max 8.07ms

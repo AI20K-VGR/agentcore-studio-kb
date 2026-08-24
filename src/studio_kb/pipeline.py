@@ -25,8 +25,9 @@ from studio_kb.doc_factory_v2 import _cut_document
 from studio_kb.postgres import _UPSERT, Pool, _bind_tenant, _vector_literal
 from studio_kb.schema import EMBEDDING_DIM
 
-_SELECT_TENANT = "SELECT chunk_id, section_role, text, embed_text FROM kb.chunks WHERE tenant_id = %s"
+_SELECT_TENANT = "SELECT chunk_id, section_role, text, embed_text, doc_id FROM kb.chunks WHERE tenant_id = %s"
 _DELETE_TENANT = "DELETE FROM kb.chunks WHERE tenant_id = %s"
+_DELETE_DOC = "DELETE FROM kb.chunks WHERE tenant_id = %s AND doc_id = %s"
 
 
 class KbPipeline:
@@ -85,8 +86,21 @@ class KbPipeline:
                             chunk.text,
                             chunk.embedding_input,
                             _vector_literal(vector),
+                            chunk.doc_id,
                         ),
                     )
+
+    async def delete_by_doc_id(self, tenant_id: UUID, doc_id: str) -> int:
+        """Xoá mọi `kb.chunks` của MỘT tài liệu (`doc_id`) trong `tenant_id`. Trả số dòng đã xoá.
+
+        Tenant-scoped y hệt `consent_purge` (RLS `USING`/`WITH CHECK` + `WHERE tenant_id` tường
+        minh, cùng lý do phòng thủ chiều sâu — xem đầu `postgres.py`). `doc_id` là khoá theo TÀI
+        LIỆU, khác `chunk_id` (PK bền qua re-index) — nhiều chunk của cùng 1 doc chia sẻ đúng 1
+        `doc_id`, nên một lệnh gọi xoá hết cả doc, không chỉ 1 chunk."""
+        async with self._pool.connection() as conn, conn.transaction():
+            await _bind_tenant(conn, tenant_id)
+            cursor = await conn.execute(_DELETE_DOC, (tenant_id, doc_id))
+            return cursor.rowcount
 
     async def consent_purge(self, tenant_id: UUID) -> int:
         """Xoá mọi `kb.chunks` của `tenant_id` (consent / right-to-erasure). Trả số dòng đã xoá.
@@ -100,7 +114,8 @@ class KbPipeline:
 
     async def re_index(self, tenant_id: UUID) -> int:
         """Nhúng lại + ghi lại mọi `kb.chunks` của `tenant_id` (vd sau khi nâng embedding). Trả số
-        dòng đã xử lý; **giữ nguyên `chunk_id`/`section_role`** (đọc lại rồi upsert theo `chunk_id`)."""
+        dòng đã xử lý; **giữ nguyên `chunk_id`/`section_role`/`doc_id`** (đọc lại rồi upsert theo
+        `chunk_id`)."""
         async with self._pool.connection() as conn, conn.transaction():
             await _bind_tenant(conn, tenant_id)
             cursor = await conn.execute(_SELECT_TENANT, (tenant_id,))
@@ -109,9 +124,19 @@ class KbPipeline:
         # `embed_text` ĐỌC LẠI TỪ DB (r[3]) chứ không suy lại: tiêu đề tài liệu không nằm trong
         # `text` của bất kỳ dòng nào, và việc đã-cắt-boilerplate cần thống kê cả scope — một dòng
         # đơn lẻ không tái tạo được. Dòng cũ (trước khi có cột) trả NULL → `""` → `embedding_input`
-        # rơi về `text`, đúng hành vi trước đây.
+        # rơi về `text`, đúng hành vi trước đây. `doc_id` (r[4]) cùng khuôn: NULL (dòng ghi trước
+        # khi có cột) → `""`, không raise — mất khả năng `delete_by_doc_id` cho tới vòng re_index
+        # NÀY, sau đó tự phục hồi vì được ghi lại ở dưới.
         chunks = [
-            Chunk(chunk_id=r[0], text=r[2], tenant_id=tenant_id, section_role=r[1], embed_text=r[3] or "") for r in rows
+            Chunk(
+                chunk_id=r[0],
+                text=r[2],
+                tenant_id=tenant_id,
+                section_role=r[1],
+                embed_text=r[3] or "",
+                doc_id=r[4] or "",
+            )
+            for r in rows
         ]
         if not chunks:
             return 0

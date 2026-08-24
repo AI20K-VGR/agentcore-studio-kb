@@ -64,6 +64,12 @@ class Chunk:
     tách đôi để cải thiện retrieval (nhồi tiêu đề tài liệu, cắt boilerplate) mà KHÔNG đụng vào
     `text`, vì đổi `text` là phải re-trace toàn bộ nhãn golden. Rỗng ⇒ rơi về `text` (corpus 1.0 và
     chunk dựng lại từ dòng DB cũ đều không khai nó, phải giữ hành vi cũ nguyên vẹn).
+
+    `doc_id` KHÁC `chunk_id`: `chunk_id` là PRIMARY KEY bền qua re-index, duy nhất cho TỪNG chunk
+    (toàn bảng, không tenant-scoped) — không đổi ý nghĩa. `doc_id` là khoá xoá theo TÀI LIỆU, nhiều
+    chunk của cùng 1 doc chia sẻ đúng 1 giá trị `doc_id` (`KbPipeline.delete_by_doc_id`). Rỗng mặc
+    định — corpus tĩnh (`doc_factory`/`doc_factory_v2`) và chunk dựng lại từ dòng DB cũ trước khi có
+    cột này đều không khai nó, giữ hành vi cũ nguyên vẹn (cùng khuôn với `embed_text`).
     """
 
     chunk_id: str
@@ -71,6 +77,7 @@ class Chunk:
     tenant_id: UUID
     section_role: str
     embed_text: str = ""
+    doc_id: str = ""
 
     @property
     def embedding_input(self) -> str:
