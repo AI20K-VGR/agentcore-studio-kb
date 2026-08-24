@@ -1,4 +1,7 @@
-"""Spine 4 node chạy THẬT — emit (engine) → sink (`obs.trace_events`) → reader (kb).
+"""Spine 3 node chạy THẬT — emit (engine) → sink (`obs.trace_events`) → reader (kb).
+
+(Trước workbench#31, 2026-08-24: 4 node — `create_recipe_d4`/`d6` khi đó còn sinh thêm 1 node
+`tool-call{kb_search}` chết, đã bị xoá; DAG thật hôm nay chỉ còn `kb-retrieve → llm-step → end`.)
 
 Đây là bằng chứng cho DoD D6 *"trace sink nhận call thật từ interpreter (không stub rỗng)"*: chạy
 `studio_engine.run()` thật trên recipe thật của SWE, với `StaticKbSearch` thật của DE và
@@ -520,7 +523,7 @@ async def test_trace_la_nguon_citation_dung_duoc_cho_bo_cham(spine: tuple[Recipe
 
 
 async def test_refusal_is_derived_from_grounding(pool: Pool) -> None:
-    """KHÓA: câu trả lời không trích được gì ⇒ `refused=True`, và spine vẫn đủ 4 node.
+    """KHÓA: câu trả lời không trích được gì ⇒ `refused=True`, và spine vẫn đủ 3 node.
 
     Hợp đồng `refused` đã đổi **hai lần**, nên bài này neo bản hiện hành thay vì giả định:
 

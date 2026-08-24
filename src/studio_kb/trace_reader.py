@@ -38,10 +38,9 @@ Pool = AsyncConnectionPool[AsyncConnection[Any]]
 EXPECTED_WALK: tuple[NodeType, ...] = (
     NodeType.KB_RETRIEVE,
     NodeType.LLM_STEP,
-    NodeType.TOOL_CALL,
     NodeType.END,
 )
-"""Chuỗi node **mặc định** — 4 node, đúng với recipe D4/D6 của SWE.
+"""Chuỗi node **mặc định** — 3 node, đúng với recipe D4/D6 của SWE.
 
 ⚠️ **Đây không còn là nguồn sự thật.** Tới D6 (#27) AIE-1 đã bỏ hằng số
 `studio_engine.interpreter._WALK_ORDER` và đi động theo `recipe.dag.edges`. Thứ tự node giờ do
@@ -50,14 +49,17 @@ EXPECTED_WALK: tuple[NodeType, ...] = (
 
 Hằng số này ở lại vì hai lý do, không phải vì quán tính:
 
-1. `create_recipe_d4`/`create_recipe_d6` đều dựng chuỗi thẳng `kb-retrieve → llm-step → tool-call
-   → end`, nên nó vẫn là câu trả lời đúng cho mọi recipe đang chạy hôm nay;
+1. `create_recipe_d4`/`create_recipe_d6` đều dựng chuỗi thẳng `kb-retrieve → llm-step → end`
+   (workbench#31, 2026-08-24: node `tool-call{kb_search}` — dead code, `kb_search` có kind
+   `kb-retrieve` chứ không bao giờ là `tool-call` — đã bị xoá khỏi cả hai builder), nên nó vẫn là
+   câu trả lời đúng cho mọi recipe đang chạy hôm nay;
 2. nó là mặc định để gọi `check_walk(events)` một tham số lúc đang gỡ lỗi, khi trong tay chỉ có
    event chứ không có recipe.
 
-`NodeType` có 6 giá trị nhưng ở đây chỉ 4: `condition` cần đánh giá `Edge.when` (chưa có —
-`_build_next_map` của engine **raise** khi một node có >1 edge ra), `hitl-pause` cần lưu-và-tiếp-tục
-trạng thái run. So với 6 là báo thiếu oan hai node không recipe nào hiện dựng.
+`NodeType` có 6 giá trị nhưng ở đây chỉ 3: `tool-call` không recipe nào hiện dựng (xem lý do (1));
+`condition` cần đánh giá `Edge.when` (chưa có — `_build_next_map` của engine **raise** khi một node
+có >1 edge ra); `hitl-pause` cần lưu-và-tiếp-tục trạng thái run. So với 6 là báo thiếu oan ba node
+không recipe nào hiện dựng.
 
 **Khi chấm một run có recipe trong tay, truyền `expected=walk_from_dag(recipe.dag)`** — đừng dựa
 vào hằng số này.
@@ -247,7 +249,7 @@ def check_walk(
     **`expected` lấy từ đâu.** Từ D6 (#27) interpreter đi theo `recipe.dag.edges`, nên chuỗi kỳ vọng
     thuộc về recipe chứ không thuộc về hằng số trong module này. Có recipe trong tay thì truyền
     `expected=walk_from_dag(recipe.dag)`; mặc định `EXPECTED_WALK` chỉ đúng vì mọi recipe hiện có
-    (`create_recipe_d4`/`d6`) đều là chuỗi thẳng 4 node — nó là tiện lợi lúc gỡ lỗi, không phải
+    (`create_recipe_d4`/`d6`) đều là chuỗi thẳng 3 node — nó là tiện lợi lúc gỡ lỗi, không phải
     hợp đồng.
     """
     counts: dict[NodeType, int] = {}

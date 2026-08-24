@@ -136,13 +136,14 @@ def test_du_4_node_thi_0_gap() -> None:
 
 def test_bo_1_node_thi_reader_bao_thieu_khong_im_lang() -> None:
     """**Bài có răng.** Một reader chỉ biết in ra thì lúc nào cũng trông như thành công — đây là
-    bài bắt buộc nó phải kêu. Cố ý bỏ `tool-call`."""
-    walk = [e for e in _full_walk() if e.node_type is not NodeType.TOOL_CALL]
+    bài bắt buộc nó phải kêu. Cố ý bỏ `kb-retrieve` (workbench#31: `EXPECTED_WALK` không còn
+    `tool-call` — không recipe nào hiện dựng node đó nữa, xem docstring hằng số này)."""
+    walk = [e for e in _full_walk() if e.node_type is not NodeType.KB_RETRIEVE]
 
     check = check_walk(walk)
 
     assert not check.ok
-    assert check.missing == (NodeType.TOOL_CALL,)
+    assert check.missing == (NodeType.KB_RETRIEVE,)
 
 
 def test_mot_node_emit_hai_lan_cung_bi_bao() -> None:
@@ -157,14 +158,31 @@ def test_mot_node_emit_hai_lan_cung_bi_bao() -> None:
 
 
 def test_khong_bao_thieu_condition_va_hitl_pause() -> None:
-    """`NodeType` có 6 giá trị nhưng interpreter chỉ đi 4 (`_WALK_ORDER` hardcode). So với 6 là báo
-    thiếu oan hai node vốn không bao giờ được dispatch ở phase này."""
+    """`NodeType` có 6 giá trị nhưng `EXPECTED_WALK` chỉ 3 (workbench#31: `tool-call` cũng đã rời
+    khỏi hằng số này — không recipe nào hiện dựng nữa, cùng lý do `condition`/`hitl-pause` — xem
+    `test_khong_con_bao_thieu_tool_call` bên dưới cho riêng node đó). So với 6 là báo thiếu oan
+    hai node `condition`/`hitl-pause` vốn không bao giờ được dispatch ở phase này."""
     assert NodeType.CONDITION not in EXPECTED_WALK
     assert NodeType.HITL_PAUSE not in EXPECTED_WALK
 
     check = check_walk(_full_walk())
 
     assert check.ok
+
+
+def test_khong_con_bao_thieu_tool_call() -> None:
+    """kb#51 — trước khi sửa, `EXPECTED_WALK` còn `tool-call` trong khi `create_recipe_d4`/`d6`
+    (workbench#31) đã hết sinh node đó: một run THẬT, hoàn toàn lành (đúng 3 node) gọi
+    `check_walk(events)` một tham số vẫn bị báo thiếu `tool-call` — thiếu oan, không phải sự cố
+    thật. Bài này khoá đúng chiều ngược: `tool-call` không còn nằm trong `EXPECTED_WALK`, và một
+    walk 3 node đúng hình (không có `tool-call`) phải `ok`, không báo thiếu gì cả."""
+    assert NodeType.TOOL_CALL not in EXPECTED_WALK
+
+    walk = [e for e in _full_walk() if e.node_type is not NodeType.TOOL_CALL]
+    check = check_walk(walk)
+
+    assert check.ok
+    assert check.missing == ()
 
 
 def test_render_timeline_noi_ro_du_hay_thieu() -> None:
@@ -320,25 +338,31 @@ async def test_db_doc_lai_nguyen_ven_tung_truong(admin_pool: object, pool: objec
 
 
 async def test_db_doc_lai_dung_thu_tu_va_bao_0_gap(admin_pool: object, pool: object) -> None:
-    """Vòng tròn đầy đủ: ghi 4 event **xáo trộn thứ tự** → đọc lại đúng thứ tự, kết luận 0-gap."""
+    """Vòng tròn đầy đủ: ghi 4 event **xáo trộn thứ tự** → đọc lại đúng thứ tự, kết luận 0-gap.
+
+    So với chính chuỗi đã ghi (`_full_walk()`), không phải `EXPECTED_WALK`: bài này kiểm "đọc lại
+    đúng thứ tự", một tính chất độc lập với việc `EXPECTED_WALK` mặc định là mấy node (workbench#31
+    đã đổi nó, xem `test_khong_con_bao_thieu_tool_call`) — neo vào hằng số đó là seo nhầm gốc rễ."""
     del admin_pool  # chỉ cần thứ tự dựng schema
     walk = _full_walk()
     await _write(pool, [walk[2], walk[0], walk[3], walk[1]])
 
     events = await PgTraceReader(pool).read_run("run-1", ANKOR_ID)  # type: ignore[arg-type]
 
-    assert [e.node_type for e in events] == list(EXPECTED_WALK)
+    assert [e.node_type for e in events] == [e.node_type for e in walk]
     assert check_walk(events).ok
 
 
 async def test_db_thieu_node_thi_bao_thieu(admin_pool: object, pool: object) -> None:
-    """Cố ý không ghi `tool-call` → reader phải báo thiếu, không im lặng."""
+    """Cố ý không ghi `kb-retrieve` → reader phải báo thiếu, không im lặng. (workbench#31:
+    `EXPECTED_WALK` không còn `tool-call` — thiếu node đó không còn là "thiếu" nữa, xem
+    `test_khong_con_bao_thieu_tool_call`.)"""
     del admin_pool
-    await _write(pool, [e for e in _full_walk() if e.node_type is not NodeType.TOOL_CALL])
+    await _write(pool, [e for e in _full_walk() if e.node_type is not NodeType.KB_RETRIEVE])
 
     events = await PgTraceReader(pool).read_run("run-1", ANKOR_ID)  # type: ignore[arg-type]
 
-    assert check_walk(events).missing == (NodeType.TOOL_CALL,)
+    assert check_walk(events).missing == (NodeType.KB_RETRIEVE,)
 
 
 async def test_db_hai_run_xen_ke_khong_lan_nhau(admin_pool: object, pool: object) -> None:
