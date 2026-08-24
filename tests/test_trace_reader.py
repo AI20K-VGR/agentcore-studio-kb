@@ -338,14 +338,18 @@ async def test_db_doc_lai_nguyen_ven_tung_truong(admin_pool: object, pool: objec
 
 
 async def test_db_doc_lai_dung_thu_tu_va_bao_0_gap(admin_pool: object, pool: object) -> None:
-    """Vòng tròn đầy đủ: ghi 4 event **xáo trộn thứ tự** → đọc lại đúng thứ tự, kết luận 0-gap."""
+    """Vòng tròn đầy đủ: ghi 4 event **xáo trộn thứ tự** → đọc lại đúng thứ tự, kết luận 0-gap.
+
+    So với chính chuỗi đã ghi (`_full_walk()`), không phải `EXPECTED_WALK`: bài này kiểm "đọc lại
+    đúng thứ tự", một tính chất độc lập với việc `EXPECTED_WALK` mặc định là mấy node (workbench#31
+    đã đổi nó, xem `test_khong_con_bao_thieu_tool_call`) — neo vào hằng số đó là seo nhầm gốc rễ."""
     del admin_pool  # chỉ cần thứ tự dựng schema
     walk = _full_walk()
     await _write(pool, [walk[2], walk[0], walk[3], walk[1]])
 
     events = await PgTraceReader(pool).read_run("run-1", ANKOR_ID)  # type: ignore[arg-type]
 
-    assert [e.node_type for e in events] == list(EXPECTED_WALK)
+    assert [e.node_type for e in events] == [e.node_type for e in walk]
     assert check_walk(events).ok
 
 
