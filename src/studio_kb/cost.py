@@ -11,17 +11,17 @@ Nên `aggregate_run_cost` **CỘNG `event.cost` đã lưu** — **KHÔNG** tính
 Recompute ở mặt đọc = vi phạm §4.1 *kể cả khi ra đúng cùng số* (hôm sau đơn giá đổi một chỗ là ba mặt
 lệch mà không ai biết mặt nào đúng). Đây là lý do `cost_of` (dưới) **không** được gọi trong aggregation.
 
-## `cost_of` + bảng đơn giá — nguồn giá duy nhất, áp tại EMIT (chưa nối)
+## `cost_of` + bảng đơn giá — đã nối (engine#38)
 
-`cost_of` là **nguồn giá** (đơn giá) — thứ áp `tokens → cost` **một lần** tại điểm emit (interpreter).
-Ở đây nó chỉ dùng để **KIỂM** (`price_mismatches`), tuyệt đối không phải để mặt đọc tính cost.
+`cost_of`/`PROMPT_RATE_PER_1K`/`COMPLETION_RATE_PER_1K` **không còn định nghĩa ở đây** — dời xuống
+`studio_contracts.cost` (mini-RFC `packages/contracts/docs/mini-rfc-cost-of-seam.md`) vì `.importlinter`
+cấm `studio_engine` import `studio_kb`, mà đúng theo §4.1, `cost_of` phải áp **tại điểm emit**
+(`studio_engine.interpreter`/`studio_engine.agent_loop`), không phải ở mặt đọc kb này. Ba tên dưới
+được **re-export** để mọi call-site cũ trong package này (`price_mismatches`, test) không phải đổi gì.
 
-**Trạng thái nối (điểm ghép AIE-1, #121):** interpreter đang để `cost=_NO_COST=0.0`
-(`engine:interpreter.py:300`), executor chỉ cấp `tokens` (Q-3 ✅, engine#15). Số cost thật xuất hiện khi
-AIE-1 **wire `cost_of` lúc emit**. Vì §4.1 cấm hai nơi tính, `cost_of` cuối cùng phải nằm nơi
-interpreter import được — **`contracts`** (Q-A, `trace-event.v0.md §8`) — mà DE **không sửa `contracts`**
-(GITFLOWS §5). Nên bản kb này là **đề xuất-tham chiếu + lưới kiểm**; tới khi nó land ở `contracts` và
-AIE-1 nối, `event.cost` còn 0 và `aggregate_run_cost` trả 0 — honest-TODO, không tô hồng.
+Trạng thái nối: `interpreter.py`/`agent_loop.py` giờ gọi `cost=cost_of(tokens)` ngay tại dòng dựng
+`TraceEvent` — engine#38 đóng, #121 đóng. `price_mismatches()` dưới vẫn là lưới kiểm (§4.1): nó KHÔNG
+tự tính cost, chỉ so `event.cost` đã lưu với `cost_of(tokens)` để bắt drift nếu có nơi thứ hai tính giá.
 """
 
 from __future__ import annotations
@@ -32,29 +32,23 @@ from uuid import UUID
 
 from psycopg import AsyncConnection, sql
 from psycopg_pool import AsyncConnectionPool
-from studio_contracts.trace import Tokens, TraceEvent
+from studio_contracts.cost import COMPLETION_RATE_PER_1K, PROMPT_RATE_PER_1K, cost_of
+from studio_contracts.trace import TraceEvent
 
 from studio_kb.trace_reader import PgTraceReader
 
 Pool = AsyncConnectionPool[AsyncConnection[Any]]
 
-# ── Bảng đơn giá (USD / 1000 token) — NGUỒN GIÁ DUY NHẤT ──────────────────────────────────────────
-# Giá trị placeholder-deterministic (không mạng/không thời gian): cost-lineage kiểm BẤT BIẾN "một số,
-# ba mặt", không kiểm độ chính xác giá thị trường. Đơn giá theo model là honest-TODO (§failure-mode):
-# `TraceEvent` chưa mang `model`, nên hôm nay một mức phẳng cho mọi node.
-PROMPT_RATE_PER_1K = 0.003
-COMPLETION_RATE_PER_1K = 0.015
-
-
-def cost_of(tokens: Tokens) -> float:
-    """`tokens → cost` (USD) — nguồn giá duy nhất, áp **một lần tại điểm emit** (§4.1).
-
-    Ở tầng kb dùng để **KIỂM** (`price_mismatches`), KHÔNG để mặt đọc tính cost. Tất định: cùng tokens
-    luôn ra cùng số (làm tròn 6 chữ số để tổng cộng dồn không trôi float)."""
-    return round(
-        tokens.prompt / 1000 * PROMPT_RATE_PER_1K + tokens.completion / 1000 * COMPLETION_RATE_PER_1K,
-        6,
-    )
+__all__ = [
+    "COMPLETION_RATE_PER_1K",
+    "PROMPT_RATE_PER_1K",
+    "CostAggregateError",
+    "PgCostReader",
+    "RunCost",
+    "aggregate_run_cost",
+    "cost_of",
+    "price_mismatches",
+]
 
 
 class CostAggregateError(ValueError):
