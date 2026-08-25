@@ -110,7 +110,7 @@ class KbPipeline:
 
         Đường đọc cho bên sinh golden case từ KB đã upload (`studio_kb.golden_from_kb`). Trả về
         **cả tenant** chứ không một phòng ban, và đó là điểm chính chứ không phải tiện tay:
-        `build_cases` dựng case **bẫy** bằng cách ghép chéo vai (`_chon_nguon_bay`) — hỏi dưới vai
+        `build_cases` dựng case **bẫy** bằng cách ghép chéo vai (`_pick_trap_source`) — hỏi dưới vai
         A trong khi đáp án nằm ở vai B. Đưa nó chunk của đúng một vai thì không còn gì để ghép
         chéo, và bộ sinh ra có **0 case hàng rào**: đo được, 400 chunk một vai ⇒ 58 case, 0 bẫy,
         0 `is_critical`, 0 `tier="core"`. Tức cổng sẽ chấm chất lượng trả lời mà **không bao giờ**

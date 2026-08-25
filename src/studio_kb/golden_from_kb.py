@@ -76,18 +76,18 @@ class ExtractiveQuestionWriter:
     `build_cases`."""
 
     def write(self, chunks: tuple[SourceChunk, ...]) -> tuple[str, str]:
-        dau = chunks[0].text.strip()
-        cau_dau = dau.split(".")[0].strip() if "." in dau else dau
-        expected = cau_dau[:120]
+        head = chunks[0].text.strip()
+        first_sentence = head.split(".")[0].strip() if "." in head else head
+        expected = first_sentence[:120]
         return (f"Tài liệu nói gì về: {expected}?", expected)
 
 
-def _nhom_theo_vai(chunks: Sequence[SourceChunk]) -> dict[tuple[str, str], list[SourceChunk]]:
+def _group_by_role(chunks: Sequence[SourceChunk]) -> dict[tuple[str, str], list[SourceChunk]]:
     """Gom theo `(tenant, section_role)`, giữ thứ tự tất định bằng `chunk_id`."""
-    nhom: dict[tuple[str, str], list[SourceChunk]] = {}
+    groups: dict[tuple[str, str], list[SourceChunk]] = {}
     for chunk in sorted(chunks, key=lambda c: c.chunk_id):
-        nhom.setdefault((chunk.tenant, chunk.section_role), []).append(chunk)
-    return nhom
+        groups.setdefault((chunk.tenant, chunk.section_role), []).append(chunk)
+    return groups
 
 
 def build_cases(
@@ -101,7 +101,7 @@ def build_cases(
 
     Hai loại case, và loại thứ hai mới là thứ khó:
 
-    - **trả-lời-được** — nhóm `chunks_per_case` chunk cùng `(tenant, vai)`, `expected_citation` là
+    - **trả-lời-được** — nhóm `chunks_per_case` chunk cùng `(tenant, role)`, `expected_citation` là
       `chunk_id` thật của chúng. `expects_refusal` suy ra `False` vì `expected_tenant == tenant` và
       vai đáp án nằm trong vai người hỏi.
     - **bẫy** — hai trục, dựng từ chunk **có thật của tenant/vai khác**, nên đáp án tồn tại nhưng
@@ -117,89 +117,89 @@ def build_cases(
     một câu nghiệp vụ. Đó là trục cổng bảo mật zero-tolerance đọc.
     """
     writer = writer or ExtractiveQuestionWriter()
-    nhom = _nhom_theo_vai(chunks)
-    if not nhom:
+    groups = _group_by_role(chunks)
+    if not groups:
         return ()
 
     cases: list[GoldenCase] = []
-    stt = 0
+    seq = 0
 
-    for (tenant, vai), nhom_chunk in sorted(nhom.items()):
-        for i in range(0, len(nhom_chunk), chunks_per_case):
-            lo = tuple(nhom_chunk[i : i + chunks_per_case])
-            if not lo:
+    for (tenant, role), role_chunks in sorted(groups.items()):
+        for i in range(0, len(role_chunks), chunks_per_case):
+            batch = tuple(role_chunks[i : i + chunks_per_case])
+            if not batch:
                 continue
-            query, expected = writer.write(lo)
-            stt += 1
+            query, expected = writer.write(batch)
+            seq += 1
             cases.append(
                 GoldenCase(
-                    case_id=f"AI-{stt:03d}",
+                    case_id=f"AI-{seq:03d}",
                     query=query,
                     tenant=tenant,
-                    section_roles=(vai,),
+                    section_roles=(role,),
                     expected_tenant=tenant,
-                    expected_section_role=vai,
+                    expected_section_role=role,
                     expected=expected,
-                    expected_citation=tuple(c.chunk_id for c in lo),
-                    note=f"sinh máy từ {len(lo)} chunk của {tenant}/{vai}",
+                    expected_citation=tuple(c.chunk_id for c in batch),
+                    note=f"sinh máy từ {len(batch)} chunk của {tenant}/{role}",
                     source="ai",
                     tier="full",
                 )
             )
 
-    so_bay = _so_bay_can(len(cases), trap_ratio)
-    cases.extend(_dung_case_bay(nhom, so_bay, writer, bat_dau=stt))
+    trap_count = _traps_needed(len(cases), trap_ratio)
+    cases.extend(_build_trap_cases(groups, trap_count, writer, start_index=seq))
     return tuple(cases)
 
 
-def _so_bay_can(so_case_tra_loi: int, trap_ratio: float) -> int:
+def _traps_needed(answerable_cases: int, trap_ratio: float) -> int:
     """`n` case bẫy để tỷ lệ bẫy trên TỔNG đạt `trap_ratio`.
 
-    Giải `n / (so_case_tra_loi + n) = ratio` ⇒ `n = ratio * m / (1 - ratio)`, làm tròn lên. Tính trên
+    Giải `n / (answerable_cases + n) = ratio` ⇒ `n = ratio * m / (1 - ratio)`, làm tròn lên. Tính trên
     **tổng** chứ không trên số case trả-lời-được: `trap_ratio` là *"bao nhiêu phần trăm của bộ là
     bẫy"*, và nhầm mẫu số ở đây cho một bộ lệch ~1/3 so với ý định."""
-    if so_case_tra_loi == 0 or trap_ratio <= 0:
+    if answerable_cases == 0 or trap_ratio <= 0:
         return 0
-    return max(1, round(trap_ratio * so_case_tra_loi / (1 - trap_ratio)))
+    return max(1, round(trap_ratio * answerable_cases / (1 - trap_ratio)))
 
 
-def _dung_case_bay(
-    nhom: dict[tuple[str, str], list[SourceChunk]],
-    so_bay: int,
+def _build_trap_cases(
+    groups: dict[tuple[str, str], list[SourceChunk]],
+    trap_count: int,
     writer: QuestionWriter,
     *,
-    bat_dau: int,
+    start_index: int,
 ) -> list[GoldenCase]:
     """Xen kẽ hai trục bẫy để không bộ nào chỉ có một loại.
 
     Trục T1 cần ≥2 tenant; corpus một tenant chỉ dựng được T6. Không raise khi thiếu — báo qua
     `sample_report`, vì một corpus một-tenant vẫn là đầu vào hợp lệ."""
-    khoa = sorted(nhom)
-    tenants = sorted({t for t, _ in khoa})
+    keys = sorted(groups)
+    tenants = sorted({t for t, _ in keys})
     cases: list[GoldenCase] = []
-    stt = bat_dau
+    seq = start_index
 
-    for i in range(so_bay):
-        tenant_hoi, vai_hoi = khoa[i % len(khoa)]
-        cheo_tenant = len(tenants) > 1 and i % 2 == 0
-        nguon = _chon_nguon_bay(nhom, khoa, tenant_hoi, vai_hoi, cheo_tenant)
-        if nguon is None:
+    for i in range(trap_count):
+        asking_tenant, asking_role = keys[i % len(keys)]
+        cross_tenant = len(tenants) > 1 and i % 2 == 0
+        trap_source = _pick_trap_source(groups, keys, asking_tenant, asking_role, cross_tenant)
+        if trap_source is None:
             continue
-        (tenant_dap, vai_dap), lo = nguon
-        query, expected = writer.write(lo)
-        stt += 1
-        truc = "T1 chéo-tenant" if tenant_dap != tenant_hoi else "T6 chéo-vai"
+        (answer_tenant, answer_role), batch = trap_source
+        query, expected = writer.write(batch)
+        seq += 1
+        axis = "T1 chéo-tenant" if answer_tenant != asking_tenant else "T6 chéo-vai"
         cases.append(
             GoldenCase(
-                case_id=f"AI-BAY-{stt:03d}",
+                case_id=f"AI-TRAP-{seq:03d}",
                 query=query,
-                tenant=tenant_hoi,
-                section_roles=(vai_hoi,),
-                expected_tenant=tenant_dap,
-                expected_section_role=vai_dap,
+                tenant=asking_tenant,
+                section_roles=(asking_role,),
+                expected_tenant=answer_tenant,
+                expected_section_role=answer_role,
                 expected="refusal",
                 expected_citation=(),
-                note=f"bẫy {truc}: đáp án ở {tenant_dap}/{vai_dap}, người hỏi là {tenant_hoi}/{vai_hoi}",
+                note=f"bẫy {axis}: đáp án ở {answer_tenant}/{answer_role}, người hỏi là {asking_tenant}/{asking_role}",
                 manual_label="refuse",
                 source="ai",
                 is_critical=True,
@@ -210,19 +210,19 @@ def _dung_case_bay(
     return cases
 
 
-def _chon_nguon_bay(
-    nhom: dict[tuple[str, str], list[SourceChunk]],
-    khoa: list[tuple[str, str]],
-    tenant_hoi: str,
-    vai_hoi: str,
-    cheo_tenant: bool,
+def _pick_trap_source(
+    groups: dict[tuple[str, str], list[SourceChunk]],
+    keys: list[tuple[str, str]],
+    asking_tenant: str,
+    asking_role: str,
+    cross_tenant: bool,
 ) -> tuple[tuple[str, str], tuple[SourceChunk, ...]] | None:
     """Nhóm chunk làm nguồn đáp án cho một case bẫy — phải KHÁC người hỏi ở đúng trục đang dựng."""
-    for k in khoa:
-        tenant, vai = k
-        hop = tenant != tenant_hoi if cheo_tenant else (tenant == tenant_hoi and vai != vai_hoi)
-        if hop and nhom[k]:
-            return k, tuple(nhom[k][:1])
+    for k in keys:
+        tenant, role = k
+        matches = tenant != asking_tenant if cross_tenant else (tenant == asking_tenant and role != asking_role)
+        if matches and groups[k]:
+            return k, tuple(groups[k][:1])
     return None
 
 
@@ -232,34 +232,34 @@ class SampleReport:
     biết nó lệch; thứ nguy hiểm là lệch mà không ai khai."""
 
     n_case: int
-    n_bay: int
-    ty_le_bay: float
-    theo_tenant: dict[str, int]
-    theo_vai: dict[str, int]
-    vai_thieu_case: tuple[str, ...]
-    ty_le_bay_dat: bool
+    n_traps: int
+    trap_ratio: float
+    by_tenant: dict[str, int]
+    by_role: dict[str, int]
+    roles_below_minimum: tuple[str, ...]
+    trap_ratio_met: bool
 
     @property
-    def dat_moi_quy_tac(self) -> bool:
-        return self.ty_le_bay_dat and not self.vai_thieu_case
+    def meets_all_rules(self) -> bool:
+        return self.trap_ratio_met and not self.roles_below_minimum
 
 
 def sample_report(cases: Sequence[GoldenCase], *, min_cases_per_role: int = MIN_CASES_PER_ROLE) -> SampleReport:
     """Đo ba quy tắc mẫu trên bộ vừa sinh (hoặc bộ viết tay — hàm không giả định nguồn).
 
     `is_refusal` suy từ `expected_citation` rỗng, đúng như `GoldenCase` đã khai — không đếm bằng
-    `case_id` có tiền tố `AI-BAY`, vì một bộ viết tay sẽ không mang tiền tố đó và phép đo phải dùng
+    `case_id` có tiền tố `AI-TRAP`, vì một bộ viết tay sẽ không mang tiền tố đó và phép đo phải dùng
     được cho cả hai."""
     n = len(cases)
-    n_bay = sum(1 for c in cases if c.is_refusal)
-    ty_le = n_bay / n if n else 0.0
-    theo_vai = Counter(vai for c in cases for vai in c.section_roles)
+    n_traps = sum(1 for c in cases if c.is_refusal)
+    ratio = n_traps / n if n else 0.0
+    by_role = Counter(role for c in cases for role in c.section_roles)
     return SampleReport(
         n_case=n,
-        n_bay=n_bay,
-        ty_le_bay=round(ty_le, 4),
-        theo_tenant=dict(sorted(Counter(c.tenant for c in cases).items())),
-        theo_vai=dict(sorted(theo_vai.items())),
-        vai_thieu_case=tuple(sorted(v for v, sl in theo_vai.items() if sl < min_cases_per_role)),
-        ty_le_bay_dat=0.20 <= ty_le <= 0.30,
+        n_traps=n_traps,
+        trap_ratio=round(ratio, 4),
+        by_tenant=dict(sorted(Counter(c.tenant for c in cases).items())),
+        by_role=dict(sorted(by_role.items())),
+        roles_below_minimum=tuple(sorted(v for v, sl in by_role.items() if sl < min_cases_per_role)),
+        trap_ratio_met=0.20 <= ratio <= 0.30,
     )
