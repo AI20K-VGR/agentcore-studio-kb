@@ -70,6 +70,12 @@ class Chunk:
     chunk của cùng 1 doc chia sẻ đúng 1 giá trị `doc_id` (`KbPipeline.delete_by_doc_id`). Rỗng mặc
     định — corpus tĩnh (`doc_factory`/`doc_factory_v2`) và chunk dựng lại từ dòng DB cũ trước khi có
     cột này đều không khai nó, giữ hành vi cũ nguyên vẹn (cùng khuôn với `embed_text`).
+
+    `doc_name` KHÁC `doc_id`: `doc_id` là khoá KỸ THUẬT (`slug(section_role)-slug(stem)`, có thể
+    mất dấu/rút gọn qua `_slugify`) — không được phép hiển thị thẳng lên UI. `doc_name` là tên
+    NGƯỜI ĐỌC ĐƯỢC (tên file gốc, bỏ đuôi, giữ nguyên hoa/thường/dấu) — seam riêng CHỈ để hiển thị,
+    không dùng để xoá/so khớp gì (đó vẫn là việc của `doc_id`). Rỗng mặc định, cùng khuôn
+    `embed_text`/`doc_id`.
     """
 
     chunk_id: str
@@ -78,6 +84,7 @@ class Chunk:
     section_role: str
     embed_text: str = ""
     doc_id: str = ""
+    doc_name: str = ""
 
     @property
     def embedding_input(self) -> str:

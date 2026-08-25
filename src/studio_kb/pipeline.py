@@ -25,11 +25,12 @@ from studio_kb.doc_factory_v2 import _cut_document
 from studio_kb.postgres import _UPSERT, Pool, _bind_tenant, _vector_literal
 from studio_kb.schema import EMBEDDING_DIM
 
-_SELECT_TENANT = "SELECT chunk_id, section_role, text, embed_text, doc_id FROM kb.chunks WHERE tenant_id = %s"
+_SELECT_TENANT = "SELECT chunk_id, section_role, text, embed_text, doc_id, doc_name FROM kb.chunks WHERE tenant_id = %s"
 _DELETE_TENANT = "DELETE FROM kb.chunks WHERE tenant_id = %s"
 _DELETE_DOC = "DELETE FROM kb.chunks WHERE tenant_id = %s AND doc_id = %s"
 _SELECT_TENANT_ORDERED = (
-    "SELECT chunk_id, section_role, text, embed_text, doc_id FROM kb.chunks WHERE tenant_id = %s ORDER BY chunk_id"
+    "SELECT chunk_id, section_role, text, embed_text, doc_id, doc_name "
+    "FROM kb.chunks WHERE tenant_id = %s ORDER BY chunk_id"
 )
 
 
@@ -90,6 +91,7 @@ class KbPipeline:
                             chunk.embedding_input,
                             _vector_literal(vector),
                             chunk.doc_id,
+                            chunk.doc_name,
                         ),
                     )
 
@@ -127,7 +129,7 @@ class KbPipeline:
         case đổi giữa hai lần chạy trên cùng dữ liệu, và cái đổi đó đi thẳng vào `eval.golden_sets`.
 
         Trả `Chunk` chứ không phải dòng thô: caller (composition root) không nên biết thứ tự cột.
-        `embed_text`/`doc_id` `NULL` → `""` cùng khuôn `re_index` ngay dưới.
+        `embed_text`/`doc_id`/`doc_name` `NULL` → `""` cùng khuôn `re_index` ngay dưới.
         """
         async with self._pool.connection() as conn, conn.transaction():
             await _bind_tenant(conn, tenant_id)
@@ -141,6 +143,7 @@ class KbPipeline:
                 section_role=r[1],
                 embed_text=r[3] or "",
                 doc_id=r[4] or "",
+                doc_name=r[5] or "",
             )
             for r in rows
         ]
@@ -157,8 +160,8 @@ class KbPipeline:
 
     async def re_index(self, tenant_id: UUID) -> int:
         """Nhúng lại + ghi lại mọi `kb.chunks` của `tenant_id` (vd sau khi nâng embedding). Trả số
-        dòng đã xử lý; **giữ nguyên `chunk_id`/`section_role`/`doc_id`** (đọc lại rồi upsert theo
-        `chunk_id`)."""
+        dòng đã xử lý; **giữ nguyên `chunk_id`/`section_role`/`doc_id`/`doc_name`** (đọc lại rồi
+        upsert theo `chunk_id`)."""
         async with self._pool.connection() as conn, conn.transaction():
             await _bind_tenant(conn, tenant_id)
             cursor = await conn.execute(_SELECT_TENANT, (tenant_id,))
@@ -167,9 +170,10 @@ class KbPipeline:
         # `embed_text` ĐỌC LẠI TỪ DB (r[3]) chứ không suy lại: tiêu đề tài liệu không nằm trong
         # `text` của bất kỳ dòng nào, và việc đã-cắt-boilerplate cần thống kê cả scope — một dòng
         # đơn lẻ không tái tạo được. Dòng cũ (trước khi có cột) trả NULL → `""` → `embedding_input`
-        # rơi về `text`, đúng hành vi trước đây. `doc_id` (r[4]) cùng khuôn: NULL (dòng ghi trước
-        # khi có cột) → `""`, không raise — mất khả năng `delete_by_doc_id` cho tới vòng re_index
-        # NÀY, sau đó tự phục hồi vì được ghi lại ở dưới.
+        # rơi về `text`, đúng hành vi trước đây. `doc_id` (r[4])/`doc_name` (r[5]) cùng khuôn: NULL
+        # (dòng ghi trước khi có cột) → `""`, không raise — `doc_id` mất khả năng
+        # `delete_by_doc_id` cho tới vòng re_index NÀY, sau đó tự phục hồi vì được ghi lại ở dưới;
+        # `doc_name` chỉ mất nhãn hiển thị, không ai đọc nó để so khớp/xoá gì.
         chunks = [
             Chunk(
                 chunk_id=r[0],
@@ -178,6 +182,7 @@ class KbPipeline:
                 section_role=r[1],
                 embed_text=r[3] or "",
                 doc_id=r[4] or "",
+                doc_name=r[5] or "",
             )
             for r in rows
         ]

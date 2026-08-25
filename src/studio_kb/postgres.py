@@ -59,15 +59,16 @@ from studio_kb.schema import EMBEDDING_DIM
 Pool = AsyncConnectionPool[AsyncConnection[Any]]
 
 _UPSERT = """
-INSERT INTO kb.chunks (chunk_id, tenant_id, section_role, text, embed_text, embedding, doc_id)
-VALUES (%s, %s, %s, %s, %s, %s::vector, %s)
+INSERT INTO kb.chunks (chunk_id, tenant_id, section_role, text, embed_text, embedding, doc_id, doc_name)
+VALUES (%s, %s, %s, %s, %s, %s::vector, %s, %s)
 ON CONFLICT (chunk_id) DO UPDATE SET
     tenant_id    = EXCLUDED.tenant_id,
     section_role = EXCLUDED.section_role,
     text         = EXCLUDED.text,
     embed_text   = EXCLUDED.embed_text,
     embedding    = EXCLUDED.embedding,
-    doc_id       = EXCLUDED.doc_id
+    doc_id       = EXCLUDED.doc_id,
+    doc_name     = EXCLUDED.doc_name
 """
 """`embed_text` lưu ĐÚNG chuỗi đã đem embed (`Chunk.embedding_input`), không phải một biến thể.
 
@@ -172,6 +173,7 @@ class KbIngest:
                             chunk.embedding_input,
                             _vector_literal(vector),
                             chunk.doc_id,
+                            chunk.doc_name,
                         ),
                     )
                     written += 1
