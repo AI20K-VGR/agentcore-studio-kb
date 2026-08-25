@@ -194,7 +194,7 @@ async def _run_spine(
     recipe = create_recipe(
         agent_id="agent-callisto-d4",
         tenant_id=recipe_tenant,
-        instructions="Tra cứu quy trình và bảo mật Callisto.",
+        system_prompt="Tra cứu quy trình và bảo mật Callisto.",
         tool_whitelist=[],
         nodes=[
             Node(id="n1", type=NodeType.KB_RETRIEVE, params={"query": effective_query, "top_k": 3}),
