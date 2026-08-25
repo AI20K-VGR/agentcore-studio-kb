@@ -18,6 +18,8 @@ Lưu ý: đây là văn bản do DongAnh2704 tự thiết kế và không có tr
 - **2026-08-05 (D13):** tạo file lần đầu — tổng hợp trọn 12 ngày (D1→D12) + trạng thái D13.
 - **2026-08-06 (D14):** thêm D13→D14 vào nhật ký — kho pgvector thật (D13) + bộ câu mẫu "có răng" cho AIE-1 đo chất lượng tìm kiếm (D14).
 - **2026-08-07 (D15):** chuyển "hôm nay" sang D15 — hoàn thiện màn hình xem nhật ký (thêm token + kiểm thứ tự đơn điệu); dọn mô tả trôi ở kho. **Không đổi cơ chế ghi nhật ký.**
+- **2026-08-22:** bù D16→D23 (Sprint 2 khép + Sprint 3 mở) — vá hàng rào tại chỗ lấy dữ liệu thật D17, qua **GATE-2** D20, rồi đổi hẳn "kho" từ 140 đoạn đếm-từ sang **800 đoạn có vector nghĩa thật** (D21→D23). Cập nhật mục 4 (vector không còn là bag-of-words), mục 6 (trạng thái hôm nay), mục 7 (từ điển) theo code hiện tại. Nhân lúc này cũng ghi nhận 2 việc **vừa** merge bên `apps/studio` cùng ngày (GAP-1/GAP-2) — không phải việc của DE nhưng đụng đúng chỗ hàng rào đang treo.
+- **2026-08-25:** bù D24→D27 (20→24/08) — **"cái còn thiếu" của D23 đã đóng**: câu hỏi người dùng giờ được vector-hoá bằng **model thật** (`gemini-embedding-001`, không còn bản ghi sẵn), 3 đường hỏi (chat/chạy thử/phát hành) đều đi qua đúng model đó. Kho tài liệu giờ **tự upload được thật** qua màn hình admin (trước đây chỉ là khung tĩnh) — cắt bằng cửa sổ trượt 850 từ/overlap 170 (chốt bằng đo A/B/C thật, không suy luận), nhận cả `.md`/`.txt`/`.docx` không cần cấu trúc heading. Vừa thêm cột `doc_id` thật (tách khỏi vai trò khoá chính của `chunk_id`) + khả năng xoá một tài liệu theo `doc_id`, đóng luôn lỗ "chunk mồ côi" khi re-upload bản ngắn hơn. Cập nhật mục 4 (thêm chặng "Kho tài liệu người dùng tự tải lên"), mục 5 (D24→D27), mục 6 (trạng thái hôm nay), mục 7 (từ điển). Ghi nhận thêm (không phải việc DE): AIE-1 đổi kiến trúc lõi bộ chạy luồng từ "đi lần lượt 4 bước cố định" sang **1 mô hình AI tự quyết định gọi công cụ nào, bao nhiêu lần** (vẫn giữ đường cũ làm phương án dự phòng); bộ câu mẫu chấm điểm (golden-set) chuyển từ file tĩnh sang lưu trong cơ sở dữ liệu, có hàng rào riêng theo khách hàng.
 
 ---
 
@@ -170,6 +172,29 @@ tài liệu borea → agent **từ chối**, không lộ con số của borea. �
 
 > *Nguồn:* `packages/kb/flow.md` (bản đồ luồng của DE) + issue #59 (kết quả thông luồng a→z, 5/5 đạt).
 
+### Luồng phụ: Tự tải tài liệu lên kho (mới, 24/08)
+
+Trước đây kho chỉ nạp được bằng lệnh của DE chạy tay (ingest script). Giờ có thêm một **cửa nạp tài
+liệu thật qua màn hình quản trị** — công ty tự tải file `.md`/`.txt`/`.docx` của mình lên, không cần
+DE can thiệp.
+
+- **Đầu vào:** 1 file + tên phòng ban được đọc *(người quản trị công ty chọn trên màn hình)*.
+- **Xử lý:** cắt file thành nhiều đoạn bằng **cửa sổ trượt** (mỗi đoạn ~850 từ, đoạn sau lấn lại 170
+  từ của đoạn trước để không đứt mạch ý) — khác cách cắt "theo tiêu đề chương mục" dùng cho kho mẫu có
+  sẵn, vì tài liệu công ty tự soạn không chắc có tiêu đề chuẩn. Mỗi đoạn được gán một **mã tài liệu**
+  (`doc_id`) rút từ tên file (vd `Bao Cao Q1.docx` → `bao-cao-q1`) — mã này **tách riêng khỏi** mã định
+  danh nội bộ của từng đoạn (`chunk_id`, vẫn phải là duy nhất tuyệt đối trong toàn kho nên có thêm phần
+  ngẫu nhiên phía sau, người dùng không nhìn thấy).
+- **Đầu ra:** các đoạn mới, đã có vector, nằm trong đúng kho + đúng phòng ban của công ty đó. Tải lại
+  file **cùng tên** (vd sửa nội dung rồi upload lại) sẽ **xoá sạch bản cũ trước khi ghi bản mới** —
+  trước đây nếu bản mới có ít đoạn hơn bản cũ thì các đoạn dư sẽ "mồ côi" nằm lại trong kho mãi mãi,
+  giờ đã đóng lỗ này.
+- **Rủi ro đã biết, cố ý chưa chặn:** 2 file **khác tên gốc** nhưng rút gọn ra trùng mã tài liệu (rất
+  hiếm) sẽ bị coi là cùng 1 tài liệu — file tải sau **âm thầm ghi đè** file trước. Chưa cần chặn cứng
+  vì bảng mã tài liệu-tên gốc riêng nằm ngoài phạm vi hiện tại.
+
+> *Nguồn:* `apps/studio/src/studio_app/routes/documents.py` + `packages/kb/src/studio_kb/chunk_window.py`.
+
 ---
 
 ## 5. Nhật ký từng ngày (D1→D14) — mỗi ngày team làm được gì (INPUT → OUTPUT)
@@ -240,30 +265,117 @@ chuẩn**: 14 câu "khó" (mỗi câu có ≥2 đoạn cạnh tranh cùng khách
 tốt/xấu) + 6 câu **bẫy rò rỉ** (T1/T6). *Input:* kho 140 đoạn. *Output:* bộ câu mẫu cho AIE-1 đo trade-off
 "cắt đoạn × vector" (DE cấp nhãn, không tự đo).
 
+**Ngày 15 (07/08) — Màn hình xem nhật ký nhìn rõ hơn.** In thêm số token trên mỗi dòng nhật ký + báo rõ
+nhật ký có phát đúng thứ tự thời gian không. Không đổi cách ghi nhật ký, chỉ đổi cách **xem lại**.
+
+### 🟠 Tuần 4 (vẫn Sprint 2) — Khoá nốt hàng rào, chuẩn bị GATE-2
+
+**Ngày 16 (10/08) — Bộ 30 câu mẫu thành "hàng đã đóng gói sẵn".** Thay vì gõ tay 30 câu vào một file rồi
+dễ gõ sai, DE làm **một lệnh phát ra cả kho tài liệu lẫn bộ câu mẫu cùng lúc, từ cùng một nguồn** — như
+vậy mã đoạn tài liệu trong câu mẫu **không bao giờ lệch** với mã đoạn thật trong kho. *Input:* kho 140
+đoạn + 30 câu mẫu đã có từ ngày 14. *Output:* bộ 30 câu "tự dựng lại được", đổi tên chính thức thành bản
+v1.
+
+**Ngày 17 (11/08) — Vá lỗ hàng rào tại chỗ lấy dữ liệu.** Đây là ngày quan trọng nhất còn thiếu ở mục 4:
+DE gỡ bỏ hẳn cánh cửa "chưa mở" (`KbSearchService` từng luôn báo lỗi) và **nối thẳng vào kho thật có hàng
+rào**. Từ hôm nay, hỏi chéo khách hàng (**T1**) bị chặn **thật**, có bài kiểm tra xác nhận, không còn là
+lời hứa. *Input:* kho thật (D13) + cơ chế lọc (D4). *Output:* cửa lấy tài liệu **luôn** lọc đúng khách
+hàng trước khi trả kết quả — không còn đường nào lấy dữ liệu mà bỏ qua hàng rào này.
+
+**Ngày 18 (12/08) — Đáp án "người chấm tự tay ghi".** DE gán 10 câu (trong 30 câu) một đáp án do **người
+đọc tài liệu bằng mắt** ghi ra — dùng để kiểm xem "giám khảo AI" (AIE-2) chấm có giống người thật hay
+không. Cùng ngày, cả nhóm chốt lại: bảng dữ liệu nào trong hệ thống **cần khoá hàng rào**, bảng nào không
+cần (dựa vào bảng đó có chứa thông tin riêng-tư-theo-khách-hàng hay không, không dựa vào "đã xây xong
+chưa").
+
+**Ngày 19 (13/08) — Khép sổ trước gate + tự bắt lỗi của chính mình.** DE đóng nốt 3 việc còn treo (tính
+tiền theo lượt chạy tính từ nhật ký, chốt hàng rào ở 2 bảng còn lại, chuẩn bị bằng chứng cho GATE-2) —
+và phát hiện **chính mình** vừa phát biểu sai về "hệ thống đang ở đâu" vì quên lấy dữ liệu mới nhất từ
+kho chung (chỉ lấy dữ liệu mới của module con, quên lấy của module cha). Tự sửa công khai trong ngày.
+
+**Ngày 20 (14/08) — GATE-2 (mốc nghiệm thu #2).** Không viết tính năng mới — là ngày **trình bằng
+chứng**: chạy thử hệ thống từ đầu (clone kho mới, làm theo đúng hướng dẫn) để xem người ngoài có dựng
+được không — phát hiện hướng dẫn **thiếu một bước** (nạp tài liệu vào kho trước khi mở khoá) → vá ngay.
+DE cũng tự chấm điểm mình theo phiếu chấm của thầy, thẳng thắn nhận phần làm chưa tốt (nộp phiếu muộn).
+**Điểm tạm tính của DE: 91.91, sát ngưỡng cao nhất.** *Đây là mốc cứng: qua được mới sang Sprint 3.*
+
+### 🔵 Sprint 3 — Từ "hàng rào chạy được" sang "kho hiểu nghĩa thật"
+
+**Ngày 21 (17/08) — Bắt đầu lứa kho tài liệu thứ hai + "hầm chông" đo model.** Kho cũ (140 đoạn) chỉ đủ
+để kiểm tra hàng rào có chạy hay không, không đủ để biết "máy tìm tài liệu" **giỏi hay dở**. DE dựng kho
+mới **80 tài liệu / 800 đoạn**, siết luật đặt tên chặt hơn (thư mục = khách hàng, tên file = ai được đọc,
+cấm khai gian), và bắt đầu xây một "bài thi" 100 câu hỏi gài bẫy để sau này so sánh các "bộ não tìm kiếm"
+(embedding) khác nhau xem cái nào giỏi thật.
+
+**Ngày 22 (18/08) — Tự vặn lại chính thước đo của mình.** DE phát hiện **3 chỗ đo sai** trong đúng bài thi
+vừa dựng hôm qua: (1) một tên số liệu đặt sai nghĩa, (2) số "top 10 kết quả" không khớp với thực tế hệ
+thống chỉ lấy 3, và (3) *lý do lớn nhất khiến máy tìm sai* hoá ra không phải do model kém mà do **kho tài
+liệu cắt đoạn kém** — tên chương mục bị cắt bỏ khi chia nhỏ tài liệu, khiến máy "quên mất chủ đề" của
+từng đoạn. Vá xong, tỉ lệ tìm đúng tăng rõ rệt mà không cần đổi model.
+
+**Ngày 23 (19/08) — Đổi "kho đếm từ" thành "kho hiểu nghĩa" — dấu mốc lớn nhất Sprint 3 tới giờ.** Từ
+Ngày 4 tới nay, kho luôn dùng cách hiểu văn bản **thô sơ**: đếm xem hai đoạn văn dùng chung bao nhiêu từ
+(giống đếm chữ, không hiểu nghĩa). Hôm nay DE **đổi hẳn kho thật trong cơ sở dữ liệu** sang dùng **vector
+do một model AI thật (`gemini-embedding-001`) sinh ra** — 2048 con số cho mỗi đoạn thay vì 8, đủ "chỗ"
+để biểu diễn nghĩa câu chữ chứ không chỉ đếm từ trùng. Toàn bộ 800 đoạn của kho mới đã được nạp lại bằng
+vector thật (không gọi máy chủ AI trực tiếp — dùng bản ghi sẵn do AIE-1 cung cấp, đã kiểm chứng khớp
+từng số). *Việc còn thiếu để dùng được trong demo thật: khi người dùng gõ câu hỏi trực tiếp trên web,
+câu hỏi đó cũng phải được đổi thành vector bằng ĐÚNG model đó — phần này là việc của AIE-1, DE mới xong
+phần "nạp vào kho", chưa xong phần "hỏi kho".*
+
+### 🟣 Sprint 3 (tiếp) — "Kho hiểu nghĩa" trở thành "kho dùng được thật"
+
+**Ngày 24 (20/08) — Chốt chiều vector 2048 + vá migration không phá dữ liệu cũ.** Model thật sinh
+vector 2048 con số (không phải 8 như bản giả trước đây). DE khoá cứng con số này trong cấu trúc kho,
+và viết đường **nâng cấp kho cũ lên chiều mới mà không xoá mất dữ liệu văn bản** — chỉ tính lại phần
+vector, giữ nguyên chữ.
+
+**Ngày 25–26 (22/08) — Cửa hỏi kho được nối vào đúng model thật.** Đây chính là "việc còn thiếu" đã
+ghi ở D23: câu hỏi người dùng gõ trên web giờ được đổi thành vector bằng **đúng** model đã dùng để nạp
+kho (`gemini-embedding-001` qua cổng thật, không còn bản ghi sẵn) — 3 đường hỏi (chat/chạy thử/phát
+hành) đều đi qua cùng một cửa. Cùng đợt, AIE-1 gửi vào kb 2 mảnh nền móng cho một kho tài liệu kiểu mới
+(bảng "kho" + "tài liệu" + "con trỏ đoạn", tách khỏi bảng đoạn cũ) — DE chỉ nhận/xác nhận, chưa dùng.
+
+**Ngày 27 (24/08) — Kho tự tải tài liệu lên (xem mục 4, luồng phụ) + chốt cách cắt đoạn bằng đo thật.**
+Ba việc trong một đợt: (1) thử nghiệm A/B/C thật trên 100 câu hỏi để **chốt kích thước đoạn cắt** —
+850 từ/chồng lấn 170 từ thắng cả bài đo chính lẫn bài đo "ngữ cảnh dài" (đoạn hẹp hơn tưởng chính xác
+hơn nhưng thực ra làm nhiều đoạn na ná chen vào top kết quả); (2) dựng cửa cắt đoạn mới không đòi tài
+liệu phải có tiêu đề chương mục, để nhận được cả `.txt` lẫn `.docx`; (3) mở màn hình admin **"Tải tài
+liệu lên"** thật — công ty tự nạp kho, không cần DE chạy lệnh tay nữa.
+
 ---
 
-## 6. Hôm nay đang ở đâu? (D15 — 07/08)
+## 6. Hôm nay đang ở đâu? (25/08 — Sprint 3, sau D27)
 
-**Việc DE hôm nay (#100):** hoàn thiện **"màn hình xem nhật ký" (trace viewer)** cho đủ yêu cầu Ngày 15.
+**Vừa xong (D24→D27, 20→24/08):** "cái còn thiếu" ghi ở D23 đã đóng — câu hỏi người dùng và nội dung
+kho giờ đi qua **cùng một model vector thật** (`gemini-embedding-001`) ở cả 3 đường hỏi (chat/chạy
+thử/phát hành), không còn khoảng lệch nào. Kho tài liệu giờ **tự tải lên được thật** qua màn hình admin
+(mục 4, luồng phụ) — cắt bằng cửa sổ trượt 850/170 chốt bằng đo A/B/C thật (không suy luận), nhận cả
+`.md`/`.txt`/`.docx`. Vừa thêm cột `doc_id` thật + khả năng xoá một tài liệu theo `doc_id`, đóng lỗ
+"chunk mồ côi" khi công ty re-upload bản tài liệu ngắn hơn.
 
-- **Màn hình xem nhật ký đã có từ Ngày 5** — in được timeline + chi phí + trích dẫn + kết luận "không
-  sót bước". Hôm nay **KHÔNG đổi cơ chế ghi nhật ký**, chỉ **vá 2 lỗ trên phần XEM**:
-  1. **In thêm token** (prompt/completion) trên mỗi dòng — con số vốn đã được thu, trước chỉ chưa hiển thị.
-  2. **Kiểm "thứ tự đơn điệu"** — viewer nói rõ nhật ký có phát ra đúng thứ tự thời gian không (trước
-     chỉ âm thầm sắp lại rồi trông như luôn ổn).
-- **Hàng rào tại chỗ lấy dữ liệu (chuẩn bị Ngày 17):** hôm nay chỉ **kiểm chứng** kho thật `PgKbSearch`
-  đã chặn rò rỉ (0-leak) + dọn mô tả cho khớp; **chưa lật "cửa chính thức" `KbSearchService`** — việc đó
-  để Ngày 17 (cần thêm phần INV-1 của SWE).
-- **Trạng thái:** đã mở **PR (#16 ở repo kb)**, chờ review/CI. Buổi ghép cả nhóm (Integration Friday):
-  phần DE (viewer đọc-lại) đã sẵn, **bản ghi buổi ghép còn treo**.
+**Cái còn thiếu (không phải việc của DE):** cửa nạp tài liệu tự động mới dừng ở "nạp được" — chưa có
+màn hình **xoá toàn bộ tài liệu của công ty** hay **nạp lại vector cho tất cả tài liệu cũ** dùng thật
+(hai việc này đã có sẵn ở tầng máy — chỉ chưa có nút bấm nối tới). Bảng "kho tài liệu kiểu mới" AIE-1
+gửi vào (22/08) cũng mới là khung, chưa ai dùng.
 
-**Điều cần biết cho người non-tech:** "vector" hiện vẫn tính bằng **đếm từ chung** (bag-of-words), **chưa
-phải AI hiểu nghĩa thật** — đổi sang vector-hiểu-nghĩa để **Sprint 3**, khi có hạ tầng bảo mật. Chấm điểm
-là *quy trình + hàng rào*, không phải *độ thông minh của AI*.
+**Không phải việc DE nhưng đáng chú ý (20→24/08):** AIE-1 đổi kiến trúc lõi bộ chạy luồng — từ "đi lần
+lượt 4 bước cố định" (mục 4) sang **1 mô hình AI tự quyết định gọi công cụ nào, bao nhiêu lần** (đường
+cũ vẫn giữ làm phương án dự phòng), và bắt đầu cắm thêm công cụ thật ngoài "hỏi kho" (vd máy tính, xem
+giờ). Bộ câu mẫu chấm điểm (golden-set) chuyển từ file tĩnh trên đĩa sang **lưu trong cơ sở dữ liệu**,
+có hàng rào riêng theo khách hàng, và công ty giờ tự nạp bộ câu mẫu của mình được (trước đây chỉ DE gán
+tay). Cách tính "chi phí một lượt chạy" cũng được nối vào **mọi** điểm ghi nhật ký, không còn rải rác.
 
-**Các ngày tới (D16→D20):** bộ 30 câu kiểm định (D16) → siết hàng rào chống rò rỉ T1/T6 + **lật cửa
-chính thức** (D17) → nhãn tay đo đồng thuận (D18) → giá tiền token cùng-1-số (D19) → **GATE-2 (D20)**
-ghép cả 4 mảng chạy thật lần đầu.
+**Vẫn treo từ trước (chưa đổi):** hàng rào-theo-vai (`section_role`) hiện vẫn *chỉ lọc bằng câu hỏi
+SQL, chưa có khoá cơ sở dữ liệu riêng* như hàng rào-theo-khách-hàng (`tenant_id`) đã có — khoảng trống
+đã biết trước, cố ý để dành, chưa phải lỗ hổng đang bị khai thác.
+
+**Trạng thái phần chấm điểm Sprint 2 → GATE-2 (D20, 14/08):** đã qua, điểm tạm tính DE **91.91** — sát
+ngưỡng cao nhất.
+
+**Các ngày tới:** đo lại các "bộ não tìm kiếm" (embedding) khác nhau trên kho 800 đoạn với vector thật;
+theo dõi quyết định còn treo về hàng rào-theo-vai ở tầng cơ sở dữ liệu; cân nhắc màn hình xoá/nạp-lại
+kho một khi có nhu cầu thật, thay vì làm trước khi cần.
 
 ---
 
@@ -288,6 +400,16 @@ ghép cả 4 mảng chạy thật lần đầu.
 | **INV-1 / tenant-wall** | "Tường" xác định danh tính khách hàng ở server, bỏ qua lời client tự khai |
 | **fixtures-first** | Test chạy 100% bằng dữ liệu ghi sẵn, không cần AI thật — để kết quả luôn lặp lại |
 | **T1 / T6** | Hai kiểu tấn công rò rỉ: T1 = đọc chéo khách hàng; T6 = giả nhãn vai để đọc trộm |
+| **Callisto 1.0 / 2.0** | Hai "lứa" kho tài liệu mẫu: 1.0 = 42 tài liệu/140 đoạn (S1-S2, kiểm hàng rào); 2.0 = 80 tài liệu/800 đoạn (S3, đo chất lượng tìm kiếm ở quy mô lớn hơn) |
+| **hit@k** | "Trong k kết quả trả về đầu tiên, có đúng cái cần tìm không?" — 1 nếu có, 0 nếu không; k khớp đúng số đoạn mà hệ thống thật sự đưa cho AI đọc (hiện là 3) |
+| **stratum S1–S5** | 5 "hạng" độ khó của câu hỏi kiểm tra: S1 trùng chữ (dễ) → S2 đổi cách nói (đồng nghĩa) → S3 có "mồi nhử" trông giống đáp án hơn cả đáp án thật → S4 mồi nhử ở phòng ban khác (kiểm hàng rào) → S5 hỏi thứ kho không có (phải biết từ chối) |
+| **embed-view (`embed_text`)** | Chuỗi chữ *đem đi tính vector* có thể khác chuỗi chữ *lưu để hiển thị* — vd thêm lại tên chương mục đã bị cắt mất lúc chia đoạn, giúp máy "nhớ chủ đề" mà không đổi nội dung hiển thị |
+| **GAP-1 / GAP-2** | Hai mục "khoảng trống đã biết trước, chưa vá" được đặt tên tắt để theo dõi: GAP-1 = khoá cơ sở dữ liệu cho bảng nhật ký; GAP-2 = bảng "ai thuộc phòng ban nào" — cả hai đều đã có bước đầu tiên merge 22/08, bên `apps/studio` |
+| **doc_id** (mã tài liệu) | Nhãn thân thiện của MỘT tài liệu (rút từ tên file, vd `bao-cao-q1`) — nhiều đoạn (chunk) của cùng tài liệu chia sẻ chung 1 `doc_id`; dùng để xoá cả tài liệu một lần |
+| **chunk_id** (mã đoạn) | Mã định danh DUY NHẤT của MỘT đoạn trong toàn kho (không riêng theo khách hàng) — khác `doc_id`, không được trùng dù 2 khách hàng cùng tên tài liệu |
+| **cửa sổ trượt (sliding window)** | Cách cắt đoạn không cần tiêu đề chương mục: cắt theo SỐ TỪ cố định, đoạn sau lấn lại một phần đoạn trước để không đứt mạch ý — dùng cho tài liệu công ty tự tải lên |
+| **agent-loop (1 mô hình AI tự quyết)** | Cách chạy mới của bộ chạy luồng (AIE-1, 20→24/08): thay vì đi lần lượt 4 bước cố định, để một model AI tự quyết định có cần gọi công cụ nào không, gọi mấy lần — đường 4-bước cũ vẫn giữ làm dự phòng |
+| **golden_store** | Nơi lưu bộ câu mẫu (golden-set) — vừa chuyển từ file tĩnh trên đĩa sang bảng trong cơ sở dữ liệu, có hàng rào theo khách hàng, công ty tự nạp bộ của mình được |
 
 ---
 
