@@ -91,7 +91,7 @@ class GeminiEmbedding:
         self.model = model
         self.dim = dim
         self._allow_network = allow_network
-        self._cache = cache or VectorCache(self.name, model=model, dim=dim)
+        self._cache = VectorCache(self.name, model=model, dim=dim) if cache is None else cache
 
     @property
     def cache(self) -> VectorCache:

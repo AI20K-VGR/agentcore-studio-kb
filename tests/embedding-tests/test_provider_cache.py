@@ -16,7 +16,7 @@ from pathlib import Path
 import _harness as H
 import pytest
 from _vector_cache import VectorCache, cache_key
-from providers import GEMINI_DIM, GeminiEmbedding, MissingVectorError, l2_normalize
+from providers import GEMINI_DIM, GEMINI_MODEL, GeminiEmbedding, MissingVectorError, l2_normalize
 from record_provider_cache import golden_v2_texts, harness_texts, texts_to_record
 
 
@@ -126,6 +126,17 @@ def test_thieu_cache_thi_no_chu_khong_roi_ve_provider_khac(tmp_path: Path) -> No
     )
     with pytest.raises(MissingVectorError, match="chưa có trong cache"):
         provider.embed(["câu chưa từng embed"])
+
+
+def test_cache_rong_tiem_vao_khong_bi_thay_bang_cache_mac_dinh(tmp_path: Path) -> None:
+    """`kb#58`: cache vừa dựng (chưa có vector) là falsy — `cache or VectorCache(...)` từng vứt nó
+    im lặng và quay về `CACHE_DIR` mặc định, tức fixture ĐÃ COMMIT. Hậu quả thật: một cache tiêm để
+    TRÁNH đụng fixture lại ghi thẳng vào fixture, không gì báo (evidence: `kb#58`, +61 vector lẫn
+    vào baseline của `evalhub#31`)."""
+    name = f"{GEMINI_MODEL.rsplit('/', 1)[-1]}-d{GEMINI_DIM}"
+    rong = VectorCache(name, model=GEMINI_MODEL, dim=GEMINI_DIM, cache_dir=tmp_path)
+    assert not rong, "fixture phải THẬT SỰ rỗng, nếu không bài này rỗng nghĩa"
+    assert GeminiEmbedding(cache=rong)._cache is rong
 
 
 def test_l2_normalize_ra_vector_don_vi() -> None:

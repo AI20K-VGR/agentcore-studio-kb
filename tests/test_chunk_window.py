@@ -72,6 +72,14 @@ def test_tenant_va_section_role_gan_dung_cho_moi_chunk() -> None:
     assert all(c.section_role == "finance" for c in chunks)
 
 
+def test_doc_id_gan_dung_cho_moi_chunk() -> None:
+    """`doc_id` phải LÊN cả field `Chunk.doc_id`, không chỉ nằm trong `chunk_id` — thiếu nó thì
+    `KbPipeline.delete_by_doc_id` xoá 0 dòng vì cột thật trong DB rỗng, dù `chunk_id` vẫn mang tên
+    tài liệu (bẫy đã thấy khi chạy thật: xem đoạn hội thoại phát hiện `doc_id` rỗng trong `kb.chunks`)."""
+    chunks = cut_window(_words(26), "doc1", _TENANT, "finance", size=10, overlap=3)
+    assert all(c.doc_id == "doc1" for c in chunks)
+
+
 # ── idempotent — bắt buộc cho ON CONFLICT DO UPDATE ──────────────────────
 def test_deterministic_cat_lai_ra_dung_cung_ket_qua() -> None:
     text = _words(37)
