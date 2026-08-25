@@ -68,6 +68,14 @@ ALTER TABLE kb.chunks ADD COLUMN IF NOT EXISTS embed_text TEXT;
 -- tương tự embed_text: bắt buộc NOT NULL sẽ đỏ ngay ở ALTER TABLE với dòng cũ.
 ALTER TABLE kb.chunks ADD COLUMN IF NOT EXISTS doc_id TEXT;
 
+-- `doc_name` — tên hiển thị NGƯỜI ĐỌC ĐƯỢC cho UI, tách khỏi `doc_id` (khoá kỹ thuật, slugify từ
+-- `section_role`+tên file — có thể mất dấu/rút gọn, "không cho phép hiển thị thẳng dữ liệu nội bộ
+-- lên UI"). Là tên file gốc, BỎ ĐUÔI, giữ nguyên hoa/thường/dấu tiếng Việt (`Path(filename).stem`
+-- phía `apps/studio/routes/documents.py`) — khác `doc_id` (luôn slug, luôn có ý nghĩa xoá-theo-tài-
+-- liệu). Cùng khuôn vá cột `embed_text`/`doc_id` ở trên: dòng ghi TRƯỚC cột này giữ `doc_name IS
+-- NULL`, không NOT NULL vì lý do tương tự (ALTER TABLE sẽ đỏ ngay với dòng cũ).
+ALTER TABLE kb.chunks ADD COLUMN IF NOT EXISTS doc_name TEXT;
+
 -- Index cho đúng truy vấn `delete_by_doc_id` (`WHERE tenant_id = %s AND doc_id = %s`) — không có
 -- index này thì mỗi lần xoá là Seq Scan toàn bảng theo tenant.
 CREATE INDEX IF NOT EXISTS kb_chunks_doc_id_idx ON kb.chunks (tenant_id, doc_id);

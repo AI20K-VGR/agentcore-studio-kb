@@ -42,8 +42,8 @@ def _pipe(pool: object = None, embedding: object | None = None) -> KbPipeline:
     return KbPipeline(pool, embedding or _Embedding())  # type: ignore[arg-type]
 
 
-def _mk(chunk_id: str, tenant_id: UUID, role: str, text: str, *, doc_id: str = "") -> Chunk:
-    return Chunk(chunk_id=chunk_id, text=text, tenant_id=tenant_id, section_role=role, doc_id=doc_id)
+def _mk(chunk_id: str, tenant_id: UUID, role: str, text: str, *, doc_id: str = "", doc_name: str = "") -> Chunk:
+    return Chunk(chunk_id=chunk_id, text=text, tenant_id=tenant_id, section_role=role, doc_id=doc_id, doc_name=doc_name)
 
 
 async def _count_rows(pool: object, tenant_id: UUID) -> int:
@@ -134,6 +134,29 @@ async def test_index_ghi_doc_id_column(pool: object) -> None:
     assert row == ("leave",)
 
 
+async def test_index_ghi_doc_name_column(pool: object) -> None:
+    """`index` phải ghi cột `doc_name` — tên hiển thị NGƯỜI ĐỌC ĐƯỢC, tách khỏi `doc_id` (khoá kỹ
+    thuật, slugify). Không có nó thì UI chỉ còn cách hiển thị thẳng `doc_id`/`chunk_id` (dữ liệu
+    nội bộ), đúng thứ luật hiển thị cấm."""
+    pipe = _pipe(pool)
+    chunks = [
+        _mk(
+            "ankor-hr-leave#c1",
+            ANKOR_ID,
+            "hr",
+            "báo trước 3 ngày",
+            doc_id="hr-che-do-nghi-phep",
+            doc_name="Chế độ nghỉ phép",
+        )
+    ]
+    await pipe.index(chunks, await pipe.embed_invoke(chunks))
+    async with pool.connection() as conn, conn.transaction():  # type: ignore[attr-defined]
+        await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(ANKOR_ID),))
+        cur = await conn.execute("SELECT doc_name FROM kb.chunks WHERE chunk_id = %s", ("ankor-hr-leave#c1",))
+        row = await cur.fetchone()
+    assert row == ("Chế độ nghỉ phép",)
+
+
 async def test_delete_by_doc_id_chi_xoa_dung_doc_cung_tenant(pool: object) -> None:
     """Xoá theo `doc_id` chỉ đụng đúng document đó — document khác cùng tenant phải nguyên vẹn."""
     pipe = _pipe(pool)
@@ -196,9 +219,9 @@ async def test_chunks_for_tenant_keeps_doc_id_and_orders_deterministically(pool:
     cờ trả theo thứ tự chèn."""
     pipe = _pipe(pool)
     chunks = [
-        _mk("ankor-hr-z#c1", ANKOR_ID, "hr", "chunk z", doc_id="zeta"),
-        _mk("ankor-hr-a#c1", ANKOR_ID, "hr", "chunk a", doc_id="alpha"),
-        _mk("ankor-hr-m#c1", ANKOR_ID, "hr", "chunk m", doc_id="mu"),
+        _mk("ankor-hr-z#c1", ANKOR_ID, "hr", "chunk z", doc_id="zeta", doc_name="Zeta"),
+        _mk("ankor-hr-a#c1", ANKOR_ID, "hr", "chunk a", doc_id="alpha", doc_name="Alpha"),
+        _mk("ankor-hr-m#c1", ANKOR_ID, "hr", "chunk m", doc_id="mu", doc_name="Mu"),
     ]
     await pipe.index(chunks, await pipe.embed_invoke(chunks))
 
@@ -207,6 +230,7 @@ async def test_chunks_for_tenant_keeps_doc_id_and_orders_deterministically(pool:
 
     assert [c.chunk_id for c in first] == ["ankor-hr-a#c1", "ankor-hr-m#c1", "ankor-hr-z#c1"]
     assert [c.doc_id for c in first] == ["alpha", "mu", "zeta"]
+    assert [c.doc_name for c in first] == ["Alpha", "Mu", "Zeta"]
     assert first == second
 
 
@@ -258,6 +282,20 @@ async def test_re_index_giu_doc_id(pool: object) -> None:
         cur = await conn.execute("SELECT doc_id FROM kb.chunks WHERE chunk_id = %s", ("ankor-hr-leave#c1",))
         row = await cur.fetchone()
     assert row == ("leave",)
+
+
+async def test_re_index_giu_doc_name(pool: object) -> None:
+    """`re_index` phải giữ cột `doc_name` — cùng lý do `doc_id`: dựng lại `Chunk` TỪ DB, không suy
+    lại từ đâu khác. Rơi về rỗng thì UI mất nhãn hiển thị sau MỖI lần re-index."""
+    pipe = _pipe(pool)
+    chunks = [_mk("ankor-hr-leave#c1", ANKOR_ID, "hr", "báo trước 3 ngày", doc_id="leave", doc_name="Nghỉ phép")]
+    await pipe.index(chunks, await pipe.embed_invoke(chunks))
+    assert await pipe.re_index(ANKOR_ID) == 1
+    async with pool.connection() as conn, conn.transaction():  # type: ignore[attr-defined]
+        await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(ANKOR_ID),))
+        cur = await conn.execute("SELECT doc_name FROM kb.chunks WHERE chunk_id = %s", ("ankor-hr-leave#c1",))
+        row = await cur.fetchone()
+    assert row == ("Nghỉ phép",)
 
 
 # ── embed-view + re_index: chuỗi đem embed phải TÁI LẬP ĐƯỢC sau vòng đời DB ──
