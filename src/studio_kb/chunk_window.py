@@ -80,6 +80,7 @@ def cut_window(
                 text=" ".join(window),
                 tenant_id=tenant_id,
                 section_role=role,
+                doc_id=doc_id,
             )
         )
         if start + size >= len(words):
