@@ -165,6 +165,55 @@ async def test_delete_by_doc_id_khong_ton_tai_tra_0(pool: object) -> None:
     assert await _pipe(pool).delete_by_doc_id(ANKOR_ID, "khong-ton-tai") == 0
 
 
+async def test_chunks_for_tenant_returns_every_section_of_that_tenant(pool: object) -> None:
+    """Trả **mọi** phòng ban của tenant, và KHÔNG lấy tenant khác.
+
+    Vế "mọi phòng ban" là vế đắt: `build_cases` cần chunk của ≥2 vai để ghép chéo dựng case bẫy.
+    Fixture bất đối xứng — `hr` 2 chunk, `finance` 1, và tenant KHÁC có 1 chunk cũng `hr`."""
+    pipe = _pipe(pool)
+    chunks = [
+        _mk("ankor-hr-a#c1", ANKOR_ID, "hr", "nghi phep bao truoc ba ngay", doc_id="leave"),
+        _mk("ankor-hr-b#c1", ANKOR_ID, "hr", "phu cap an trua", doc_id="meal"),
+        _mk("ankor-fin-a#c1", ANKOR_ID, "finance", "han muc chi tieu", doc_id="limit"),
+        _mk("borea-hr-a#c1", BOREA_ID, "hr", "cua tenant khac", doc_id="leave"),
+    ]
+    await pipe.index(chunks, await pipe.embed_invoke(chunks))
+
+    result = await pipe.chunks_for_tenant(ANKOR_ID)
+
+    assert [c.chunk_id for c in result] == ["ankor-fin-a#c1", "ankor-hr-a#c1", "ankor-hr-b#c1"]
+    assert {c.section_role for c in result} == {"hr", "finance"}, (
+        "phải trả CẢ HAI vai — một vai thì build_cases không ghép chéo được và bộ sinh ra 0 case bẫy"
+    )
+    assert all(c.tenant_id == ANKOR_ID for c in result)
+
+
+async def test_chunks_for_tenant_keeps_doc_id_and_orders_deterministically(pool: object) -> None:
+    """`doc_id` đọc lại được, và thứ tự theo `chunk_id` — hai lượt gọi cho CÙNG danh sách.
+
+    Thứ tự là vế đắt hơn: `build_cases` khai tất định, và nó tất định chỉ khi đầu vào tất định. Ghi
+    chunk theo thứ tự NGƯỢC với `chunk_id` để bài này đỏ nếu ai đó bỏ `ORDER BY` và Postgres tình
+    cờ trả theo thứ tự chèn."""
+    pipe = _pipe(pool)
+    chunks = [
+        _mk("ankor-hr-z#c1", ANKOR_ID, "hr", "chunk z", doc_id="zeta"),
+        _mk("ankor-hr-a#c1", ANKOR_ID, "hr", "chunk a", doc_id="alpha"),
+        _mk("ankor-hr-m#c1", ANKOR_ID, "hr", "chunk m", doc_id="mu"),
+    ]
+    await pipe.index(chunks, await pipe.embed_invoke(chunks))
+
+    first = await pipe.chunks_for_tenant(ANKOR_ID)
+    second = await pipe.chunks_for_tenant(ANKOR_ID)
+
+    assert [c.chunk_id for c in first] == ["ankor-hr-a#c1", "ankor-hr-m#c1", "ankor-hr-z#c1"]
+    assert [c.doc_id for c in first] == ["alpha", "mu", "zeta"]
+    assert first == second
+
+
+async def test_chunks_for_tenant_returns_empty_for_tenant_without_chunks(pool: object) -> None:
+    assert await _pipe(pool).chunks_for_tenant(BOREA_ID) == []
+
+
 async def test_consent_purge_chi_xoa_dung_tenant(pool: object) -> None:
     """Xoá của A → A rỗng; B **không đụng** (fail-closed). Trả số dòng đã xoá."""
     pipe = _pipe(pool)

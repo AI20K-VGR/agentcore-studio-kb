@@ -28,6 +28,9 @@ from studio_kb.schema import EMBEDDING_DIM
 _SELECT_TENANT = "SELECT chunk_id, section_role, text, embed_text, doc_id FROM kb.chunks WHERE tenant_id = %s"
 _DELETE_TENANT = "DELETE FROM kb.chunks WHERE tenant_id = %s"
 _DELETE_DOC = "DELETE FROM kb.chunks WHERE tenant_id = %s AND doc_id = %s"
+_SELECT_TENANT_ORDERED = (
+    "SELECT chunk_id, section_role, text, embed_text, doc_id FROM kb.chunks WHERE tenant_id = %s ORDER BY chunk_id"
+)
 
 
 class KbPipeline:
@@ -101,6 +104,46 @@ class KbPipeline:
             await _bind_tenant(conn, tenant_id)
             cursor = await conn.execute(_DELETE_DOC, (tenant_id, doc_id))
             return cursor.rowcount
+
+    async def chunks_for_tenant(self, tenant_id: UUID) -> list[Chunk]:
+        """Mọi `kb.chunks` của `tenant_id`, **mọi phòng ban**, xếp theo `chunk_id`.
+
+        Đường đọc cho bên sinh golden case từ KB đã upload (`studio_kb.golden_from_kb`). Trả về
+        **cả tenant** chứ không một phòng ban, và đó là điểm chính chứ không phải tiện tay:
+        `build_cases` dựng case **bẫy** bằng cách ghép chéo vai (`_chon_nguon_bay`) — hỏi dưới vai
+        A trong khi đáp án nằm ở vai B. Đưa nó chunk của đúng một vai thì không còn gì để ghép
+        chéo, và bộ sinh ra có **0 case hàng rào**: đo được, 400 chunk một vai ⇒ 58 case, 0 bẫy,
+        0 `is_critical`, 0 `tier="core"`. Tức cổng sẽ chấm chất lượng trả lời mà **không bao giờ**
+        chấm hàng rào — đúng trục duy nhất bắt được lỗi bịa-xuyên-chủ-thể (`engine#43`).
+
+        Caller lọc case theo phòng ban SAU khi sinh (mỗi case mang `section_roles=(vai_hỏi,)`),
+        chứ không lọc chunk TRƯỚC khi sinh.
+
+        Trục T1 (chéo-tenant) vẫn không sinh được từ đây và **không nên**: nó đòi chunk của tenant
+        khác, thứ RLS chặn và cũng không phải thứ nên đọc. Case T1 phải do người viết.
+
+        `ORDER BY chunk_id` không phải trang trí — `build_cases` khai tất định, và nó chỉ tất định
+        khi đầu vào tất định. Postgres không hứa thứ tự khi thiếu `ORDER BY`, nên bỏ nó đi thì bộ
+        case đổi giữa hai lần chạy trên cùng dữ liệu, và cái đổi đó đi thẳng vào `eval.golden_sets`.
+
+        Trả `Chunk` chứ không phải dòng thô: caller (composition root) không nên biết thứ tự cột.
+        `embed_text`/`doc_id` `NULL` → `""` cùng khuôn `re_index` ngay dưới.
+        """
+        async with self._pool.connection() as conn, conn.transaction():
+            await _bind_tenant(conn, tenant_id)
+            cursor = await conn.execute(_SELECT_TENANT_ORDERED, (tenant_id,))
+            rows = await cursor.fetchall()
+        return [
+            Chunk(
+                chunk_id=r[0],
+                text=r[2],
+                tenant_id=tenant_id,
+                section_role=r[1],
+                embed_text=r[3] or "",
+                doc_id=r[4] or "",
+            )
+            for r in rows
+        ]
 
     async def consent_purge(self, tenant_id: UUID) -> int:
         """Xoá mọi `kb.chunks` của `tenant_id` (consent / right-to-erasure). Trả số dòng đã xoá.
