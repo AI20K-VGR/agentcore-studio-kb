@@ -12,6 +12,7 @@ Corpus 2.0 (`docs/callisto-2.0-schema.md`): 1 file = 1 role, KHÔNG front-matter
 
 from __future__ import annotations
 
+import dataclasses
 from uuid import UUID
 
 import pytest
@@ -361,3 +362,45 @@ async def test_re_index_nhung_lai_DUNG_CHUOI_da_embed(pool: object) -> None:
     assert sorted(luc_reindex.da_embed) == sorted(luc_ingest.da_embed), (
         "re_index nhúng chuỗi KHÁC lúc ingest → vector trôi âm thầm sau mỗi vòng re-index"
     )
+
+
+async def test_document_text_roundtrip_and_tenant_isolation(pool: object) -> None:
+    """Toàn văn ghi rồi đọc lại nguyên vẹn, và mỗi tenant chỉ thấy của mình.
+
+    `kb.document_texts` bật RLS `FORCE` như `kb.chunks`. Rò ở bảng này không phải rò một câu — nó rò
+    **toàn văn** tài liệu nội bộ của công ty khác, tức nhiều hơn hẳn thứ một chunk để lộ."""
+    pipe = _pipe(pool)
+    await pipe.save_document_text(ANKOR_ID, "hr-noi-quy-md", "hr", "## Nghỉ phép\n12 ngày.")
+    await pipe.save_document_text(BOREA_ID, "hr-noi-quy-md", "hr", "## Nghỉ phép\n15 ngày.")
+
+    assert await pipe.document_texts_for_tenant(ANKOR_ID) == [("hr-noi-quy-md", "hr", "## Nghỉ phép\n12 ngày.")]
+    assert await pipe.document_texts_for_tenant(BOREA_ID) == [("hr-noi-quy-md", "hr", "## Nghỉ phép\n15 ngày.")]
+
+
+async def test_reuploading_a_document_replaces_its_text(pool: object) -> None:
+    """Nạp lại cùng `doc_id` là cách người dùng SỬA tài liệu ⇒ toàn văn phải bị thay.
+
+    `ON CONFLICT DO NOTHING` sẽ giữ bản cũ, và bộ golden sinh ra từ một nội dung không còn tồn tại —
+    hỏng im lặng, vì bộ vẫn có case và case vẫn trông hợp lệ."""
+    pipe = _pipe(pool)
+    await pipe.save_document_text(ANKOR_ID, "hr-ban-cu", "hr", "## Nghỉ phép\n12 ngày.")
+    await pipe.save_document_text(ANKOR_ID, "hr-ban-cu", "hr", "## Nghỉ phép\n20 ngày.")
+
+    texts = dict((doc, text) for doc, _, text in await pipe.document_texts_for_tenant(ANKOR_ID))
+    assert texts["hr-ban-cu"] == "## Nghỉ phép\n20 ngày."
+
+
+async def test_deleting_a_document_also_drops_its_text(pool: object) -> None:
+    """Xoá tài liệu phải xoá cả toàn văn, trong CÙNG transaction.
+
+    Để lại toàn văn là một tài liệu đã xoá vẫn sinh ra case golden trỏ vào những `chunk_id` không
+    còn tồn tại — mỗi case như vậy chấm ra `citation_accuracy = 0` vĩnh viễn mà không ai truy được
+    về đâu."""
+    pipe = _pipe(pool)
+    chunks = [dataclasses.replace(_mk("ankor-hr-xoa#c1", ANKOR_ID, "hr", "báo trước 3 ngày"), doc_id="hr-xoa")]
+    await pipe.index(chunks, await pipe.embed_invoke(chunks))
+    await pipe.save_document_text(ANKOR_ID, "hr-xoa", "hr", "## Nghỉ phép\n12 ngày.")
+
+    await pipe.delete_by_doc_id(ANKOR_ID, "hr-xoa")
+
+    assert [d for d, _, _ in await pipe.document_texts_for_tenant(ANKOR_ID)] == []

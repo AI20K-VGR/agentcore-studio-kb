@@ -107,3 +107,41 @@ def test_mac_dinh_module_dung_850_170() -> None:
     assert len(chunks[0].text.split()) == WORDS_PER_CHUNK
     for a, b in zip(chunks, chunks[1:], strict=False):  # so cặp liền kề — 2 mảng LỆCH 1 phần tử là CỐ Ý
         assert a.text.split()[-WORDS_OVERLAP:] == b.text.split()[:WORDS_OVERLAP]
+
+
+def test_chunk_text_keeps_the_original_line_breaks() -> None:
+    """Chunk phải giữ nguyên xuống dòng của tài liệu gốc.
+
+    `text.split()` + `" ".join(...)` làm mọi chunk thành MỘT dòng, và cấu trúc Markdown biến mất
+    ngay tại đây — `## Nghỉ phép năm` không còn là tiêu đề mà chỉ là mấy từ giữa câu. Bộ sinh golden
+    (`TemplateQuestionWriter`) đọc tiêu đề để đặt câu hỏi, nên tài liệu người dùng UPLOAD ra bộ rỗng
+    hoặc ra câu hỏi vô nghĩa, trong khi corpus seed (nạp qua đường khác, còn xuống dòng) thì ra bộ
+    tốt. Hai đường cho hai kết quả khác hẳn nhau mà không có gì báo.
+
+    Ranh giới chunk KHÔNG được đổi theo: `size`/`overlap` vẫn đếm theo từ như cũ, nên `chunk_id` và
+    số chunk của mọi tài liệu đã nạp giữ nguyên. Chỉ phần văn bản BÊN TRONG mỗi chunk lấy lại
+    khoảng trắng gốc."""
+    text = "## Nghỉ phép năm\nNhân viên được 12 ngày phép.\n\n## Thử việc\nThời gian 2 tháng."
+    chunks = cut_window(text, doc_id="d1", tenant_id=_TENANT, role="hr", size=200, overlap=20)
+
+    assert len(chunks) == 1
+    assert chunks[0].text == text.strip()
+    assert "\n## Thử việc\n" in chunks[0].text
+
+
+def test_word_windowing_is_unchanged_by_whitespace_preservation() -> None:
+    """Đối trọng bài trên: giữ khoảng trắng KHÔNG được làm đổi cách chia cửa sổ.
+
+    Nếu xuống dòng bị đếm như một "từ", mọi tài liệu đã nạp sẽ chia lại thành số chunk khác — và
+    `expected_citation` của mọi bộ golden đang có trỏ vào những `chunk_id` không còn tồn tại."""
+    words = [f"tu{i}" for i in range(25)]
+
+    # Cùng một danh sách từ, một bản nối bằng XUỐNG DÒNG và một bản nối bằng DẤU CÁCH. Nếu xuống
+    # dòng bị đếm như một "từ", hai bản sẽ chia ra số chunk khác nhau — đó là phép đo, và nó không
+    # phụ thuộc vào việc tôi đếm tay đúng hay sai số chunk kỳ vọng.
+    xuong_dong = cut_window("\n".join(words), doc_id="d1", tenant_id=_TENANT, role="hr", size=10, overlap=2)
+    dau_cach = cut_window(" ".join(words), doc_id="d1", tenant_id=_TENANT, role="hr", size=10, overlap=2)
+
+    assert [c.chunk_id for c in xuong_dong] == [c.chunk_id for c in dau_cach]
+    assert [c.text.split() for c in xuong_dong] == [c.text.split() for c in dau_cach]
+    assert xuong_dong[0].text.split() == words[:10]

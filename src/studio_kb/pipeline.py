@@ -28,6 +28,13 @@ from studio_kb.schema import EMBEDDING_DIM
 _SELECT_TENANT = "SELECT chunk_id, section_role, text, embed_text, doc_id, doc_name FROM kb.chunks WHERE tenant_id = %s"
 _DELETE_TENANT = "DELETE FROM kb.chunks WHERE tenant_id = %s"
 _DELETE_DOC = "DELETE FROM kb.chunks WHERE tenant_id = %s AND doc_id = %s"
+_DELETE_DOC_TEXT = "DELETE FROM kb.document_texts WHERE tenant_id = %s AND doc_id = %s"
+_UPSERT_DOC_TEXT = (
+    "INSERT INTO kb.document_texts (tenant_id, doc_id, section_role, text) VALUES (%s, %s, %s, %s) "
+    "ON CONFLICT (tenant_id, doc_id) DO UPDATE SET section_role = EXCLUDED.section_role, "
+    "text = EXCLUDED.text, created_at = now()"
+)
+_SELECT_DOC_TEXTS = "SELECT doc_id, section_role, text FROM kb.document_texts WHERE tenant_id = %s ORDER BY doc_id"
 _SELECT_TENANT_ORDERED = (
     "SELECT chunk_id, section_role, text, embed_text, doc_id, doc_name "
     "FROM kb.chunks WHERE tenant_id = %s ORDER BY chunk_id"
@@ -105,7 +112,38 @@ class KbPipeline:
         async with self._pool.connection() as conn, conn.transaction():
             await _bind_tenant(conn, tenant_id)
             cursor = await conn.execute(_DELETE_DOC, (tenant_id, doc_id))
+            # Toàn văn đi cùng chunk, trong CÙNG transaction. Để lại nó là một tài liệu đã xoá vẫn
+            # sinh ra case golden trỏ vào những `chunk_id` không còn tồn tại — mỗi case như vậy chấm
+            # ra `citation_accuracy = 0` vĩnh viễn mà không ai truy được về đâu.
+            await conn.execute(_DELETE_DOC_TEXT, (tenant_id, doc_id))
             return cursor.rowcount
+
+    async def save_document_text(self, tenant_id: UUID, doc_id: str, section_role: str, text: str) -> None:
+        """Giữ lại TOÀN VĂN tài liệu — thứ `extract_text` đã trích ra và `cut_window` đang vứt đi.
+
+        Ghi ở đường upload, đọc ở đường sinh golden. Hai tầng khác nhau cho hai việc khác nhau:
+        `kb.chunks` là tầng TRUY XUẤT (cửa sổ 850 từ, cắt ngang câu), còn soạn câu hỏi cần tầng TÀI
+        LIỆU (tiêu đề và thân bài còn nguyên).
+
+        `ON CONFLICT ... DO UPDATE` chứ không `DO NOTHING`: nạp lại cùng một tài liệu là cách người
+        dùng SỬA nó, và giữ bản cũ sẽ làm bộ golden sinh từ một nội dung không còn tồn tại."""
+        async with self._pool.connection() as conn, conn.transaction():
+            await _bind_tenant(conn, tenant_id)
+            await conn.execute(_UPSERT_DOC_TEXT, (tenant_id, doc_id, section_role, text))
+
+    async def document_texts_for_tenant(self, tenant_id: UUID) -> list[tuple[str, str, str]]:
+        """`(doc_id, section_role, text)` của mọi tài liệu ĐÃ lưu toàn văn, xếp theo `doc_id`.
+
+        Tài liệu nạp trước khi hệ thống bắt đầu lưu toàn văn sẽ **không** có mặt ở đây, và đó là
+        trạng thái hợp lệ: `build_cases` rơi về soạn ở tầng chunk cho đúng những tài liệu đó. Trả
+        rỗng cũng hợp lệ — một tenant chưa nạp gì.
+
+        `ORDER BY doc_id` cùng lý do `chunks_for_tenant`: `build_cases` khai tất định, và nó chỉ tất
+        định khi đầu vào tất định."""
+        async with self._pool.connection() as conn, conn.transaction():
+            await _bind_tenant(conn, tenant_id)
+            cursor = await conn.execute(_SELECT_DOC_TEXTS, (tenant_id,))
+            return [(str(r[0]), str(r[1]), str(r[2])) for r in await cursor.fetchall()]
 
     async def chunks_for_tenant(self, tenant_id: UUID) -> list[Chunk]:
         """Mọi `kb.chunks` của `tenant_id`, **mọi phòng ban**, xếp theo `chunk_id`.
