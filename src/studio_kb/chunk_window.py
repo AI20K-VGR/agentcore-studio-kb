@@ -27,6 +27,7 @@ cắt."""
 
 from __future__ import annotations
 
+import re
 from uuid import UUID
 
 from studio_kb.doc_factory_core import Chunk
@@ -63,9 +64,19 @@ def cut_window(
     if size <= 0 or overlap < 0 or overlap >= size:
         raise ValueError(f"cut_window: size={size} overlap={overlap} không hợp lệ (cần 0 <= overlap < size)")
 
-    words = text.split()
-    if not words:
+    # Giữ VỊ TRÍ của từng từ trong văn bản gốc, không chỉ giữ mặt chữ.
+    #
+    # `text.split()` + `" ".join(...)` ép mọi chunk thành một dòng, và cấu trúc Markdown chết ngay
+    # tại đây: `## Nghỉ phép năm` thôi là tiêu đề, chỉ còn là mấy từ giữa câu. Bộ sinh golden đọc
+    # tiêu đề để đặt câu hỏi, nên tài liệu UPLOAD ra bộ rỗng trong khi corpus seed (nạp qua đường
+    # khác, còn xuống dòng) ra bộ tốt — hai đường, hai kết quả, không có gì báo.
+    #
+    # Cửa sổ vẫn đếm theo TỪ y như cũ, nên `chunk_id` và số chunk của mọi tài liệu đã nạp không đổi;
+    # chỉ văn bản bên trong mỗi chunk lấy lại khoảng trắng gốc bằng cách cắt theo offset.
+    spans = [(m.start(), m.end()) for m in re.finditer(r"\S+", text)]
+    if not spans:
         return []
+    words = spans
 
     stride = size - overlap
     chunks: list[Chunk] = []
@@ -77,7 +88,7 @@ def cut_window(
         chunks.append(
             Chunk(
                 chunk_id=f"{doc_id}#c{n}",
-                text=" ".join(window),
+                text=text[window[0][0] : window[-1][1]],
                 tenant_id=tenant_id,
                 section_role=role,
                 doc_id=doc_id,

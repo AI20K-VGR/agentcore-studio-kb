@@ -58,28 +58,185 @@ class SourceChunk:
     text: str
     tenant: str
     section_role: str
+    doc_id: str = ""
+    """Tài liệu chứa chunk — khoá để ghép với `SourceDocument.text`.
+
+    KHÔNG suy từ tiền tố `chunk_id`, dù nhìn thì giống: `kb.chunks.doc_id` là
+    `"{vai}-{slug tên tệp}-{đuôi}"` còn tiền tố `chunk_id` là `"{tenant hex}-{vai}-{slug}-{hash}"`.
+    Hai chuỗi khác nhau cho cùng một tài liệu, và suy nhầm thì phép ghép **im lặng trượt**: mọi tài
+    liệu rơi về nhánh soạn ở tầng chunk, bộ vẫn ra case, không lỗi nào nổi lên. Đo được đúng ca đó.
+
+    Mặc định `""` cho fixture/test tự dựng chunk mà không quan tâm tài liệu — khi đó rơi về tiền tố
+    `chunk_id`, đủ để phân biệt tài liệu trong phạm vi một bộ test."""
+
+
+@dataclass(frozen=True, slots=True)
+class DraftedQuestion:
+    """Một cặp hỏi–đáp đã soạn, kèm **đúng một** chunk đã sinh ra nó.
+
+    Nằm ở đây chứ không ở `template_question_writer.py` vì nó là một nửa của giao diện
+    `QuestionWriter` — mọi bản soạn đều trả kiểu này, kể cả bản LLM cắm vào sau.
+
+    `source_chunk_id` là điểm khác biệt về chất so với giao diện cũ (`tuple[str, str]`): trước đây
+    `build_cases` không có cách nào biết đáp án đến từ chunk nào trong lô, nên nó gán CẢ LÔ vào
+    `expected_citation` — 5–7 `chunk_id` cho một câu hỏi. Agent lấy top-k vài chunk thì không đời nào
+    trích đủ, và `citation_accuracy` tụt thấp mà không phải vì agent sai (đo được 0.07 trên bộ thật
+    `kb-hr-auto-v1`).
+    """
+
+    query: str
+    expected: str
+    source_chunk_id: str
+    topic: str = ""
+    """Chủ đề đã đặt ra câu hỏi — phần tiêu đề, không có đuôi nghi vấn.
+
+    Tách khỏi `query` vì nó là thứ dùng để đo **mơ hồ**: một chủ đề xuất hiện ở nhiều tài liệu thì
+    câu hỏi dựng từ nó không chỉ đích danh được tài liệu nào, và `expected_citation` (đúng một
+    `chunk_id`) trở thành một lựa chọn tuỳ tiện giữa nhiều nguồn đều đúng."""
+
+
+@dataclass(frozen=True, slots=True)
+class SourceDocument:
+    """TOÀN VĂN một tài liệu đã nạp — tầng đúng để soạn câu hỏi.
+
+    `cut_window` cắt cửa sổ trượt 850 từ/overlap 170, **không quan tâm cấu trúc**: chunk bắt đầu và
+    kết thúc giữa câu, và tiêu đề của một mục có thể nằm ở chunk này còn con số đáp án nằm ở chunk
+    sau. Bộ soạn đọc từng chunk như thể đó là một tài liệu, nên nó dựng câu hỏi từ mảnh vụn.
+
+    Con số nói hết: tài liệu 179 từ nằm trọn MỘT chunk cho ra bộ 10 câu hỏi sạch; cùng bộ soạn đó
+    chạy trên tài liệu 31 chunk × 835 từ cho ra *"Xuất bản: Hà Nội & TP. Hồ Chí Minh là bao nhiêu
+    năm?"*. Bộ soạn không đổi — chỉ có TẦNG nó đọc là đổi.
+
+    Toàn văn được LƯU lúc upload (`extract_text` chạy trước `cut_window`) chứ không ghép lại từ
+    chunk: chunk chồng lấn nhau nên ghép được, nhưng phép dò phần chồng bằng nội dung **cắt mất
+    chữ** trên văn bản lặp lại — mà tài liệu nội quy đầy boilerplate lặp ở mọi trang. Mất chữ thì im
+    lặng: văn bản vẫn đọc trôi chảy ở từng đoạn.
+    """
+
+    doc_id: str
+    text: str
+    tenant: str
+    section_role: str
 
 
 class QuestionWriter(Protocol):
-    """Sinh `(query, expected)` từ một nhóm chunk. Seam để cắm LLM sau mà không đụng phần sinh."""
+    """Soạn một cặp hỏi–đáp từ một nhóm chunk. Seam để cắm LLM sau mà không đụng phần sinh.
 
-    def write(self, chunks: tuple[SourceChunk, ...]) -> tuple[str, str]: ...
+    Trả `None` nghĩa là **không soạn được** cho lô này, và `build_cases` bỏ lô đó thay vì sinh một
+    case rác. Trước đây giao diện là `tuple[str, str]` — không có đường nào để một bản soạn từ chối,
+    nên mọi lô đều ra case bất kể có hiểu nội dung hay không.
+
+    Bản nháp mang theo `source_chunk_id`: `expected_citation` của case là ĐÚNG chunk đó, không phải
+    cả lô. Xem `DraftedQuestion`."""
+
+    def write(self, chunks: tuple[SourceChunk, ...]) -> DraftedQuestion | None: ...
+
+    def write_all(self, chunks: tuple[SourceChunk, ...]) -> tuple[DraftedQuestion, ...]:
+        """MỌI cặp soạn được trong lô, không chỉ cặp đầu tiên.
+
+        `cut_window` cắt theo SỐ TỪ, nên một tài liệu quy định gọn nằm trọn trong một chunk dù có
+        mười mục. Chỉ lấy cặp đầu biến mười mục thành đúng một case — đo được: tài liệu 10 tiêu đề
+        upload xong ra bộ golden 2 case.
+
+        Thân hàm này là **tài liệu tham chiếu**, không phải fallback lúc chạy: `Protocol` chỉ đưa
+        thân mặc định cho lớp KẾ THỪA nó, mà mọi bản soạn trong repo đều khớp cấu trúc chứ không kế
+        thừa. Bản soạn nào cũng phải tự khai `write_all`."""
+        drafted = self.write(chunks)
+        return () if drafted is None else (drafted,)
 
 
 class ExtractiveQuestionWriter:
-    """Bản mặc định — **tất định, 0 call mạng**: lấy câu đầu của chunk đầu làm `expected`, và dựng
+    """Bản DỰ PHÒNG — **tất định, 0 call mạng**: lấy câu đầu của chunk đầu làm `expected`, và dựng
     `query` bằng một khuôn cố định quanh nó.
+
+    KHÔNG còn là mặc định: `TemplateQuestionWriter` (`template_question_writer.py`) đã thay chỗ đó,
+    vì bản này đòi agent chép lại nguyên văn tài liệu — đo được `expected` trung vị 102 ký tự trên
+    một bộ thật, trong khi nấc 1 khớp bằng token liền nhau. Giữ lại vì nó luôn soạn được: dùng khi
+    cần một bộ có case bằng mọi giá, và cho test nào cần một `QuestionWriter` không bao giờ từ chối.
 
     Chất lượng thấp và **nó khai đúng như thế**: case sinh ra mang `source="ai"`, và mục đích của
     bản này là làm cho đường ống chạy được đầu-cuối + kiểm được bằng test, không phải thay người
     viết câu hỏi. Một `QuestionWriter` gọi LLM cắm vào chỗ này không đổi một dòng nào của
     `build_cases`."""
 
-    def write(self, chunks: tuple[SourceChunk, ...]) -> tuple[str, str]:
+    def write_all(self, chunks: tuple[SourceChunk, ...]) -> tuple[DraftedQuestion, ...]:
+        """Bản này luôn soạn được đúng MỘT cặp — nó không hiểu cấu trúc để tách nhiều mục.
+
+        Khai tường minh thay vì dựa vào mặc định của `QuestionWriter`: `Protocol` có thân hàm mặc
+        định chỉ áp cho lớp KẾ THỪA nó, mà lớp này (như mọi bản soạn khác trong repo) chỉ khớp
+        cấu trúc chứ không kế thừa — nên thiếu dòng này là `AttributeError` lúc chạy."""
+        drafted = self.write(chunks)
+        return () if drafted is None else (drafted,)
+
+    def write(self, chunks: tuple[SourceChunk, ...]) -> DraftedQuestion | None:
         head = chunks[0].text.strip()
         first_sentence = head.split(".")[0].strip() if "." in head else head
         expected = first_sentence[:120]
-        return (f"Tài liệu nói gì về: {expected}?", expected)
+        return DraftedQuestion(
+            query=f"Tài liệu nói gì về: {expected}?",
+            expected=expected,
+            source_chunk_id=chunks[0].chunk_id,
+        )
+
+
+def _is_ambiguous_across_documents(topic: str, source_document: str, chunks: Sequence[SourceChunk]) -> bool:
+    """CHỦ ĐỀ có mặt ở một tài liệu KHÁC ⇒ câu hỏi này mơ hồ, không dựng được case.
+
+    `expected_citation` khai đúng một `chunk_id` và `citation_accuracy` chấm theo đúng id đó. Chủ đề
+    "Lưu trữ" nằm ở cả hồ sơ ngân sách lẫn hồ sơ mua sắm thì câu hỏi *"Lưu trữ là bao nhiêu năm?"*
+    không chỉ đích danh tài liệu nào, và agent trả lời ĐÚNG trích một nguồn ĐÚNG vẫn bị chấm 0 —
+    chỉ vì nó chọn tài liệu kia. Đo được đúng ca đó trên một lượt chấm thật.
+
+    Đo theo CHỦ ĐỀ chứ không theo cụm đáp án: cụm đáp án chỉ dài 2–4 token ("7 năm", "5%") nên nó
+    đụng nhau ở khắp nơi, và lọc theo nó cắt bộ 19 case xuống còn 6 — dưới cả mức tối thiểu mỗi
+    phòng ban. Chủ đề mới là thứ quyết định agent tra ra tài liệu nào.
+
+    Bỏ case thay vì nới `expected_citation` thành nhiều id: `citation_accuracy` chia cho
+    `len(expected)`, nên thêm id thứ hai làm một lượt trích đúng tụt xuống 0.5 — chữa một triệu
+    chứng bằng cách tạo ra triệu chứng khác.
+
+    Chỉ xét tài liệu KHÁC: `cut_window` cắt cửa sổ trượt có overlap nên một câu nằm ở hai chunk liền
+    kề trong cùng tài liệu là chuyện bình thường, chặn cả ca đó sẽ xoá phần lớn bộ case.
+
+    Và chỉ xét trong **cùng lô** — tức cùng `(tenant, vai)`. Agent hỏi dưới vai `hr` không truy được
+    tài liệu `finance` (hàng rào chặn ở tầng retrieval), nên một cụm trùng bên đó không tạo ra lựa
+    chọn nào cho nó. Quét toàn corpus sẽ bỏ nhầm phần lớn case chỉ vì các phòng ban dùng chung cách
+    diễn đạt.
+    """
+    if not topic:
+        return False
+    # So KHÔNG phân biệt hoa/thường: chủ đề lấy từ tiêu đề (viết hoa đầu từ) còn cùng cụm đó nằm
+    # giữa câu ở tài liệu khác thì viết thường — `"Phê duyệt công tác"` vs `"...thời gian phê duyệt
+    # công tác tối đa..."`. Phép so phân biệt hoa/thường bỏ lọt đúng ca đó.
+    needle = topic.casefold()
+    # So bằng ĐỊNH DANH TÀI LIỆU, không bằng tiền tố `chunk_id`: khi soạn ở tầng toàn văn, bản nháp
+    # mang `<doc_id>#doc` còn chunk mang `<tenant hex>-<vai>-<slug>-<hash>#c<N>`. Cắt tiền tố hai
+    # chuỗi đó ra sẽ thấy "khác tài liệu" ở MỌI cặp, nên mọi chủ đề đều bị gắn nhãn mơ hồ và bộ ra
+    # RỖNG — hỏng im lặng, vì "không soạn được" là kết quả hợp lệ.
+    return any(_document_id_of(c) != source_document and needle in c.text.casefold() for c in chunks)
+
+
+def _chunk_containing(phrase: str, chunks: Sequence[SourceChunk]) -> str | None:
+    """`chunk_id` của chunk ĐẦU TIÊN chứa `phrase`, hoặc `None`.
+
+    Đường VỀ của phép sinh ở tầng tài liệu: câu hỏi dựng từ toàn văn, nhưng `expected_citation` phải
+    trỏ một chunk agent **truy xuất được**. Không tìm thấy ⇒ `None` và caller bỏ case: gán đại một
+    `chunk_id` cho ra một case luôn trượt trục citation, mà nhìn từ ngoài giống hệt "agent trích
+    sai". Xảy ra thật khi cụm đáp án vắt qua ranh giới chunk."""
+    if not phrase:
+        return None
+    for chunk in chunks:
+        if phrase in chunk.text:
+            return chunk.chunk_id
+    return None
+
+
+def _document_id_of(chunk: SourceChunk) -> str:
+    """Tài liệu chứa chunk — `doc_id` thật khi có, tiền tố `chunk_id` khi không.
+
+    Hai chuỗi đó KHÁC nhau cho cùng một tài liệu (xem `SourceChunk.doc_id`), nên ưu tiên `doc_id`:
+    nó là thứ `kb.document_texts` dùng làm khoá và `delete_by_doc_id` dùng để xoá."""
+    return chunk.doc_id or chunk.chunk_id.split("#", 1)[0]
 
 
 def _group_by_role(chunks: Sequence[SourceChunk]) -> dict[tuple[str, str], list[SourceChunk]]:
@@ -96,6 +253,7 @@ def build_cases(
     writer: QuestionWriter | None = None,
     chunks_per_case: int = DEFAULT_CHUNKS_PER_CASE,
     trap_ratio: float = DEFAULT_TRAP_RATIO,
+    documents: Sequence[SourceDocument] = (),
 ) -> tuple[GoldenCase, ...]:
     """Dựng bộ case từ chunk đã index. Tất định: cùng đầu vào ra **cùng** danh sách.
 
@@ -116,7 +274,12 @@ def build_cases(
     Case bẫy mang `is_critical=True`: rò một case bẫy là **vi phạm hàng rào**, khác về chất với sai
     một câu nghiệp vụ. Đó là trục cổng bảo mật zero-tolerance đọc.
     """
-    writer = writer or ExtractiveQuestionWriter()
+    # Import trong hàm để cắt vòng: `template_question_writer` cần `SourceChunk`/`DraftedQuestion`
+    # khai ở module này, còn module này chỉ cần bản soạn mặc định lúc CHẠY. Đặt ở đầu file thì hai
+    # module import lẫn nhau.
+    from studio_kb.template_question_writer import TemplateQuestionWriter
+
+    writer = writer or TemplateQuestionWriter()
     groups = _group_by_role(chunks)
     if not groups:
         return ()
@@ -124,28 +287,66 @@ def build_cases(
     cases: list[GoldenCase] = []
     seq = 0
 
+    text_of_document = {d.doc_id: d.text for d in documents}
+
     for (tenant, role), role_chunks in sorted(groups.items()):
-        for i in range(0, len(role_chunks), chunks_per_case):
-            batch = tuple(role_chunks[i : i + chunks_per_case])
-            if not batch:
-                continue
-            query, expected = writer.write(batch)
-            seq += 1
-            cases.append(
-                GoldenCase(
-                    case_id=f"AI-{seq:03d}",
-                    query=query,
-                    tenant=tenant,
-                    section_roles=(role,),
-                    expected_tenant=tenant,
-                    expected_section_role=role,
-                    expected=expected,
-                    expected_citation=tuple(c.chunk_id for c in batch),
-                    note=f"sinh máy từ {len(batch)} chunk của {tenant}/{role}",
-                    source="ai",
-                    tier="full",
-                )
-            )
+        chunks_of_document: dict[str, list[SourceChunk]] = {}
+        for chunk in role_chunks:
+            chunks_of_document.setdefault(_document_id_of(chunk), []).append(chunk)
+
+        for doc_id, doc_chunks in sorted(chunks_of_document.items()):
+            # Soạn trên TOÀN VĂN khi có; rơi về cửa sổ chunk khi chưa có.
+            #
+            # Nhánh rơi-về không phải phòng hờ cho lỗi: mọi tài liệu nạp TRƯỚC khi hệ thống bắt đầu
+            # lưu toàn văn đều đi đường đó. Bỏ nó đi thì mọi KB đang dùng bỗng ra bộ rỗng sau lần
+            # nâng cấp này — một lần "cải tiến" xoá sạch dữ liệu chấm đang chạy.
+            text = text_of_document.get(doc_id)
+            if text is not None:
+                batches: list[tuple[SourceChunk, ...]] = [
+                    (SourceChunk(chunk_id=f"{doc_id}#doc", text=text, tenant=tenant, section_role=role),)
+                ]
+            else:
+                batches = [
+                    tuple(doc_chunks[i : i + chunks_per_case]) for i in range(0, len(doc_chunks), chunks_per_case)
+                ]
+
+            for batch in batches:
+                if not batch:
+                    continue
+                # Lấy MỌI cặp soạn được trong lô, không chỉ cặp đầu. Lô không soạn được thì bỏ, không
+                # bịa ra case: một bộ ít case mà đúng còn dùng được; một bộ đủ số lượng nhưng đòi chép
+                # lại tài liệu thì làm `success_rate` thấp bất kể agent tốt đến đâu, và một cổng luôn đỏ
+                # thì không còn là cổng.
+                for drafted in writer.write_all(batch):
+                    if _is_ambiguous_across_documents(drafted.topic, doc_id, role_chunks):
+                        continue
+                    # Khối toàn văn mang `<doc_id>#doc`, KHÔNG nằm trong `kb.chunks`. Ánh xạ về chunk
+                    # thật chứa đáp án; không chunk nào chứa ⇒ bỏ case.
+                    citation = (
+                        _chunk_containing(drafted.expected, doc_chunks) if text is not None else drafted.source_chunk_id
+                    )
+                    if citation is None:
+                        continue
+                    seq += 1
+                    cases.append(
+                        GoldenCase(
+                            case_id=f"AI-{seq:03d}",
+                            query=drafted.query,
+                            tenant=tenant,
+                            section_roles=(role,),
+                            expected_tenant=tenant,
+                            expected_section_role=role,
+                            expected=drafted.expected,
+                            # ĐÚNG MỘT chunk — chunk đã sinh ra đáp án, không phải cả lô. Gán cả lô là thứ
+                            # kéo `citation_accuracy` xuống 0.07 trên bộ thật: agent lấy top-k vài chunk thì
+                            # không đời nào trích đủ 7 `chunk_id`, và nó bị chấm sai vì một chuyện nó không
+                            # làm sai. Bộ viết tay `callisto-2.0-golden-30-v1` cũng khai đúng 1 mỗi case.
+                            expected_citation=(citation,),
+                            note=f"sinh máy từ chunk {citation} ({tenant}/{role})",
+                            source="ai",
+                            tier="full",
+                        )
+                    )
 
     trap_count = _traps_needed(len(cases), trap_ratio)
     cases.extend(_build_trap_cases(groups, trap_count, writer, start_index=seq))
@@ -182,17 +383,22 @@ def _build_trap_cases(
     for i in range(trap_count):
         asking_tenant, asking_role = keys[i % len(keys)]
         cross_tenant = len(tenants) > 1 and i % 2 == 0
-        trap_source = _pick_trap_source(groups, keys, asking_tenant, asking_role, cross_tenant)
+        trap_source = _pick_trap_source(groups, keys, asking_tenant, asking_role, cross_tenant, variant=i)
         if trap_source is None:
             continue
         (answer_tenant, answer_role), batch = trap_source
-        query, expected = writer.write(batch)
+        drafted = writer.write(batch)
+        # Bản soạn từ chối lô này ⇒ không có câu hỏi nào để hỏi sai chỗ. Bỏ qua thay vì dựng một câu
+        # bẫy rỗng nghĩa: case bẫy mang `is_critical=True`, nên một case bẫy vô nghĩa không chỉ làm
+        # nhiễu số liệu mà còn kéo theo cổng bảo mật zero-tolerance.
+        if drafted is None:
+            continue
         seq += 1
         axis = "T1 chéo-tenant" if answer_tenant != asking_tenant else "T6 chéo-vai"
         cases.append(
             GoldenCase(
                 case_id=f"AI-TRAP-{seq:03d}",
-                query=query,
+                query=drafted.query,
                 tenant=asking_tenant,
                 section_roles=(asking_role,),
                 expected_tenant=answer_tenant,
@@ -206,7 +412,6 @@ def _build_trap_cases(
                 tier="core",
             )
         )
-        del expected
     return cases
 
 
@@ -216,14 +421,37 @@ def _pick_trap_source(
     asking_tenant: str,
     asking_role: str,
     cross_tenant: bool,
+    variant: int,
 ) -> tuple[tuple[str, str], tuple[SourceChunk, ...]] | None:
-    """Nhóm chunk làm nguồn đáp án cho một case bẫy — phải KHÁC người hỏi ở đúng trục đang dựng."""
-    for k in keys:
-        tenant, role = k
-        matches = tenant != asking_tenant if cross_tenant else (tenant == asking_tenant and role != asking_role)
-        if matches and groups[k]:
-            return k, tuple(groups[k][:1])
-    return None
+    """Nhóm chunk làm nguồn đáp án cho một case bẫy — phải KHÁC người hỏi ở đúng trục đang dựng.
+
+    Trả về **cả nhóm**, không phải `[:1]`. Bản soạn có quyền từ chối một chunk
+    (`QuestionWriter.write` trả `None`), và đưa đúng một chunk có nghĩa là: chunk đầu của vai đó
+    không soạn được câu hỏi ⇒ **toàn bộ** case bẫy hỏi dưới các vai khác biến mất cùng lúc — vì nó
+    luôn là CÙNG một chunk cho mọi lượt. Đo được trên tenant thật: 59 case trả-lời-được, 0 case bẫy,
+    tỷ lệ bẫy 0% so với quy tắc 20–30%.
+
+    Đưa cả nhóm để bản soạn tự quét tìm chunk đầu tiên hỏi được. Vẫn tất định: `groups` đã xếp theo
+    `chunk_id` (`_group_by_role`), và bản soạn duyệt theo đúng thứ tự đó."""
+    eligible = [
+        k
+        for k in keys
+        if (k[0] != asking_tenant if cross_tenant else (k[0] == asking_tenant and k[1] != asking_role)) and groups[k]
+    ]
+    if not eligible:
+        return None
+    # `variant` xoay cả hai trục: nhóm nguồn, và điểm bắt đầu TRONG nhóm đó.
+    #
+    # Không xoay thì mọi case bẫy cùng một vai hỏi lấy chung nhóm khớp đầu tiên, ra chung một câu
+    # hỏi, rồi bị `_drop_key_collisions` gộp còn một lúc ghi — tỷ lệ bẫy tụt từ 25% xuống ~6% mà con
+    # số trước khi lọc vẫn trông đúng. Xoay nhóm thôi chưa đủ khi chỉ có một nhóm hợp lệ (corpus 2
+    # vai), nên phải xoay cả điểm bắt đầu.
+    #
+    # Vẫn tất định: `eligible` giữ thứ tự của `keys` (đã sắp), và `variant` là chỉ số lượt.
+    key = eligible[variant % len(eligible)]
+    group = groups[key]
+    start = (variant // len(eligible)) % len(group)
+    return key, tuple(group[start:] + group[:start])
 
 
 @dataclass(frozen=True, slots=True)

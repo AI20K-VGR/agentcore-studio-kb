@@ -153,6 +153,39 @@ CREATE POLICY kb_chunks_tenant_isolation ON kb.chunks
     WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
 
 -- ---------------------------------------------------------------------------------------------
+-- Toàn văn tài liệu — tầng đúng để SOẠN câu hỏi golden, khác tầng để TRUY XUẤT.
+--
+-- `kb.chunks` là tầng truy xuất: cửa sổ trượt 850 từ/overlap 170, cắt theo số từ chứ không theo
+-- mục, nên mỗi chunk bắt đầu và kết thúc giữa câu. Bộ sinh golden đọc từng chunk như thể đó là một
+-- tài liệu, và nó dựng câu hỏi từ mảnh vụn — đo được: tài liệu 179 từ (trọn 1 chunk) ra bộ 10 câu
+-- sạch, tài liệu 31 chunk × 835 từ ra "Xuất bản: Hà Nội & TP. Hồ Chí Minh là bao nhiêu năm?".
+--
+-- Bảng RIÊNG chứ không thêm cột vào `kb.documents`: bảng đó là shell (DDL có từ kb#47, **0 dòng,
+-- chưa writer nào**) và có FK tới `kb.knowledge_bases`, nên ghi vào đó kéo theo cả một chuỗi bảng
+-- chưa dùng. Bảng này chỉ cần đúng một việc: giữ lại thứ `extract_text` đã trích ra và `cut_window`
+-- đang vứt đi.
+--
+-- KHÔNG ghép lại từ chunk (chúng chồng lấn nên về lý thuyết ghép được): phép dò phần chồng bằng nội
+-- dung **cắt mất chữ** trên văn bản lặp lại, mà tài liệu nội quy đầy boilerplate lặp ở mọi trang.
+-- Mất chữ thì im lặng — văn bản vẫn đọc trôi chảy ở từng đoạn.
+CREATE TABLE IF NOT EXISTS kb.document_texts (
+    tenant_id UUID NOT NULL,
+    doc_id TEXT NOT NULL,
+    section_role TEXT NOT NULL,
+    text TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, doc_id)
+);
+
+ALTER TABLE kb.document_texts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE kb.document_texts FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS kb_document_texts_tenant_isolation ON kb.document_texts;
+CREATE POLICY kb_document_texts_tenant_isolation ON kb.document_texts
+    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+-- ---------------------------------------------------------------------------------------------
 -- Target schema từ `G:\\My Drive\\ERD.drawio` (xem `DATABASE-DESIGN-DAY30.md` — 3 bảng này KHÔNG
 -- nằm trong phạm vi demo Day 30, land ở đây SỚM dưới dạng shell (cùng khuôn `obs.costs`/
 -- `obs.golden_sets`: DDL tồn tại, CHƯA có writer nào trong `apps/studio`/`KbPipeline` ghi vào các
