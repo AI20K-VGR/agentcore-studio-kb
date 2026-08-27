@@ -7,7 +7,7 @@ import zipfile
 
 import pytest
 from docx import Document
-from studio_kb.extract import UnsupportedFormatError, extract_text
+from studio_kb.extract import DocumentTooLongError, UnsupportedFormatError, extract_text
 
 
 @pytest.mark.parametrize("suffix", [".md", ".txt"])
@@ -117,3 +117,45 @@ def test_docx_hop_le_van_doc_binh_thuong_sau_ban_va() -> None:
     """Vế đối xứng của test trên — bản vá KHÔNG được biến mọi `.docx` thành lỗi."""
     raw = _build_docx(["Đoạn một.", "Đoạn hai."])
     assert extract_text("tai-lieu.docx", raw) == "Đoạn một.\nĐoạn hai."
+
+
+def test_extraction_stops_before_a_compression_bomb_blows_memory() -> None:
+    """`.docx` nén, nên số byte KHÔNG chặn được lượng chữ — phải chặn ngay lúc trích.
+
+    Đo trên hạn mức 1 MiB: `.txt` thuần ~168.000 từ, còn `.docx` nội dung lặp ~**14.400.000** từ.
+    Nâng hạn mức byte lên 10 MiB là scale con số đó lên ~144 triệu từ ≈ ~1 GB chuỗi — và
+    `_extract_docx` dựng TOÀN BỘ chuỗi trong bộ nhớ trước khi bất kỳ phép kiểm số từ nào chạy.
+
+    Nên `max_words` phải cưỡng chế **trong lúc trích**, không phải sau. Không có nó, nâng hạn mức
+    kích thước là biến một giới hạn thành một lỗ nuốt bộ nhớ."""
+    body = " ".join(["lap"] * 5_000)
+    raw = _build_docx([body] * 20)  # 100.000 từ, nén rất nhỏ
+
+    with pytest.raises(DocumentTooLongError) as exc:
+        extract_text("bom.docx", raw, max_words=1_000)
+    assert exc.value.max_words == 1_000
+
+
+def test_extraction_under_the_budget_returns_everything() -> None:
+    """Đối trọng: dưới hạn mức thì trả về ĐỦ, không cắt bớt.
+
+    Thiếu vế này, "dừng sớm" dễ nới thành cắt ngang mọi tài liệu — và một tài liệu bị cắt im lặng
+    sẽ sinh ra bộ golden thiếu mục mà không gì báo."""
+    raw = _build_docx(["Nghỉ phép năm 12 ngày.", "Thử việc 2 tháng."])
+
+    assert extract_text("ok.docx", raw, max_words=1_000) == "Nghỉ phép năm 12 ngày.\nThử việc 2 tháng."
+
+
+def test_a_plain_text_file_is_bounded_by_the_same_budget() -> None:
+    """`.md`/`.txt` cũng phải chịu cùng hạn mức.
+
+    Byte của chúng tỉ lệ với chữ nên nguy cơ thấp hơn `.docx`, nhưng hai đường đi qua cùng một hàm
+    và cùng một cổng — chỉ chặn một bên là để lại một cửa mở mà không ai nhớ vì sao nó mở."""
+    with pytest.raises(DocumentTooLongError):
+        extract_text("dai.txt", (" ".join(["tu"] * 5_000)).encode(), max_words=100)
+
+
+def test_omitting_the_budget_keeps_the_old_behaviour() -> None:
+    """`max_words=None` (mặc định) ⇒ không chặn gì — mọi call-site cũ không đổi một dòng."""
+    raw = (" ".join(["tu"] * 5_000)).encode()
+    assert len(extract_text("dai.txt", raw).split()) == 5_000
