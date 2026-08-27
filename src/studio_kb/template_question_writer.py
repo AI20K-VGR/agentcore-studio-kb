@@ -111,7 +111,9 @@ def _strip_diacritics(text: str) -> str:
 # đáp án. Đây là chỗ phân biệt "một con số" với "một đại lượng".
 # Mẫu chạy trên bản ĐÃ BỎ DẤU của dòng, nên danh sách đơn vị cũng phải bỏ dấu — và phải khử trùng
 # lặp giữ thứ tự, vì bỏ dấu làm vài đơn vị trùng nhau.
-_FOLDED_UNITS = tuple(dict.fromkeys(_strip_diacritics(u) for u in _ALL_UNITS))
+# Cả dạng CÓ DẤU lẫn dạng bỏ dấu: `_find_quantity` chạy mẫu này trên dòng gốc (khi dòng có dấu)
+# hoặc trên bản bỏ dấu (khi dòng vốn không dấu), nên mẫu phải nhận được cả hai.
+_FOLDED_UNITS = tuple(dict.fromkeys([*_ALL_UNITS, *(_strip_diacritics(u) for u in _ALL_UNITS)]))
 # Đường về: mẫu bắt được đơn vị ở dạng ĐÃ BỎ DẤU, nhưng câu hỏi phải viết CÓ DẤU. Không có bảng này
 # thì tài liệu gõ chuẩn cũng ra "… là bao nhiêu ngay?" — sửa được một nhóm tài liệu bằng cách làm
 # hỏng nhóm còn lại. Ánh xạ đầu tiên thắng, nên `năm` (có dấu) là dạng chuẩn của `nam`.
@@ -153,7 +155,18 @@ _DATE_LIKE = re.compile(r"\b\d{1,2}\s*[/-]\s*\d{1,2}(\s*[/-]\s*\d{2,4})?\b")
 # Viết ở dạng ĐÃ BỎ DẤU: `_find_quantity` che mẫu này trên bản đã bỏ dấu của dòng, nên `ngày` ở đây
 # phải là `ngay`. Để nguyên dạng có dấu thì mẫu không bao giờ khớp và cả bộ chặn thành vô hiệu —
 # đúng loại hỏng im lặng mà một bài test có thật mới bắt được.
-_ORDINAL_DATE = re.compile(r"\b(ngay|thang|quy|tuan)\s+\d{1,4}\b", re.IGNORECASE)
+_ORDINAL_DATE = re.compile(r"\b(ngày|ngay|tháng|thang|quý|quy|tuần|tuan)\s+\d{1,4}\b", re.IGNORECASE)
+
+# Số MỤC (`3.3`, `9.2`, `11.1`) đứng đầu dòng, ngay trước phần chữ của tiêu đề — không phải đại
+# lượng. Cùng lớp lỗi với `31/03` và `ngày 15`: một con số đứng cạnh chữ không tự động là một lượng.
+#
+# Đo được: `"3.3 Chính sách Hybrid Work & Work From Home là bao nhiêu ngày?"` — số mục bị đọc thành
+# đại lượng, và nó cũng bị kéo nguyên vào câu hỏi.
+#
+# Phân biệt với SỐ TIỀN bằng độ dài nhóm: dấu phân cách hàng nghìn luôn đúng 3 chữ số
+# (`50.000.000`), còn số mục thì không (`3.3`, `9.2`, `11.1`, `4.10`). Không có ràng buộc này thì
+# `50.000.000 VNĐ/năm` đứng đầu dòng bị che mất và cả dòng thành "không có đại lượng".
+_SECTION_NUMBER = re.compile(r"^\s*\d{1,3}(?:\.\d{1,2})+\s")
 
 # Token CẮT `expected`. Nấc 1 khớp token LIỀN NHAU, nên mỗi từ sau con số là một cơ hội lệch cách
 # diễn đạt. Những từ dưới đây mở ra một bổ ngữ — cắt tại đó giữ lại đúng phần mang thông tin:
@@ -198,18 +211,23 @@ def _question_tail(unit: str, topic: str) -> str:
 
     *"Mục tiêu 30-60-90 ngày là bao nhiêu ngày?"* là câu tự vấp vào chính nó; *"… là bao nhiêu?"*
     hỏi đúng cùng một chuyện mà đọc được."""
-    lowered = unit.lower()
-    # Viết lại đơn vị về dạng CÓ DẤU cho câu hỏi; phép so khớp bên dưới vẫn chạy trên dạng bỏ dấu.
-    spelled = _CANONICAL_UNIT.get(lowered, unit).lower()
-    if lowered in _strip_diacritics(topic).lower():
+    # Đơn vị bắt được có thể ở dạng CÓ DẤU (dòng có dấu) hoặc bỏ dấu (dòng không dấu) — mẫu nhận cả
+    # hai. Quy về MỘT dạng trước khi so, nếu không mỗi nhánh dưới đây chỉ đúng cho một nửa số tài
+    # liệu, và nửa còn lại lặng lẽ rơi xuống đuôi "là bao nhiêu?" chung.
+    folded = _strip_diacritics(unit).lower()
+    spelled = _CANONICAL_UNIT.get(folded, unit).lower()
+    if folded in _strip_diacritics(topic).lower():
         return "là bao nhiêu?"
-    if lowered in {_strip_diacritics(u).lower() for u in _TIME_UNITS}:
+    if folded in {_strip_diacritics(u).lower() for u in _TIME_UNITS}:
         return f"là bao nhiêu {spelled}?"
-    if lowered in {_strip_diacritics(u).lower() for u in _RATE_UNITS}:
+    if folded in {_strip_diacritics(u).lower() for u in _RATE_UNITS}:
         return "là bao nhiêu phần trăm?"
-    if lowered in {_strip_diacritics(u).lower() for u in _COUNT_UNITS}:
+    if folded in {_strip_diacritics(u).lower() for u in _COUNT_UNITS}:
         return f"là bao nhiêu {spelled}?"
     return "là bao nhiêu?"
+
+
+_HAS_DIACRITICS = re.compile(r"[^\x00-\x7F]")
 
 
 def _find_quantity(line: str) -> re.Match[str] | None:
@@ -217,8 +235,19 @@ def _find_quantity(line: str) -> re.Match[str] | None:
 
     Che ngày tháng bằng khoảng trắng cùng độ dài thay vì xoá: mọi `start()`/`end()` trả về sau đó vẫn
     trỏ đúng vị trí trong dòng GỐC, nên `_expected_from` cắt được từ chính dòng đó."""
-    masked = _DATE_LIKE.sub(lambda m: " " * len(m.group(0)), _strip_diacritics(line))
+    # Dòng CÓ dấu thì khớp trên chính nó; chỉ dòng không dấu mới bỏ dấu để khớp.
+    #
+    # Bỏ dấu vô điều kiện sinh ra va chạm: `quý` → `quy`, mà `quy` cũng là `Quy` trong `Quy trình`/
+    # `Quy định`/`Quy chế` — từ có mặt ở gần như mọi tài liệu quy định nội bộ. Đo được trên bộ thật:
+    # câu hỏi *"4.1 Nguyên tắc Tuyển dụng Nhân tài là bao nhiêu quý?"* với đáp án
+    # *"4.2 Quy trình Tuyển"* — cả hai đều vô nghĩa, và cả hai đọc trôi chảy.
+    #
+    # Không bỏ hẳn phép khớp bỏ dấu: nó tồn tại cho tài liệu gõ không dấu (chính fixture của repo
+    # viết vậy). Chặn `quy` vô điều kiện sẽ sửa một nhóm tài liệu bằng cách làm hỏng nhóm còn lại.
+    text = line if _HAS_DIACRITICS.search(line) else _strip_diacritics(line)
+    masked = _DATE_LIKE.sub(lambda m: " " * len(m.group(0)), text)
     masked = _ORDINAL_DATE.sub(lambda m: " " * len(m.group(0)), masked)
+    masked = _SECTION_NUMBER.sub(lambda m: " " * len(m.group(0)), masked)
     return _QUANTITY.search(masked)
 
 
@@ -226,6 +255,9 @@ def _clean_topic(raw: str) -> str | None:
     """Rút chủ đề từ một dòng tiêu đề. `None` nếu dòng đó không dùng làm chủ đề được."""
     topic = raw.strip().strip("#").strip()
     topic = re.sub(r"^[-*•]\s*", "", topic)
+    # Gỡ số mục ở đầu tiêu đề: hỏi *"3.3 Chính sách làm việc từ xa là bao nhiêu ngày?"* đọc như một
+    # lỗi đánh máy, và số mục không phải thứ người trả lời cần biết.
+    topic = _SECTION_NUMBER.sub("", topic)
     topic = topic.replace("**", "").replace("__", "").strip().rstrip(":").strip()
     if not topic or len(topic) > _MAX_TOPIC_CHARS:
         return None

@@ -394,3 +394,56 @@ def test_the_same_topic_twice_yields_one_question() -> None:
     a = _chunk("## Nghỉ phép năm\nNhân viên được 12 ngày phép.", chunk_id="d#c1")
     b = _chunk("## Nghỉ phép năm\nNhân viên được 12 ngày phép.", chunk_id="d#c2")
     assert len(TemplateQuestionWriter().write_all((a, b))) == 1
+
+
+def test_quy_trinh_is_not_the_unit_quy() -> None:
+    """`Quy trình`/`Quy định`/`Quy chế` KHÔNG phải đơn vị `quý`.
+
+    Phép khớp đơn vị chạy trên bản đã BỎ DẤU (để đọc được tài liệu gõ không dấu), và bỏ dấu biến
+    `quý` → `quy`. Mà `quy` cũng là `Quy` trong `Quy trình` — từ có mặt ở gần như mọi tài liệu quy
+    định nội bộ.
+
+    Đo được trên bộ thật: `"4.1 Nguyên tắc Tuyển dụng Nhân tài là bao nhiêu quý?"` với đáp án
+    `"4.2 Quy trình Tuyển"` — cả câu hỏi lẫn đáp án đều vô nghĩa, và cả hai đọc trôi chảy."""
+    assert TemplateQuestionWriter().write((_chunk("## Tuyển dụng\n4.2 Quy trình Tuyển dụng gồm năm bước."),)) is None
+
+
+def test_a_section_number_is_not_a_quantity() -> None:
+    """`3.3`, `9.2` là SỐ MỤC, không phải đại lượng.
+
+    Cùng lớp lỗi với `31/03` và `ngày 15`: một con số đứng cạnh chữ không tự động là một lượng. Số
+    mục đứng ở ĐẦU dòng, ngay trước phần chữ của tiêu đề."""
+    assert (
+        TemplateQuestionWriter().write((_chunk("## Chương 3\n3.3 Chính sách Hybrid Work & Work From Home."),)) is None
+    )
+
+
+def test_a_numbered_heading_loses_its_number_in_the_question() -> None:
+    """Số mục bị gỡ khỏi câu hỏi: hỏi *"3.3 Chính sách làm việc từ xa là bao nhiêu ngày?"* đọc như
+    một lỗi đánh máy, và số mục không phải thứ người trả lời cần biết."""
+    drafted = TemplateQuestionWriter().write(
+        (_chunk("## 3.3 Chính sách làm việc từ xa\nNhân viên được làm từ xa 2 ngày mỗi tuần."),)
+    )
+    assert drafted is not None
+    assert drafted.query == "Chính sách làm việc từ xa là bao nhiêu ngày?"
+
+
+def test_a_document_written_without_diacritics_still_matches_quarters() -> None:
+    """Đối trọng: tài liệu gõ KHÔNG DẤU vẫn phải khớp được `quy` = `quý`.
+
+    Đây là lý do phép khớp bỏ dấu tồn tại. Chặn `quy` vô điều kiện sẽ sửa một nhóm tài liệu bằng
+    cách làm hỏng nhóm còn lại — nên phải phân biệt theo việc DÒNG ĐÓ có dấu hay không."""
+    drafted = TemplateQuestionWriter().write((_chunk("## Danh gia hieu suat\nDien ra 2 quy mot lan."),))
+    assert drafted is not None
+    assert drafted.expected.startswith("2 quy")
+
+
+def test_a_money_amount_at_the_start_of_a_line_is_not_a_section_number() -> None:
+    """`50.000.000` đứng đầu dòng là SỐ TIỀN, không phải số mục.
+
+    Hai thứ cùng hình dạng `chữ số . chữ số . chữ số`. Phân biệt bằng độ dài nhóm: dấu phân cách
+    hàng nghìn luôn đúng 3 chữ số, số mục thì không (`3.3`, `9.2`, `11.1`). Thiếu ràng buộc đó thì
+    mọi dòng mở đầu bằng số tiền bị che mất và đọc thành 'không có đại lượng'."""
+    drafted = TemplateQuestionWriter().write((_chunk("## Hạn mức nội trú\n50.000.000 VNĐ mỗi năm."),))
+    assert drafted is not None
+    assert drafted.expected.startswith("50.000.000")
